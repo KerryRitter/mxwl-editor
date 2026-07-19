@@ -1,0 +1,12 @@
+{
+  "id": "generic",
+  "label": "Generic",
+  "workspacesRoot": "~/Workspaces",
+  "derive": {
+    "folderPattern": "(?<name>.+)",
+    "titleTemplate": "${name}",
+    "browserUrlTemplate": ""
+  },
+  "services": [],
+  "hide": ["node_modules", ".git", "dist", "out", "build", ".next", "coverage", ".cache", ".turbo", ".nx"]
+}
