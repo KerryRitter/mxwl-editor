@@ -1,41 +1,85 @@
 import { create } from 'zustand'
 
-export interface EditorFile {
+export type EditorFile = {
   path: string
   dirty: boolean
 }
 
-interface EditorState {
+type WsEditor = {
   files: EditorFile[]
   activePath: string | null
-  open: (path: string) => void
-  close: (path: string) => void
-  setActive: (path: string) => void
-  setDirty: (path: string, dirty: boolean) => void
-  closeAll: () => void
 }
 
+type EditorState = {
+  byWs: Record<string, WsEditor>
+  open: (wsId: string, path: string) => void
+  close: (wsId: string, path: string) => void
+  setActive: (wsId: string, path: string) => void
+  setDirty: (wsId: string, path: string, dirty: boolean) => void
+  clearWs: (wsId: string) => void
+}
+
+const empty = (): WsEditor => ({ files: [], activePath: null })
+
+const getWs = (byWs: Record<string, WsEditor>, wsId: string): WsEditor =>
+  byWs[wsId] ?? empty()
+
 export const useEditorStore = create<EditorState>((set, get) => ({
-  files: [],
-  activePath: null,
-  open: (path) => {
-    if (get().files.some((f) => f.path === path)) {
-      set({ activePath: path })
+  byWs: {},
+
+  open: (wsId, path) => {
+    const cur = getWs(get().byWs, wsId)
+    if (cur.files.some((f) => f.path === path)) {
+      set((s) => ({
+        byWs: { ...s.byWs, [wsId]: { ...getWs(s.byWs, wsId), activePath: path } }
+      }))
       return
     }
-    set((s) => ({ files: [...s.files, { path, dirty: false }], activePath: path }))
-  },
-  close: (path) =>
     set((s) => {
-      const files = s.files.filter((f) => f.path !== path)
+      const ws = getWs(s.byWs, wsId)
+      return {
+        byWs: {
+          ...s.byWs,
+          [wsId]: {
+            files: [...ws.files, { path, dirty: false }],
+            activePath: path
+          }
+        }
+      }
+    })
+  },
+
+  close: (wsId, path) =>
+    set((s) => {
+      const ws = getWs(s.byWs, wsId)
+      const files = ws.files.filter((f) => f.path !== path)
       const activePath =
-        s.activePath === path ? files[files.length - 1]?.path ?? null : s.activePath
-      return { files, activePath }
+        ws.activePath === path ? files[files.length - 1]?.path ?? null : ws.activePath
+      return { byWs: { ...s.byWs, [wsId]: { files, activePath } } }
     }),
-  setActive: (path) => set({ activePath: path }),
-  setDirty: (path, dirty) =>
+
+  setActive: (wsId, path) =>
     set((s) => ({
-      files: s.files.map((f) => (f.path === path ? { ...f, dirty } : f))
+      byWs: { ...s.byWs, [wsId]: { ...getWs(s.byWs, wsId), activePath: path } }
     })),
-  closeAll: () => set({ files: [], activePath: null })
+
+  setDirty: (wsId, path, dirty) =>
+    set((s) => {
+      const ws = getWs(s.byWs, wsId)
+      return {
+        byWs: {
+          ...s.byWs,
+          [wsId]: {
+            ...ws,
+            files: ws.files.map((f) => (f.path === path ? { ...f, dirty } : f))
+          }
+        }
+      }
+    }),
+
+  clearWs: (wsId) =>
+    set((s) => {
+      const { [wsId]: _, ...rest } = s.byWs
+      return { byWs: rest }
+    })
 }))

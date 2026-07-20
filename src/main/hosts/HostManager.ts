@@ -190,6 +190,7 @@ function normalizeHost(h: HostConfig & { browserUrlTemplate?: string }): HostCon
     folderFilter: h.folderFilter,
     services,
     hide,
+    terminalStartup: h.terminalStartup?.trim() || undefined,
     addedAt: h.addedAt || Date.now(),
     kind: h.kind ?? 'ssh'
   }

@@ -22,8 +22,7 @@ const App: FC = () => {
   const setActive = useWorkspacesStore((s) => s.setActive)
   const newModalOpen = useWorkspacesStore((s) => s.newModalOpen)
   const setNewModalOpen = useWorkspacesStore((s) => s.setNewModalOpen)
-  const closeAllEditor = useEditorStore((s) => s.closeAll)
-  const active = workspaces.find((w) => w.id === activeId)
+  const clearEditorWs = useEditorStore((s) => s.clearWs)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteMode, setPaletteMode] = useState<'files' | 'commands'>('commands')
@@ -33,10 +32,6 @@ const App: FC = () => {
     loadHosts()
     loadWorkspaces()
   }, [setPingResult, loadHosts, loadWorkspaces])
-
-  useEffect(() => {
-    closeAllEditor()
-  }, [activeId, closeAllEditor])
 
   useEffect(() => {
     const openPalette = (mode: 'files' | 'commands'): void => {
@@ -61,6 +56,7 @@ const App: FC = () => {
         setNewModalOpen(true)
       } else if (key === 'w' && !e.shiftKey && activeId) {
         e.preventDefault()
+        clearEditorWs(activeId)
         void closeWs(activeId)
       } else if (e.key === ',') {
         e.preventDefault()
@@ -78,7 +74,7 @@ const App: FC = () => {
       window.removeEventListener('keydown', onKey, true)
       off()
     }
-  }, [setNewModalOpen, closeWs, activeId])
+  }, [setNewModalOpen, closeWs, clearEditorWs, activeId])
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
@@ -139,7 +135,19 @@ const App: FC = () => {
       {workspaces.length > 0 && <WorkspaceTabs />}
       {workspaces.length === 0 && <EmptyTabStrip />}
 
-      <div className="min-h-0 flex-1">{active ? <WorkspaceView ws={active} /> : <HostManager />}</div>
+      <div className="relative min-h-0 flex-1">
+        {!activeId && <HostManager />}
+        {workspaces.map((w) => (
+          <div
+            key={w.id}
+            className={`absolute inset-0 ${
+              w.id === activeId ? 'z-10' : 'invisible pointer-events-none z-0'
+            }`}
+          >
+            <WorkspaceView ws={w} active={w.id === activeId} />
+          </div>
+        ))}
+      </div>
 
       {settingsOpen && (
         <SettingsModal onClose={() => setSettingsOpen(false)} hideBrowserWs={activeId} />

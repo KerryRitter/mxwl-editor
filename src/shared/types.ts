@@ -23,6 +23,8 @@ export type HostConfig = {
   services: PresetService[]
   /** Extra names to hide in the file tree */
   hide?: string[]
+  /** Sent to the first terminal after connect (e.g. `claudey`) */
+  terminalStartup?: string
   addedAt: number
 }
 
@@ -44,6 +46,7 @@ export type HostInput = {
   folderFilter?: string
   services?: PresetService[]
   hide?: string[]
+  terminalStartup?: string
   auth: HostAuthInput
 }
 

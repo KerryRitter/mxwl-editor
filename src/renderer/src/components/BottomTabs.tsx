@@ -10,11 +10,18 @@ type BottomTabsProps = {
   wsId: string
   cwd: string
   hasServices?: boolean
+  workspaceActive?: boolean
 }
 
-export const BottomTabs: FC<BottomTabsProps> = ({ wsId, cwd, hasServices = true }) => {
+export const BottomTabs: FC<BottomTabsProps> = ({
+  wsId,
+  cwd,
+  hasServices = true,
+  workspaceActive = true
+}) => {
   const [tab, setTab] = useState<BottomTab>('terminal')
   const active: BottomTab = tab === 'logs' && !hasServices ? 'terminal' : tab
+  const showDevtools = workspaceActive && active === 'devtools'
 
   useEffect(() => {
     const off = window.api.on('browser:devtools-show', (...args: unknown[]) => {
@@ -39,18 +46,30 @@ export const BottomTabs: FC<BottomTabsProps> = ({ wsId, cwd, hasServices = true 
           <Bug size={12} /> Dev Tools
         </TabBtn>
       </div>
-      <div className="min-h-0 flex-1">
-        {active === 'devtools' ? (
-          <DevToolsPanel wsId={wsId} />
-        ) : active === 'logs' && hasServices ? (
-          <DevPanel wsId={wsId} />
-        ) : (
-          <TerminalPane key={wsId} wsId={wsId} cwd={cwd} />
+      <div className="relative min-h-0 flex-1">
+        <Pane visible={active === 'terminal'}>
+          <TerminalPane wsId={wsId} cwd={cwd} />
+        </Pane>
+        {hasServices && (
+          <Pane visible={active === 'logs'}>
+            <DevPanel wsId={wsId} />
+          </Pane>
         )}
+        <Pane visible={active === 'devtools'}>
+          <DevToolsPanel wsId={wsId} visible={showDevtools} />
+        </Pane>
       </div>
     </div>
   )
 }
+
+const Pane: FC<{ visible: boolean; children: ReactNode }> = ({ visible, children }) => (
+  <div
+    className={`absolute inset-0 ${visible ? '' : 'invisible pointer-events-none'}`}
+  >
+    {children}
+  </div>
+)
 
 const TabBtn: FC<{
   active: boolean

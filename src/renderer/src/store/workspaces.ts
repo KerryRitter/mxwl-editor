@@ -26,6 +26,7 @@ type WorkspacesState = {
   setNewModalOpen: (open: boolean, hostId?: string | null) => void
   discover: (hostId: string) => Promise<void>
   open: (hostId: string, remotePath: string) => Promise<void>
+  openMany: (hostId: string, remotePaths: string[]) => Promise<void>
   close: (id: string) => Promise<void>
   applyEvent: (
     id: string,
@@ -83,6 +84,33 @@ export const useWorkspacesStore = create<WorkspacesState>((set) => ({
         : [...s.workspaces, state],
       activeId: state.id
     }))
+  },
+
+  openMany: async (hostId, remotePaths) => {
+    if (remotePaths.length === 0) return
+    let lastId: string | null = null
+    for (const remotePath of remotePaths) {
+      const existing = useWorkspacesStore.getState().workspaces.find(
+        (w) =>
+          w.hostId === hostId &&
+          (w.remotePath === remotePath ||
+            w.remotePath.endsWith(`/${remotePath.split('/').pop()}`) ||
+            w.remotePath.endsWith(`\\${remotePath.split(/[/\\]/).pop()}`))
+      )
+      if (existing) {
+        lastId = existing.id
+        continue
+      }
+      const state = await window.api.workspace.open(hostId, remotePath)
+      lastId = state.id
+      set((s) => ({
+        workspaces: s.workspaces.some((w) => w.id === state.id)
+          ? s.workspaces.map((w) => (w.id === state.id ? state : w))
+          : [...s.workspaces, state],
+        activeId: state.id
+      }))
+    }
+    if (lastId) set({ activeId: lastId })
   },
 
   close: async (id) => {

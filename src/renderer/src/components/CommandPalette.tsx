@@ -43,6 +43,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
   const hosts = useHostsStore((s) => s.hosts)
   const activeId = useWorkspacesStore((s) => s.activeId)
   const openFile = useEditorStore((s) => s.open)
+  const clearEditorWs = useEditorStore((s) => s.clearWs)
   const activeWs = workspaces.find((w) => w.id === activeId)
 
   useEffect(() => {
@@ -147,6 +148,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
           hint: 'Ctrl+W',
           group: 'Workspace',
           run: () => {
+            clearEditorWs(activeId)
             void closeWs(activeId)
             onClose()
           }
@@ -205,6 +207,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
     return list
   }, [
     activeId,
+    clearEditorWs,
     closeWs,
     hosts,
     onClose,
@@ -230,7 +233,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
         label: basename(path),
         hint: path,
         run: () => {
-          openFile(path)
+          if (activeId) openFile(activeId, path)
           onClose()
         }
       }))
@@ -241,7 +244,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
       hint: a.hint ?? a.group,
       run: () => void a.run()
     }))
-  }, [mode, files, filteredActions, openFile, onClose])
+  }, [mode, files, filteredActions, openFile, onClose, activeId])
 
   useEffect(() => {
     setCursor(0)

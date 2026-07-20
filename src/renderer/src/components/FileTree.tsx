@@ -117,7 +117,7 @@ const DirNode: FC<DirNodeProps> = ({ wsId, path, name, depth, refreshNonce }) =>
               key={c.path}
               depth={depth + 1}
               name={c.name}
-              onClick={() => open(c.path)}
+              onClick={() => open(wsId, c.path)}
             />
           )
         )}

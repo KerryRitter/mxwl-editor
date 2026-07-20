@@ -22,15 +22,17 @@ interface Snapshot {
 interface BrowserPaneProps {
   wsId: string
   defaultUrl?: string
+  active?: boolean
 }
 
-export function BrowserPane({ wsId, defaultUrl }: BrowserPaneProps): JSX.Element {
+export function BrowserPane({ wsId, defaultUrl, active: wsActive = true }: BrowserPaneProps): JSX.Element {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [snap, setSnap] = useState<Snapshot>({ wsId, activeId: null, tabs: [] })
   const [address, setAddress] = useState('')
   const active = snap.tabs.find((t) => t.id === snap.activeId) ?? null
 
   function sendBounds(): void {
+    if (!wsActive) return
     const el = viewportRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
@@ -45,8 +47,10 @@ export function BrowserPane({ wsId, defaultUrl }: BrowserPaneProps): JSX.Element
 
   useEffect(() => {
     let cancelled = false
-    void window.api.browser.activate(wsId)
-    void window.api.browser.setVisible(wsId, true)
+    if (wsActive) {
+      void window.api.browser.activate(wsId)
+      void window.api.browser.setVisible(wsId, true)
+    }
 
     const off = window.api.on('browser:event', (...args: unknown[]) => {
       const s = args[0] as Snapshot
@@ -73,10 +77,20 @@ export function BrowserPane({ wsId, defaultUrl }: BrowserPaneProps): JSX.Element
       ro.disconnect()
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onWinResize)
-      void window.api.browser.setVisible(wsId, false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wsId])
+
+  useEffect(() => {
+    if (wsActive) {
+      void window.api.browser.activate(wsId)
+      void window.api.browser.setVisible(wsId, true)
+      requestAnimationFrame(sendBounds)
+    } else {
+      void window.api.browser.setVisible(wsId, false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsActive, wsId])
 
   useEffect(() => {
     if (active) setAddress(active.url)

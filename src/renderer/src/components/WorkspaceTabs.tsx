@@ -2,6 +2,7 @@ import { useEffect, type FC } from 'react'
 import { Server, X } from 'lucide-react'
 import type { WorkspaceState, WorkspaceStatus } from '../../../shared/types'
 import { useWorkspacesStore } from '../store/workspaces'
+import { useEditorStore } from '../store/editor'
 import { NewWorkspaceButton } from './NewWorkspaceModal'
 
 const statusColor: Record<WorkspaceStatus, string> = {
@@ -18,6 +19,7 @@ export const WorkspaceTabs: FC = () => {
   const setActive = useWorkspacesStore((s) => s.setActive)
   const close = useWorkspacesStore((s) => s.close)
   const applyEvent = useWorkspacesStore((s) => s.applyEvent)
+  const clearEditorWs = useEditorStore((s) => s.clearWs)
   const hostsView = activeId === null
 
   useEffect(() => {
@@ -40,6 +42,11 @@ export const WorkspaceTabs: FC = () => {
   function focusWorkspace(id: string): void {
     setActive(id)
     void window.api.browser.activate(id)
+  }
+
+  function closeWorkspace(id: string): void {
+    clearEditorWs(id)
+    void close(id)
   }
 
   return (
@@ -83,7 +90,7 @@ export const WorkspaceTabs: FC = () => {
           <button
             onClick={(e) => {
               e.stopPropagation()
-              void close(w.id)
+              closeWorkspace(w.id)
             }}
             className="text-neutral-600 opacity-0 hover:text-red-400 group-hover:opacity-100"
           >

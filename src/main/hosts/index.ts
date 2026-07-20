@@ -46,6 +46,10 @@ function normalize(input: HostInput, existing?: HostConfig): HostConfig {
   const folderFilter =
     input.folderFilter !== undefined ? input.folderFilter || undefined : existing?.folderFilter
   const hide = input.hide !== undefined ? input.hide : existing?.hide ?? [...DEFAULT_HIDE]
+  const terminalStartup =
+    input.terminalStartup !== undefined
+      ? input.terminalStartup.trim() || undefined
+      : existing?.terminalStartup
   return {
     id: existing?.id ?? input.id ?? randomUUID(),
     addedAt: existing?.addedAt ?? Date.now(),
@@ -59,6 +63,7 @@ function normalize(input: HostInput, existing?: HostConfig): HostConfig {
     folderFilter,
     services,
     hide,
+    terminalStartup,
     auth: resolveAuth({ ...input, kind }, existing)
   }
 }

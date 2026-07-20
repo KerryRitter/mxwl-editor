@@ -42,6 +42,7 @@ type HostFormState = {
   passphrase: string
   password: string
   previewFolder: string
+  terminalStartup: string
 }
 
 const emptyForm = (): HostFormState => ({
@@ -59,7 +60,8 @@ const emptyForm = (): HostFormState => ({
   keyPath: '',
   passphrase: '',
   password: '',
-  previewFolder: 'myapp-PROJ-42'
+  previewFolder: 'myapp-PROJ-42',
+  terminalStartup: ''
 })
 
 function toForm(host: HostConfig): HostFormState {
@@ -78,7 +80,8 @@ function toForm(host: HostConfig): HostFormState {
     keyPath: host.auth.kind === 'key' ? host.auth.keyPath : '',
     passphrase: '',
     password: '',
-    previewFolder: 'myapp-PROJ-42'
+    previewFolder: 'myapp-PROJ-42',
+    terminalStartup: host.terminalStartup ?? ''
   }
 }
 
@@ -97,7 +100,8 @@ function toInput(form: HostFormState, id?: string): HostInput {
     folderFilter: form.folderFilter.trim() || undefined,
     derive: form.derive,
     services: form.services,
-    hide: parseHide(form.hide)
+    hide: parseHide(form.hide),
+    terminalStartup: form.terminalStartup.trim() || undefined
   }
   if (form.kind === 'local') {
     return {
@@ -460,6 +464,19 @@ const HostForm: FC<{
             />
           </Field>
 
+          <Field label="Terminal startup command (optional)">
+            <input
+              className={`${inputCls} font-mono`}
+              value={form.terminalStartup}
+              onChange={(e) => set('terminalStartup', e.target.value)}
+              placeholder="claudey"
+              spellCheck={false}
+            />
+            <p className="mt-1 text-[10px] text-neutral-600">
+              Runs once in the first shell when a workspace connects.
+            </p>
+          </Field>
+
           <section className="rounded-lg border border-neutral-800 bg-neutral-950/50 p-3">
             <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
               Folder → workspace mapping
@@ -501,6 +518,8 @@ const HostForm: FC<{
                   className={`${inputCls} flex-1`}
                   value={form.previewFolder}
                   onChange={(e) => set('previewFolder', e.target.value)}
+                  placeholder="Try a folder name (live preview, not saved)"
+                  spellCheck={false}
                 />
                 <span
                   className={`shrink-0 text-[10px] ${preview.ok ? 'text-emerald-400' : 'text-amber-400'}`}

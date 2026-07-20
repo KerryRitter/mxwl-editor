@@ -78,7 +78,7 @@ export function IntegrationsModal({
                   ))}
                 </div>
               )}
-              <LinkRow href={issue.url} label="Open in Jira" />
+              <LinkRow wsId={wsId} href={issue.url} label="Open in Jira" />
             </div>
           )}
         </Section>
@@ -101,7 +101,7 @@ export function IntegrationsModal({
                 {pr.author && <span className="text-[11px] text-neutral-500">{pr.author}</span>}
               </div>
               <p className="mt-1.5 text-sm text-neutral-200">{pr.title}</p>
-              {pr.url && <LinkRow href={pr.url} label="Open in Bitbucket" />}
+              {pr.url && <LinkRow wsId={wsId} href={pr.url} label="Open in Bitbucket" />}
             </div>
           )}
         </Section>
@@ -146,10 +146,18 @@ function Error({ text }: { text: string }): JSX.Element {
   return <p className="text-xs text-red-400">{text}</p>
 }
 
-function LinkRow({ href, label }: { href: string; label: string }): JSX.Element {
+function LinkRow({
+  wsId,
+  href,
+  label
+}: {
+  wsId: string
+  href: string
+  label: string
+}): JSX.Element {
   return (
     <button
-      onClick={() => window.open(href, '_blank')}
+      onClick={() => void window.api.browser.newTab(wsId, href)}
       className="mt-2 flex items-center gap-1 text-[11px] text-emerald-400 hover:underline"
     >
       <ExternalLink size={11} /> {label}

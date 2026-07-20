@@ -9,8 +9,8 @@ interface EditorProps {
 }
 
 export function Editor({ wsId }: EditorProps): JSX.Element {
-  const files = useEditorStore((s) => s.files)
-  const activePath = useEditorStore((s) => s.activePath)
+  const files = useEditorStore((s) => s.byWs[wsId]?.files ?? [])
+  const activePath = useEditorStore((s) => s.byWs[wsId]?.activePath ?? null)
   const setActive = useEditorStore((s) => s.setActive)
   const close = useEditorStore((s) => s.close)
   const setDirty = useEditorStore((s) => s.setDirty)
@@ -47,7 +47,7 @@ export function Editor({ wsId }: EditorProps): JSX.Element {
     editorRef.current = e
     e.onDidChangeModelContent(() => {
       const p = activePathRef.current
-      if (p) setDirty(p, true)
+      if (p) setDirty(wsIdRef.current, p, true)
     })
     e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void saveActive())
 
@@ -68,7 +68,7 @@ export function Editor({ wsId }: EditorProps): JSX.Element {
     if (!model) return
     window.api.fs
       .writeFile(wsIdRef.current, p, model.getValue())
-      .then(() => setDirty(p, false))
+      .then(() => setDirty(wsIdRef.current, p, false))
       .catch((err) => console.error('save failed', err))
   }
 
@@ -121,7 +121,7 @@ export function Editor({ wsId }: EditorProps): JSX.Element {
         {files.map((f) => (
           <div
             key={f.path}
-            onClick={() => setActive(f.path)}
+            onClick={() => setActive(wsId, f.path)}
             className={`flex cursor-pointer items-center gap-1.5 border-r border-neutral-800 px-3 text-xs ${
               activePath === f.path
                 ? 'bg-neutral-900 text-neutral-100'
@@ -132,7 +132,7 @@ export function Editor({ wsId }: EditorProps): JSX.Element {
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                close(f.path)
+                close(wsId, f.path)
               }}
               className="text-neutral-600 hover:text-red-400"
             >

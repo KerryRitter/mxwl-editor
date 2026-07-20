@@ -34,6 +34,7 @@ type Workspace = {
   terminals: Map<string, TerminalSession>
   browser: BrowserController
   dev: DevController
+  startupCommandSent: boolean
 }
 
 export class WorkspaceManager {
@@ -145,7 +146,8 @@ export class WorkspaceManager {
       fs: this.createFs(conn),
       terminals: new Map(),
       browser: new BrowserController(id, this.getSender),
-      dev: new DevController(id, conn, resolvedPath, this.getSender, services)
+      dev: new DevController(id, conn, resolvedPath, this.getSender, services),
+      startupCommandSent: false
     }
     this.workspaces.set(id, ws)
 
@@ -229,10 +231,22 @@ export class WorkspaceManager {
       rows: opts.rows,
       getSender: this.getSender
     })
+    const isFirst = ws.terminals.size === 0
     await session.start(opts.cols, opts.rows)
     ws.terminals.set(session.id, session)
     ws.state.terminal.sessionIds.push(session.id)
     if (!ws.state.terminal.activeSessionId) ws.state.terminal.activeSessionId = session.id
+
+    if (isFirst && !ws.startupCommandSent) {
+      const host = this.hosts.get(ws.state.hostId)
+      const cmd = host?.terminalStartup?.trim()
+      if (cmd) {
+        ws.startupCommandSent = true
+        const line = cmd.endsWith('\n') ? cmd : `${cmd}\n`
+        setTimeout(() => session.write(line), 500)
+      }
+    }
+
     return session.id
   }
 

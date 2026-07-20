@@ -68,7 +68,7 @@ export const SearchPanel: FC<{ wsId: string; onClose: () => void }> = ({ wsId, o
         {hits.map((h, i) => (
           <button
             key={`${h.path}:${h.line}:${i}`}
-            onClick={() => open(h.path)}
+            onClick={() => open(wsId, h.path)}
             className="flex w-full flex-col gap-0.5 border-b border-neutral-900 px-2 py-1.5 text-left hover:bg-neutral-900"
           >
             <span className="truncate text-[11px] text-emerald-400/90">

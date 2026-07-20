@@ -1,11 +1,15 @@
 import { useEffect, useRef, type FC } from 'react'
 
 /** Host slot for native Chromium DevTools (Elements / Network / Console / …). */
-export const DevToolsPanel: FC<{ wsId: string }> = ({ wsId }) => {
+export const DevToolsPanel: FC<{ wsId: string; visible?: boolean }> = ({
+  wsId,
+  visible = true
+}) => {
   const hostRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const sendBounds = (): void => {
+      if (!visible) return
       const el = hostRef.current
       if (!el) return
       const r = el.getBoundingClientRect()
@@ -18,7 +22,9 @@ export const DevToolsPanel: FC<{ wsId: string }> = ({ wsId }) => {
       })
     }
 
-    void window.api.browser.setDevtoolsVisible(wsId, true)
+    void window.api.browser.setDevtoolsVisible(wsId, visible)
+    if (!visible) return
+
     const ro = new ResizeObserver(() => sendBounds())
     if (hostRef.current) ro.observe(hostRef.current)
     const raf = requestAnimationFrame(sendBounds)
@@ -29,6 +35,11 @@ export const DevToolsPanel: FC<{ wsId: string }> = ({ wsId }) => {
       cancelAnimationFrame(raf)
       ro.disconnect()
       window.removeEventListener('resize', onWinResize)
+    }
+  }, [wsId, visible])
+
+  useEffect(() => {
+    return () => {
       void window.api.browser.setDevtoolsVisible(wsId, false)
     }
   }, [wsId])
@@ -36,9 +47,11 @@ export const DevToolsPanel: FC<{ wsId: string }> = ({ wsId }) => {
   return (
     <div className="relative h-full w-full bg-neutral-950">
       <div ref={hostRef} className="absolute inset-0" />
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] text-neutral-700">
-        Loading DevTools…
-      </div>
+      {visible && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] text-neutral-700">
+          Loading DevTools…
+        </div>
+      )}
     </div>
   )
 }
