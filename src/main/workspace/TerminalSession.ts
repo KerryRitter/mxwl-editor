@@ -13,6 +13,7 @@ export type TerminalSessionOptions = {
   cols: number
   rows: number
   getSender: () => BrowserWindow | null
+  onClosed?: (sessionId: string) => void
 }
 
 export class TerminalSession {
@@ -22,6 +23,7 @@ export class TerminalSession {
   private cwd: string
   private stream: ChannelLike | null = null
   private getSender: () => BrowserWindow | null
+  private onClosed?: (sessionId: string) => void
   private disposed = false
 
   constructor(opts: TerminalSessionOptions) {
@@ -30,6 +32,7 @@ export class TerminalSession {
     this.conn = opts.conn
     this.cwd = opts.cwd
     this.getSender = opts.getSender
+    this.onClosed = opts.onClosed
   }
 
   async start(cols: number, rows: number): Promise<void> {
@@ -40,6 +43,7 @@ export class TerminalSession {
     )
     this.stream.on('close', () => {
       this.send('\r\n\x1b[90m[session closed]\x1b[0m\r\n')
+      this.notifyClosed()
     })
   }
 
@@ -77,5 +81,14 @@ export class TerminalSession {
   private send(data: string): void {
     const win = this.getSender()
     win?.webContents.send('terminal:output', { wsId: this.wsId, sessionId: this.id, data })
+  }
+
+  private notifyClosed(): void {
+    if (this.disposed) return
+    this.disposed = true
+    this.stream = null
+    const win = this.getSender()
+    win?.webContents.send('terminal:closed', { wsId: this.wsId, sessionId: this.id })
+    this.onClosed?.(this.id)
   }
 }

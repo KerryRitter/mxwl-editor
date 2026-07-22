@@ -170,7 +170,47 @@ export class BrowserController {
     this.tabs.get(id)?.view.webContents.goForward()
   }
   reload(id: string): void {
-    this.tabs.get(id)?.view.webContents.reload()
+    this.tabs.get(id)?.view.webContents.reloadIgnoringCache()
+  }
+
+  async fillLogin(opts: {
+    username: string
+    password: string
+    usernameSelector: string
+    passwordSelector: string
+    submitSelector: string
+  }): Promise<void> {
+    const tabId = this.activeId
+    if (!tabId) throw new Error('no active browser tab')
+    const wc = this.tabs.get(tabId)?.view.webContents
+    if (!wc) throw new Error('no active browser tab')
+
+    const script = `(() => {
+      const setNative = (el, value) => {
+        if (!el) throw new Error('element not found');
+        const proto = el instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (setter) setter.call(el, value);
+        else el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      const user = document.querySelector(${JSON.stringify(opts.usernameSelector)});
+      const pass = document.querySelector(${JSON.stringify(opts.passwordSelector)});
+      const submit = document.querySelector(${JSON.stringify(opts.submitSelector)});
+      if (!user) throw new Error('username selector matched nothing');
+      if (!pass) throw new Error('password selector matched nothing');
+      if (!submit) throw new Error('submit selector matched nothing');
+      setNative(user, ${JSON.stringify(opts.username)});
+      setNative(pass, ${JSON.stringify(opts.password)});
+      if (typeof submit.click === 'function') submit.click();
+      else submit.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      return true;
+    })()`
+
+    await wc.executeJavaScript(script, true)
   }
 
   zoom(id: string, factor: number): void {

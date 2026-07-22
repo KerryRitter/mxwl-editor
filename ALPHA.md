@@ -1,6 +1,6 @@
 # Alpha / beta
 
-mxwl is an **early alpha** desktop tool. Expect sharp edges. Use at your own risk on non-production machines first.
+mxwl is an **early alpha** desktop tool (`0.2.0-alpha.2`). Expect sharp edges. Use at your own risk on non-production machines first.
 
 ## Supported today
 

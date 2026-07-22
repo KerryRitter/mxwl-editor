@@ -6,6 +6,24 @@ export type AuthConfig =
   | { kind: 'key'; keyPath: string; encryptedPassphrase?: string }
   | { kind: 'password'; encryptedPassword: string }
 
+export type TestLoginConfig = {
+  username: string
+  /** Encrypted at rest — never send plaintext to renderer */
+  passwordEnc: string
+  usernameSelector: string
+  passwordSelector: string
+  submitSelector: string
+}
+
+export type TestLoginInput = {
+  username: string
+  /** Plaintext; omit/blank keeps existing encrypted password */
+  password?: string
+  usernameSelector: string
+  passwordSelector: string
+  submitSelector: string
+}
+
 export type HostConfig = {
   id: string
   kind: HostKind
@@ -25,6 +43,8 @@ export type HostConfig = {
   hide?: string[]
   /** Sent to the first terminal after connect (e.g. `claudey`) */
   terminalStartup?: string
+  /** Browser auto-fill login for test accounts */
+  testLogin?: TestLoginConfig
   addedAt: number
 }
 
@@ -47,6 +67,7 @@ export type HostInput = {
   services?: PresetService[]
   hide?: string[]
   terminalStartup?: string
+  testLogin?: TestLoginInput | null
   auth: HostAuthInput
 }
 

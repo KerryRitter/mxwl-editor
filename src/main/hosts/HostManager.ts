@@ -191,6 +191,7 @@ function normalizeHost(h: HostConfig & { browserUrlTemplate?: string }): HostCon
     services,
     hide,
     terminalStartup: h.terminalStartup?.trim() || undefined,
+    testLogin: h.testLogin,
     addedAt: h.addedAt || Date.now(),
     kind: h.kind ?? 'ssh'
   }

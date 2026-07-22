@@ -68,6 +68,7 @@ declare global {
         back: (wsId: string, tabId: string) => Promise<void>
         forward: (wsId: string, tabId: string) => Promise<void>
         reload: (wsId: string, tabId: string) => Promise<void>
+        testLogin: (wsId: string) => Promise<void>
         zoom: (wsId: string, tabId: string, factor: number) => Promise<void>
         devtools: (wsId: string, tabId: string) => Promise<void>
         setDevtoolsBounds: (

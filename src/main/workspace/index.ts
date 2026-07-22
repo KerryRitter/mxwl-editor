@@ -120,6 +120,9 @@ export function registerWorkspaceIpc(manager: WorkspaceManager): void {
   ipcMain.handle('browser:reload', (_e: IpcMainInvokeEvent, payload: { wsId: string; tabId: string }): void =>
     manager.browserReload(payload.wsId, payload.tabId)
   )
+  ipcMain.handle('browser:testLogin', (_e: IpcMainInvokeEvent, wsId: string): Promise<void> =>
+    manager.browserTestLogin(wsId)
+  )
   ipcMain.handle('browser:zoom', (_e: IpcMainInvokeEvent, payload: { wsId: string; tabId: string; factor: number }): void =>
     manager.browserZoom(payload.wsId, payload.tabId, payload.factor)
   )

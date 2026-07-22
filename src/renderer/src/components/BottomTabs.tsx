@@ -11,13 +11,15 @@ type BottomTabsProps = {
   cwd: string
   hasServices?: boolean
   workspaceActive?: boolean
+  connected?: boolean
 }
 
 export const BottomTabs: FC<BottomTabsProps> = ({
   wsId,
   cwd,
   hasServices = true,
-  workspaceActive = true
+  workspaceActive = true,
+  connected = true
 }) => {
   const [tab, setTab] = useState<BottomTab>('terminal')
   const active: BottomTab = tab === 'logs' && !hasServices ? 'terminal' : tab
@@ -48,7 +50,7 @@ export const BottomTabs: FC<BottomTabsProps> = ({
       </div>
       <div className="relative min-h-0 flex-1">
         <Pane visible={active === 'terminal'}>
-          <TerminalPane wsId={wsId} cwd={cwd} />
+          <TerminalPane wsId={wsId} cwd={cwd} connected={connected} />
         </Pane>
         {hasServices && (
           <Pane visible={active === 'logs'}>

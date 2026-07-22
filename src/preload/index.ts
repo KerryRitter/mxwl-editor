@@ -93,6 +93,7 @@ const api = {
       ipcRenderer.invoke('browser:forward', { wsId, tabId }),
     reload: (wsId: string, tabId: string): Promise<void> =>
       ipcRenderer.invoke('browser:reload', { wsId, tabId }),
+    testLogin: (wsId: string): Promise<void> => ipcRenderer.invoke('browser:testLogin', wsId),
     zoom: (wsId: string, tabId: string, factor: number): Promise<void> =>
       ipcRenderer.invoke('browser:zoom', { wsId, tabId, factor }),
     devtools: (wsId: string, tabId: string): Promise<void> =>

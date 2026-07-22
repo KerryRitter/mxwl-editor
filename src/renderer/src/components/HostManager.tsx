@@ -43,6 +43,12 @@ type HostFormState = {
   password: string
   previewFolder: string
   terminalStartup: string
+  testUser: string
+  testPass: string
+  testUserSel: string
+  testPassSel: string
+  testSubmitSel: string
+  testPassConfigured: boolean
 }
 
 const emptyForm = (): HostFormState => ({
@@ -61,7 +67,13 @@ const emptyForm = (): HostFormState => ({
   passphrase: '',
   password: '',
   previewFolder: 'myapp-PROJ-42',
-  terminalStartup: ''
+  terminalStartup: '',
+  testUser: '',
+  testPass: '',
+  testUserSel: '',
+  testPassSel: '',
+  testSubmitSel: '',
+  testPassConfigured: false
 })
 
 function toForm(host: HostConfig): HostFormState {
@@ -81,7 +93,13 @@ function toForm(host: HostConfig): HostFormState {
     passphrase: '',
     password: '',
     previewFolder: 'myapp-PROJ-42',
-    terminalStartup: host.terminalStartup ?? ''
+    terminalStartup: host.terminalStartup ?? '',
+    testUser: host.testLogin?.username ?? '',
+    testPass: '',
+    testUserSel: host.testLogin?.usernameSelector ?? '',
+    testPassSel: host.testLogin?.passwordSelector ?? '',
+    testSubmitSel: host.testLogin?.submitSelector ?? '',
+    testPassConfigured: Boolean(host.testLogin?.passwordEnc)
   }
 }
 
@@ -101,7 +119,21 @@ function toInput(form: HostFormState, id?: string): HostInput {
     derive: form.derive,
     services: form.services,
     hide: parseHide(form.hide),
-    terminalStartup: form.terminalStartup.trim() || undefined
+    terminalStartup: form.terminalStartup.trim() || undefined,
+    testLogin:
+      form.testUser.trim() ||
+      form.testUserSel.trim() ||
+      form.testPassSel.trim() ||
+      form.testSubmitSel.trim() ||
+      form.testPass
+        ? {
+            username: form.testUser.trim(),
+            password: form.testPass || undefined,
+            usernameSelector: form.testUserSel.trim(),
+            passwordSelector: form.testPassSel.trim(),
+            submitSelector: form.testSubmitSel.trim()
+          }
+        : null
   }
   if (form.kind === 'local') {
     return {
@@ -476,6 +508,57 @@ const HostForm: FC<{
               Runs once in the first shell when a workspace connects.
             </p>
           </Field>
+
+          <section className="rounded-lg border border-neutral-800 bg-neutral-950/50 p-3">
+            <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+              Test credentials
+            </h3>
+            <p className="mb-2 text-[10px] text-neutral-600">
+              Used by “Login as test user” in the browser toolbar. CSS selectors for the login form.
+            </p>
+            <div className="grid gap-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  className={inputCls}
+                  value={form.testUser}
+                  onChange={(e) => set('testUser', e.target.value)}
+                  placeholder="Username / email"
+                  autoComplete="off"
+                />
+                <input
+                  className={inputCls}
+                  type="password"
+                  value={form.testPass}
+                  onChange={(e) => set('testPass', e.target.value)}
+                  placeholder={
+                    form.testPassConfigured ? 'Password (leave blank to keep)' : 'Password'
+                  }
+                  autoComplete="new-password"
+                />
+              </div>
+              <input
+                className={`${inputCls} font-mono text-xs`}
+                value={form.testUserSel}
+                onChange={(e) => set('testUserSel', e.target.value)}
+                placeholder="Username selector — e.g. input[name=email]"
+                spellCheck={false}
+              />
+              <input
+                className={`${inputCls} font-mono text-xs`}
+                value={form.testPassSel}
+                onChange={(e) => set('testPassSel', e.target.value)}
+                placeholder="Password selector — e.g. input[type=password]"
+                spellCheck={false}
+              />
+              <input
+                className={`${inputCls} font-mono text-xs`}
+                value={form.testSubmitSel}
+                onChange={(e) => set('testSubmitSel', e.target.value)}
+                placeholder="Submit selector — e.g. button[type=submit]"
+                spellCheck={false}
+              />
+            </div>
+          </section>
 
           <section className="rounded-lg border border-neutral-800 bg-neutral-950/50 p-3">
             <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400">

@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
-import type { AuthConfig, HostConfig, HostInput, TestResult } from '../../shared/types'
+import type { AuthConfig, HostConfig, HostInput, TestLoginConfig, TestResult } from '../../shared/types'
 import { DEFAULT_DERIVE, DEFAULT_HIDE, emptyServices } from '../../shared/hostDefaults'
 import { HostManager, buildConnectConfig, expandHome } from './HostManager'
 import { HostStore } from './store'
@@ -30,6 +30,32 @@ function resolveAuth(input: HostInput, existing?: HostConfig): AuthConfig {
     }
   }
   return { kind: 'agent' }
+}
+
+function resolveTestLogin(
+  input: HostInput,
+  existing?: HostConfig
+): TestLoginConfig | undefined {
+  if (input.testLogin === null) return undefined
+  if (input.testLogin === undefined) return existing?.testLogin
+  const t = input.testLogin
+  const username = t.username.trim()
+  const usernameSelector = t.usernameSelector.trim()
+  const passwordSelector = t.passwordSelector.trim()
+  const submitSelector = t.submitSelector.trim()
+  if (!username && !usernameSelector && !passwordSelector && !submitSelector && !t.password) {
+    return undefined
+  }
+  const passwordEnc = t.password
+    ? encryptSecret(t.password)
+    : existing?.testLogin?.passwordEnc ?? ''
+  return {
+    username,
+    passwordEnc,
+    usernameSelector,
+    passwordSelector,
+    submitSelector
+  }
 }
 
 function normalize(input: HostInput, existing?: HostConfig): HostConfig {
@@ -64,6 +90,7 @@ function normalize(input: HostInput, existing?: HostConfig): HostConfig {
     services,
     hide,
     terminalStartup,
+    testLogin: resolveTestLogin(input, existing),
     auth: resolveAuth({ ...input, kind }, existing)
   }
 }

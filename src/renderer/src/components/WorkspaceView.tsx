@@ -21,6 +21,11 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   const [jiraHost, setJiraHost] = useState<string | null>(null)
   const [bbWebBase, setBbWebBase] = useState<string | null>(null)
   const [prUrl, setPrUrl] = useState<string | null>(null)
+  const [everReady, setEverReady] = useState(ws.status === 'connected')
+
+  useEffect(() => {
+    if (ws.status === 'connected') setEverReady(true)
+  }, [ws.status])
 
   useEffect(() => {
     void Promise.all([window.api.host.get(ws.hostId), window.api.settings.get()]).then(([h, s]) => {
@@ -75,18 +80,18 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
     }
   }, [ws.id, ws.status, ws.derived.branch])
 
-  if (ws.status === 'error') {
-    return (
-      <Centered icon={<XCircle size={36} className="text-red-400" />}>
-        <p className="text-sm font-medium text-red-400">Connection failed</p>
-        <p className="text-xs text-neutral-500">
-          mxwl will keep retrying. Check host credentials / network, then reopen the workspace.
-        </p>
-      </Centered>
-    )
-  }
-
-  if (ws.status !== 'connected') {
+  // First connect only — never tear down shells/editor on brief reconnects
+  if (!everReady) {
+    if (ws.status === 'error') {
+      return (
+        <Centered icon={<XCircle size={36} className="text-red-400" />}>
+          <p className="text-sm font-medium text-red-400">Connection failed</p>
+          <p className="text-xs text-neutral-500">
+            mxwl will keep retrying. Check host credentials / network, then reopen the workspace.
+          </p>
+        </Centered>
+      )
+    }
     return (
       <Centered icon={<Loader2 size={36} className="animate-spin text-amber-400" />}>
         <p className="text-sm font-medium capitalize text-neutral-300">{ws.status}…</p>
@@ -95,6 +100,7 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
     )
   }
 
+  const connected = ws.status === 'connected'
   const openTab = (url: string): void => {
     void window.api.browser.newTab(ws.id, url)
   }
@@ -114,7 +120,12 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-neutral-800 px-4 py-1.5 text-xs text-neutral-400">
         <span className="flex items-center gap-1.5">
-          <Server size={13} className="text-emerald-400" /> connected
+          {connected ? (
+            <Server size={13} className="text-emerald-400" />
+          ) : (
+            <Loader2 size={13} className="animate-spin text-amber-400" />
+          )}
+          {connected ? 'connected' : ws.status}
         </span>
         <span className="max-w-[40%] truncate font-mono text-neutral-500">{ws.remotePath}</span>
         {branch && (
@@ -169,7 +180,18 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
       <div className="min-h-0 flex-1 p-1.5">
         <PanelGroup direction="horizontal" className="h-full rounded-lg border border-neutral-800">
           <Panel defaultSize={48} minSize={20}>
-            <BrowserPane wsId={ws.id} defaultUrl={ws.derived.browserUrl} active={active} />
+            <BrowserPane
+              wsId={ws.id}
+              defaultUrl={ws.derived.browserUrl}
+              active={active}
+              canTestLogin={Boolean(
+                host?.testLogin?.username &&
+                  host.testLogin.usernameSelector &&
+                  host.testLogin.passwordSelector &&
+                  host.testLogin.submitSelector &&
+                  host.testLogin.passwordEnc
+              )}
+            />
           </Panel>
           <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-neutral-700" />
           <Panel defaultSize={52} minSize={20}>
@@ -196,6 +218,7 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
                   cwd={ws.remotePath}
                   hasServices={(host?.services.length ?? 0) > 0}
                   workspaceActive={active}
+                  connected={connected}
                 />
               </Panel>
             </PanelGroup>

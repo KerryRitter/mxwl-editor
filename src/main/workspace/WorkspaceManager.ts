@@ -21,6 +21,7 @@ import { DevController, type DevAction } from './DevController'
 import { deriveFromFolder, matchFolderFilter } from './derive'
 import { basenameRemote, joinRemote, shellQuote } from './util'
 import { expandHome } from '../hosts/HostManager'
+import { decryptSecret } from '../hosts/secrets'
 import type { SessionStore } from '../persistence/SessionStore'
 import { DEFAULT_HIDE } from '../../shared/hostDefaults'
 
@@ -222,14 +223,15 @@ export class WorkspaceManager {
   ): Promise<string> {
     const ws = this.workspaces.get(id)
     if (!ws) throw new Error('workspace not found')
-    if (ws.state.status !== 'connected') throw new Error('workspace not connected')
+    await this.waitUntilConnected(ws, 15_000)
     const session = new TerminalSession({
       wsId: id,
       conn: ws.conn,
       cwd: opts.cwd ?? ws.state.remotePath,
       cols: opts.cols,
       rows: opts.rows,
-      getSender: this.getSender
+      getSender: this.getSender,
+      onClosed: (sessionId) => this.forgetTerminal(id, sessionId)
     })
     const isFirst = ws.terminals.size === 0
     await session.start(opts.cols, opts.rows)
@@ -250,6 +252,37 @@ export class WorkspaceManager {
     return session.id
   }
 
+  private waitUntilConnected(ws: Workspace, timeoutMs: number): Promise<void> {
+    if (ws.state.status === 'connected') return Promise.resolve()
+    if (ws.state.status === 'error') {
+      return Promise.reject(new Error('workspace not connected'))
+    }
+    return new Promise((resolve, reject) => {
+      const onStatus = (s: WorkspaceStatus): void => {
+        if (s === 'connected') {
+          cleanup()
+          resolve()
+        } else if (s === 'error') {
+          cleanup()
+          reject(new Error('workspace not connected'))
+        }
+      }
+      const timer = setTimeout(() => {
+        cleanup()
+        reject(new Error('workspace not connected'))
+      }, timeoutMs)
+      const cleanup = (): void => {
+        clearTimeout(timer)
+        ws.conn.off('status', onStatus)
+      }
+      ws.conn.on('status', onStatus)
+      if (ws.state.status === 'connected') {
+        cleanup()
+        resolve()
+      }
+    })
+  }
+
   writeTerminal(id: string, sessionId: string, data: string): void {
     this.workspaces.get(id)?.terminals.get(sessionId)?.write(data)
   }
@@ -264,6 +297,12 @@ export class WorkspaceManager {
     const session = ws.terminals.get(sessionId)
     if (!session) return
     session.dispose().catch(() => undefined)
+    this.forgetTerminal(id, sessionId)
+  }
+
+  private forgetTerminal(id: string, sessionId: string): void {
+    const ws = this.workspaces.get(id)
+    if (!ws) return
     ws.terminals.delete(sessionId)
     ws.state.terminal.sessionIds = ws.state.terminal.sessionIds.filter((s) => s !== sessionId)
     if (ws.state.terminal.activeSessionId === sessionId) {
@@ -379,6 +418,24 @@ export class WorkspaceManager {
   }
   browserReload(id: string, tabId: string): void {
     this.workspaces.get(id)?.browser.reload(tabId)
+  }
+  async browserTestLogin(id: string): Promise<void> {
+    const ws = this.workspaces.get(id)
+    if (!ws) throw new Error('workspace not found')
+    const host = this.hosts.get(ws.state.hostId)
+    const cfg = host?.testLogin
+    if (!cfg?.username || !cfg.usernameSelector || !cfg.passwordSelector || !cfg.submitSelector) {
+      throw new Error('test login not configured on this host')
+    }
+    if (!cfg.passwordEnc) throw new Error('test login password not set')
+    const password = decryptSecret(cfg.passwordEnc)
+    await ws.browser.fillLogin({
+      username: cfg.username,
+      password,
+      usernameSelector: cfg.usernameSelector,
+      passwordSelector: cfg.passwordSelector,
+      submitSelector: cfg.submitSelector
+    })
   }
   browserZoom(id: string, tabId: string, factor: number): void {
     this.workspaces.get(id)?.browser.zoom(tabId, factor)

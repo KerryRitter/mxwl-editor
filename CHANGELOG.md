@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0-alpha.2
+
+### Added
+- Per-host test credentials + “Login as test user” browser action
+- Terminal reconnect / dead-session handling; wait for workspace connect before opening a PTY
+
+### Changed
+- Browser reload is a hard refresh (ignore cache)
+- README full install docs (system deps, package, AppImage/deb)
+
 ## 0.2.0-alpha.1
 
 ### Added

@@ -23,12 +23,20 @@ interface BrowserPaneProps {
   wsId: string
   defaultUrl?: string
   active?: boolean
+  canTestLogin?: boolean
 }
 
-export function BrowserPane({ wsId, defaultUrl, active: wsActive = true }: BrowserPaneProps): JSX.Element {
+export function BrowserPane({
+  wsId,
+  defaultUrl,
+  active: wsActive = true,
+  canTestLogin = false
+}: BrowserPaneProps): JSX.Element {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [snap, setSnap] = useState<Snapshot>({ wsId, activeId: null, tabs: [] })
   const [address, setAddress] = useState('')
+  const [loginBusy, setLoginBusy] = useState(false)
+  const [loginErr, setLoginErr] = useState<string | null>(null)
   const active = snap.tabs.find((t) => t.id === snap.activeId) ?? null
 
   function sendBounds(): void {
@@ -106,6 +114,18 @@ export function BrowserPane({ wsId, defaultUrl, active: wsActive = true }: Brows
     void window.api.browser.navigate(wsId, active.id, address)
   }
 
+  async function loginAsTestUser(): Promise<void> {
+    setLoginBusy(true)
+    setLoginErr(null)
+    try {
+      await window.api.browser.testLogin(wsId)
+    } catch (err) {
+      setLoginErr(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoginBusy(false)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col bg-neutral-950">
       <div className="flex items-center gap-1 border-b border-neutral-800 px-1.5 py-1">
@@ -121,7 +141,10 @@ export function BrowserPane({ wsId, defaultUrl, active: wsActive = true }: Brows
         >
           <ArrowRight size={14} />
         </ChromeBtn>
-        <ChromeBtn onClick={() => active && window.api.browser.reload(wsId, active.id)}>
+        <ChromeBtn
+          onClick={() => active && window.api.browser.reload(wsId, active.id)}
+          title="Hard refresh (ignore cache)"
+        >
           <RotateCw size={13} />
         </ChromeBtn>
 
@@ -161,6 +184,17 @@ export function BrowserPane({ wsId, defaultUrl, active: wsActive = true }: Brows
         <ChromeBtn onClick={() => active && window.api.browser.devtools(wsId, active.id)}>
           <Wrench size={13} />
         </ChromeBtn>
+        {canTestLogin && (
+          <button
+            type="button"
+            disabled={!active || loginBusy}
+            onClick={() => void loginAsTestUser()}
+            title={loginErr ?? 'Fill login form with host test credentials'}
+            className="rounded px-2 py-1 text-[11px] text-sky-300 hover:bg-neutral-800 disabled:opacity-40"
+          >
+            {loginBusy ? 'Logging in…' : 'Login as test user'}
+          </button>
+        )}
         <ChromeBtn
           onClick={() => active && window.open(address, '_blank')}
           title="Open in external browser"
