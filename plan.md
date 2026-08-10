@@ -189,7 +189,7 @@ Later (not blocking genericization): if workspace root contains `.mxwl.json`, me
 }
 ```
 
-Useful when local Caddy URLs differ from megaserver `.dev` URLs.
+Useful when local Caddy / preview URLs differ from production-style hostnames.
 
 ---
 

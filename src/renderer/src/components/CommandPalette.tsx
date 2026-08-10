@@ -21,6 +21,7 @@ type SpotlightProps = {
   mode: SpotlightMode
   onClose: () => void
   onOpenSettings: () => void
+  onOpenAi: () => void
   hideBrowserWs?: string | null
 }
 
@@ -28,6 +29,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
   mode: initialMode,
   onClose,
   onOpenSettings,
+  onOpenAi,
   hideBrowserWs
 }) => {
   const [mode, setMode] = useState<SpotlightMode>(initialMode)
@@ -89,6 +91,17 @@ export const CommandPalette: FC<SpotlightProps> = ({
         keywords: 'open folder host',
         run: () => {
           setNewModalOpen(true)
+          onClose()
+        }
+      },
+      {
+        id: 'ai-run',
+        label: 'Run AI tasks…',
+        hint: 'Ctrl+Shift+A',
+        group: 'AI',
+        keywords: 'agent claude codex cursor prompt epic ticket',
+        run: () => {
+          onOpenAi()
           onClose()
         }
       },
@@ -211,6 +224,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
     closeWs,
     hosts,
     onClose,
+    onOpenAi,
     onOpenSettings,
     setActive,
     setNewModalOpen,

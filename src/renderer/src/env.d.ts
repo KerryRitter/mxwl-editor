@@ -1,5 +1,14 @@
 /// <reference types="vite/client" />
 import type {
+  AgentId,
+  AgentSessionState,
+  AgentSettings,
+  AgentTranscript,
+  AgentTranscriptMeta,
+  AiCliId,
+  AiPlan,
+  AiRunState,
+  AiSettings,
   BrowserTab,
   DirEntry,
   GitStatus,
@@ -11,6 +20,7 @@ import type {
   PullRequest,
   SearchHit,
   SettingsSnapshot,
+  TabGroup,
   TestResult,
   WorkspaceState
 } from '../../shared/types'
@@ -40,7 +50,11 @@ declare global {
         listFiles: (wsId: string, query?: string) => Promise<string[]>
       }
       terminal: {
-        open: (wsId: string, opts: { cwd?: string; cols: number; rows: number }) => Promise<string>
+        open: (
+          wsId: string,
+          opts: { cwd?: string; cols: number; rows: number; label?: string }
+        ) => Promise<string>
+        replay: (wsId: string, sessionId: string) => Promise<string>
         input: (wsId: string, sessionId: string, data: string) => Promise<void>
         resize: (wsId: string, sessionId: string, cols: number, rows: number) => Promise<void>
         close: (wsId: string, sessionId: string) => Promise<void>
@@ -61,7 +75,16 @@ declare global {
         delete: (wsId: string, path: string, isDir: boolean) => Promise<void>
       }
       browser: {
-        newTab: (wsId: string, url?: string) => Promise<string>
+        newTab: (wsId: string, url?: string, groupId?: string) => Promise<string>
+        newGroup: (wsId: string, label?: string) => Promise<string>
+        updateGroup: (
+          wsId: string,
+          groupId: string,
+          patch: { label?: string; color?: string }
+        ) => Promise<void>
+        closeGroup: (wsId: string, groupId: string) => Promise<void>
+        clearGroup: (wsId: string, groupId: string) => Promise<void>
+        moveTab: (wsId: string, tabId: string, groupId: string) => Promise<string | null>
         closeTab: (wsId: string, tabId: string) => Promise<void>
         setActive: (wsId: string, tabId: string) => Promise<void>
         navigate: (wsId: string, tabId: string, url: string) => Promise<void>
@@ -84,7 +107,12 @@ declare global {
         activate: (wsId: string) => Promise<void>
         snapshot: (
           wsId: string
-        ) => Promise<{ wsId: string; activeId: string | null; tabs: BrowserTab[] } | null>
+        ) => Promise<{
+          wsId: string
+          activeId: string | null
+          tabs: BrowserTab[]
+          groups: TabGroup[]
+        } | null>
       }
       dev: {
         services: (wsId: string) => Promise<PresetService[]>
@@ -109,7 +137,39 @@ declare global {
           mcpAuthToken?: string
           taskProvider?: import('../../shared/types').TaskProviderId
           scmProvider?: import('../../shared/types').ScmProviderId
+          ai?: Partial<AiSettings>
+          agent?: Partial<AgentSettings>
         }) => Promise<SettingsSnapshot>
+      }
+      ai: {
+        plan: (req: {
+          brief: string
+          hostId: string
+          cli?: AiCliId
+          refine?: boolean
+        }) => Promise<{ plan: AiPlan; refined: boolean; warning?: string }>
+        run: (plan: AiPlan) => Promise<AiRunState>
+        runs: () => Promise<AiRunState[]>
+        cancel: (runId: string) => Promise<void>
+      }
+      agent: {
+        catalog: () => Promise<
+          { id: AgentId; label: string; hint: string; command: string; viaNpx: boolean }[]
+        >
+        open: (wsId: string, agentId?: AgentId) => Promise<AgentSessionState>
+        get: (wsId: string) => Promise<AgentSessionState | null>
+        list: () => Promise<AgentSessionState[]>
+        close: (wsId: string) => Promise<void>
+        restart: (wsId: string) => Promise<AgentSessionState>
+        prompt: (wsId: string, text: string) => Promise<void>
+        cancel: (wsId: string) => Promise<void>
+        clear: (wsId: string) => Promise<void>
+        setMode: (wsId: string, modeId: string) => Promise<void>
+        respond: (wsId: string, requestId: string, optionId: string | null) => Promise<void>
+        authenticate: (wsId: string, methodId: string) => Promise<void>
+        history: (cwd?: string) => Promise<AgentTranscriptMeta[]>
+        transcript: (id: string) => Promise<AgentTranscript | null>
+        deleteTranscript: (id: string) => Promise<void>
       }
       jira: { get: (key: string) => Promise<JiraIssue | null> }
       pr: { get: (wsId: string) => Promise<PullRequest | null> }

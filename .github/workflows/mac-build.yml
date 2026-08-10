@@ -1,0 +1,42 @@
+name: mac-build
+
+# A macOS app has to be code-signed to run on Apple Silicon, and `codesign` only
+# exists on macOS. Cross-building from Linux produces a bundle that is killed on
+# launch, so the mac artifacts are built here instead. macos-14 is an arm64
+# runner and is free for public repositories.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run package:mac
+
+      # The signing itself happens in scripts/after-pack.js. Check it here too, so a
+      # bundle that would die on launch fails the build rather than reaching anyone.
+      - name: verify signatures
+        run: |
+          for app in dist/mac/mxwl.app dist/mac-arm64/mxwl.app; do
+            codesign --verify --deep --strict --verbose=2 "$app"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mxwl-macos
+          path: dist/*-mac.zip
+
+      - name: release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*-mac.zip

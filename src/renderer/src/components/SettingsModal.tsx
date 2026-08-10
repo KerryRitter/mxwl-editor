@@ -1,6 +1,20 @@
 import { useEffect, useState, type FC, type ReactNode } from 'react'
 import { Modal } from './Modal'
-import type { ScmProviderId, TaskProviderId } from '../../../shared/types'
+import { AI_CLIS, AI_CLI_ORDER, DEFAULT_AI_SETTINGS } from '../../../shared/aiCli'
+import {
+  ACP_AGENTS,
+  ACP_AGENT_ORDER,
+  DEFAULT_AGENT_SETTINGS,
+  agentShellCommand
+} from '../../../shared/acpAgents'
+import type {
+  AgentId,
+  AgentSettings,
+  AiCliId,
+  AiSettings,
+  ScmProviderId,
+  TaskProviderId
+} from '../../../shared/types'
 
 type SettingsModalProps = {
   onClose: () => void
@@ -34,6 +48,8 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
   const [bbRepo, setBbRepo] = useState('')
   const [defaultUrl, setDefaultUrl] = useState('')
   const [mcpToken, setMcpToken] = useState('')
+  const [ai, setAi] = useState<AiSettings>({ ...DEFAULT_AI_SETTINGS })
+  const [agent, setAgent] = useState<AgentSettings>({ ...DEFAULT_AGENT_SETTINGS })
   const [saving, setSaving] = useState(false)
   const [encryptionOk, setEncryptionOk] = useState(true)
   const [configured, setConfigured] = useState<{ jira: boolean; bb: boolean }>({
@@ -60,6 +76,8 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
       setBbRepo(s.bitbucket?.repo ?? '')
       setDefaultUrl(s.defaultBrowserUrl ?? '')
       setMcpToken(s.mcpAuthToken ?? '')
+      setAi({ ...DEFAULT_AI_SETTINGS, ...(s.ai ?? {}) })
+      setAgent({ ...DEFAULT_AGENT_SETTINGS, ...(s.agent ?? {}) })
       setEncryptionOk(s.encryptionAvailable !== false)
       setConfigured({ jira: Boolean(s.jira?.host), bb: Boolean(s.bitbucket?.workspace) })
     })
@@ -70,6 +88,8 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
     await window.api.settings.update({
       taskProvider,
       scmProvider,
+      ai,
+      agent,
       defaultBrowserUrl: defaultUrl,
       mcpAuthToken: mcpToken,
       jira:
@@ -137,6 +157,178 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
             onChange={(e) => setMcpToken(e.target.value)}
           />
         </section>
+
+        <ProviderSection title="AI">
+          <p className="mb-2 text-[11px] text-neutral-500">
+            The CLI launched in each terminal that an AI run opens. It must be on the host’s PATH
+            and already signed in.
+          </p>
+          <ProviderPicker
+            options={AI_CLI_ORDER.map((id) => ({
+              id,
+              label: AI_CLIS[id].label,
+              ready: true
+            }))}
+            value={ai.defaultCli}
+            onChange={(id) => setAi((s) => ({ ...s, defaultCli: id as AiCliId }))}
+          />
+
+          <div className="mt-3 grid gap-2">
+            <Field
+              label="Binary"
+              hint={`default: ${AI_CLIS[ai.defaultCli].command}`}
+            >
+              <input
+                className={inputCls}
+                placeholder={AI_CLIS[ai.defaultCli].command}
+                value={ai.commandOverrides[ai.defaultCli] ?? ''}
+                onChange={(e) =>
+                  setAi((s) => ({
+                    ...s,
+                    commandOverrides: { ...s.commandOverrides, [s.defaultCli]: e.target.value }
+                  }))
+                }
+              />
+            </Field>
+            <Field label="Extra flags" hint="e.g. --permission-mode acceptEdits">
+              <input
+                className={inputCls}
+                placeholder="none"
+                value={ai.argsOverrides[ai.defaultCli] ?? ''}
+                onChange={(e) =>
+                  setAi((s) => ({
+                    ...s,
+                    argsOverrides: { ...s.argsOverrides, [s.defaultCli]: e.target.value }
+                  }))
+                }
+              />
+            </Field>
+            <Field
+              label="Workspace folder"
+              hint="Under the host workspaces root. Vars: ${key} ${keyLower} ${keyNum} ${slug}"
+            >
+              <input
+                className={inputCls}
+                placeholder="${key}"
+                value={ai.workspaceFolderTemplate}
+                onChange={(e) =>
+                  setAi((s) => ({ ...s, workspaceFolderTemplate: e.target.value }))
+                }
+              />
+            </Field>
+            <Field label="Base repo folder" hint="Where branch init runs when a folder is missing">
+              <input
+                className={inputCls}
+                placeholder="e.g. myrepo (blank = never provision)"
+                value={ai.baseRepoFolder}
+                onChange={(e) => setAi((s) => ({ ...s, baseRepoFolder: e.target.value }))}
+              />
+            </Field>
+            <Field
+              label="Branch init command"
+              hint="Run in the base repo. Without ${…} vars the ticket key is appended."
+            >
+              <input
+                className={inputCls}
+                placeholder="$agent-init-branch"
+                value={ai.initBranchCommand}
+                onChange={(e) => setAi((s) => ({ ...s, initBranchCommand: e.target.value }))}
+              />
+            </Field>
+            <Field label="Init timeout" hint="Seconds to wait for the folder to appear">
+              <input
+                className={inputCls}
+                type="number"
+                min={30}
+                value={ai.initTimeoutSec}
+                onChange={(e) =>
+                  setAi((s) => ({
+                    ...s,
+                    initTimeoutSec: Math.max(30, Number(e.target.value) || 600)
+                  }))
+                }
+              />
+            </Field>
+            <label className="flex items-center gap-2 text-[11px] text-neutral-400">
+              <input
+                type="checkbox"
+                checked={ai.refinePrompts}
+                onChange={(e) => setAi((s) => ({ ...s, refinePrompts: e.target.checked }))}
+                className="accent-emerald-500"
+              />
+              Refine each prompt with a headless {AI_CLIS[ai.defaultCli].label} pass before running
+            </label>
+          </div>
+        </ProviderSection>
+
+        <ProviderSection title="Agent panel">
+          <p className="mb-2 text-[11px] text-neutral-500">
+            The agent the Agent tab starts with. These speak ACP, so they run as a subprocess of the
+            workspace host rather than in a terminal — overrides here only change how they launch.
+          </p>
+          <ProviderPicker
+            options={ACP_AGENT_ORDER.map((id) => ({
+              id,
+              label: ACP_AGENTS[id].label,
+              ready: true
+            }))}
+            value={agent.defaultAgent}
+            onChange={(id) => setAgent((s) => ({ ...s, defaultAgent: id as AgentId }))}
+          />
+          <p className="mt-2 text-[11px] text-neutral-600">
+            {ACP_AGENTS[agent.defaultAgent].hint}
+          </p>
+          <div className="mt-3 grid gap-2">
+            <Field
+              label="Binary"
+              hint={`default: ${agentShellCommand(agent.defaultAgent, DEFAULT_AGENT_SETTINGS) || 'none — set one'}`}
+            >
+              <input
+                className={inputCls}
+                placeholder={ACP_AGENTS[agent.defaultAgent].command || 'e.g. my-agent'}
+                value={agent.commandOverrides[agent.defaultAgent] ?? ''}
+                onChange={(e) =>
+                  setAgent((s) => ({
+                    ...s,
+                    commandOverrides: { ...s.commandOverrides, [s.defaultAgent]: e.target.value }
+                  }))
+                }
+              />
+            </Field>
+            <Field
+              label="Arguments"
+              hint="Replaces the defaults when a binary is set above — the ACP flag has to be in here"
+            >
+              <input
+                className={inputCls}
+                placeholder={ACP_AGENTS[agent.defaultAgent].args.join(' ') || 'none'}
+                value={agent.argsOverrides[agent.defaultAgent] ?? ''}
+                onChange={(e) =>
+                  setAgent((s) => ({
+                    ...s,
+                    argsOverrides: { ...s.argsOverrides, [s.defaultAgent]: e.target.value }
+                  }))
+                }
+              />
+            </Field>
+            <label className="flex items-start gap-2 text-[11px] text-neutral-400">
+              <input
+                type="checkbox"
+                checked={agent.autoApprove}
+                onChange={(e) => setAgent((s) => ({ ...s, autoApprove: e.target.checked }))}
+                className="mt-0.5 accent-emerald-500"
+              />
+              <span>
+                Skip permission prompts
+                <span className="block text-[10px] text-neutral-600">
+                  Starts every agent in its most permissive mode and allows each tool call
+                  automatically. The agent edits files and runs commands in the workspace with
+                  nothing to confirm.
+                </span>
+              </span>
+            </label>
+          </div>
+        </ProviderSection>
 
         <ProviderSection title="Task management">
           <ProviderPicker
@@ -257,6 +449,20 @@ const ProviderSection: FC<{ title: string; children: ReactNode }> = ({ title, ch
     </h3>
     {children}
   </section>
+)
+
+const Field: FC<{ label: string; hint?: string; children: ReactNode }> = ({
+  label,
+  hint,
+  children
+}) => (
+  <label className="grid gap-1">
+    <span className="flex items-baseline gap-2">
+      <span className="text-[11px] text-neutral-400">{label}</span>
+      {hint && <span className="truncate text-[10px] text-neutral-600">{hint}</span>}
+    </span>
+    {children}
+  </label>
 )
 
 const ProviderPicker: FC<{

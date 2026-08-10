@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto'
-import { BrowserWindow, Rectangle, WebContentsView } from 'electron'
-import type { BrowserTab } from '../../shared/types'
+import { BrowserWindow, Rectangle, WebContentsView, session } from 'electron'
+import type { BrowserTab, TabGroup } from '../../shared/types'
+import {
+  DEFAULT_GROUP_ID,
+  groupColor,
+  groupPartition,
+  makeDefaultGroup
+} from '../../shared/tabGroups'
 
 interface InternalTab extends BrowserTab {
   view: WebContentsView
@@ -11,6 +17,7 @@ export interface BrowserSnapshot {
   wsId: string
   activeId: string | null
   tabs: BrowserTab[]
+  groups: TabGroup[]
 }
 
 const HIDDEN: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
@@ -18,6 +25,8 @@ const HIDDEN: Rectangle = { x: 0, y: 0, width: 0, height: 0 }
 export class BrowserController {
   readonly wsId: string
   private tabs = new Map<string, InternalTab>()
+  private groups: TabGroup[]
+  private nextGroupN = 2
   private activeId: string | null = null
   private visible = false
   private bounds: Rectangle | null = null
@@ -32,15 +41,71 @@ export class BrowserController {
   constructor(wsId: string, getSender: () => BrowserWindow | null) {
     this.wsId = wsId
     this.getSender = getSender
+    this.groups = [makeDefaultGroup(wsId)]
   }
 
-  newTab(url?: string): string {
+  /** New cookie sandbox. Tabs in it share nothing with the other groups. */
+  newGroup(label?: string): string {
+    const n = this.nextGroupN++
+    const id = `g${n}`
+    this.groups.push({
+      id,
+      label: label?.trim() || `Group ${n}`,
+      color: groupColor(n - 1),
+      partition: groupPartition(this.wsId, id)
+    })
+    this.emit()
+    return id
+  }
+
+  updateGroup(id: string, patch: { label?: string; color?: string }): void {
+    const group = this.groups.find((g) => g.id === id)
+    if (!group) return
+    if (patch.label?.trim()) group.label = patch.label.trim()
+    if (patch.color) group.color = patch.color
+    this.emit()
+  }
+
+  /** Closes the group and every tab in it. The default group cannot be removed. */
+  closeGroup(id: string): void {
+    if (id === DEFAULT_GROUP_ID || !this.groups.some((g) => g.id === id)) return
+    for (const tab of [...this.tabs.values()]) {
+      if (tab.groupId === id) this.closeTab(tab.id)
+    }
+    this.groups = this.groups.filter((g) => g.id !== id)
+    this.emit()
+  }
+
+  /** Wipes the group's cookies and storage without touching the other groups. */
+  async clearGroup(id: string): Promise<void> {
+    const group = this.groups.find((g) => g.id === id)
+    if (!group) return
+    const sess = group.partition ? session.fromPartition(group.partition) : session.defaultSession
+    await sess.clearStorageData()
+  }
+
+  /**
+   * A view's partition is fixed at construction, so moving a tab means rebuilding
+   * it in the target sandbox. The URL carries over; page state does not.
+   */
+  moveTab(tabId: string, groupId: string): string | null {
+    const tab = this.tabs.get(tabId)
+    if (!tab || tab.groupId === groupId) return null
+    if (!this.groups.some((g) => g.id === groupId)) return null
+    const url = tab.url
+    this.closeTab(tabId)
+    return this.newTab(url || 'about:blank', groupId)
+  }
+
+  newTab(url?: string, groupId?: string): string {
     const id = randomUUID()
+    const group = this.groups.find((g) => g.id === groupId) ?? this.groups[0]
     const view = new WebContentsView({
       webPreferences: {
         contextIsolation: true,
         sandbox: true,
-        backgroundThrottling: false
+        backgroundThrottling: false,
+        ...(group.partition ? { partition: group.partition } : {})
       }
     })
     view.setBackgroundColor('#1a1a1a')
@@ -58,6 +123,7 @@ export class BrowserController {
       canGoBack: false,
       canGoForward: false,
       zoom: 1,
+      groupId: group.id,
       devtoolsOpen: false
     }
     this.tabs.set(id, tab)
@@ -270,6 +336,7 @@ export class BrowserController {
     return {
       wsId: this.wsId,
       activeId: this.activeId,
+      groups: this.groups.map((g) => ({ ...g })),
       tabs: [...this.tabs.values()].map((t) => ({
         id: t.id,
         url: t.url,
@@ -278,7 +345,8 @@ export class BrowserController {
         loading: t.loading,
         canGoBack: t.canGoBack,
         canGoForward: t.canGoForward,
-        zoom: t.zoom
+        zoom: t.zoom,
+        groupId: t.groupId
       }))
     }
   }

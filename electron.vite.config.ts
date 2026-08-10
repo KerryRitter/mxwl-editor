@@ -4,7 +4,9 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // The ACP SDK is ESM-only; leaving it external emits a bare require() into the
+    // CJS main bundle that blows up at runtime. Excluding it makes Rollup inline it.
+    plugins: [externalizeDepsPlugin({ exclude: ['@agentclientprotocol/sdk'] })],
     build: {
       rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts') } }
     }

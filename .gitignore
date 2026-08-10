@@ -3,5 +3,7 @@ out
 dist
 .vite
 release
+test-results
+playwright-report
 *.log
 .DS_Store

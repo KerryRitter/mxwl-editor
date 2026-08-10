@@ -11,7 +11,7 @@ Not a VS Code clone. Ideal when you use **git worktrees** or **clone/copy into a
 ├──────────────────────┬──────────────────────────────────────┤
 │                      │ file tree │ Monaco (SFTP / local)    │
 │   Chromium browser   ├───────────┴───────────────────────────┤
-│   multi-tab · CDP    │ Terminal  │  Dev Tools / Dev logs     │
+│   multi-tab · CDP    │ Agent · Terminal · Dev Tools · logs   │
 └──────────────────────┴───────────────────────────────────────┘
 ```
 
@@ -120,6 +120,15 @@ Global **Settings**: credentials (Jira/Bitbucket), MCP token, fallback URL. Sche
 | `Ctrl/⌘ Shift F` | Search (ripgrep) |
 | `Ctrl/⌘ ,` | Settings |
 | `Esc` | Close modal |
+
+## Agent panel
+
+A chat tab in the bottom panel, speaking [ACP](https://agentclientprotocol.com) to
+Claude Code, Codex, Cursor, Gemini, Kimi, Copilot, Qwen, OpenCode or Goose — as a
+subprocess of the workspace host, so a remote workspace gets a remote agent.
+Slash commands autocomplete and translate between agents (`/compact` finds
+`/compress`), and diffs, tool calls and plans render inline instead of scrolling
+past in a terminal. See [docs/agent.md](./docs/agent.md).
 
 ## MCP bridge
 

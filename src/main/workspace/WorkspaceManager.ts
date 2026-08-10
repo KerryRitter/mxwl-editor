@@ -28,6 +28,13 @@ import { DEFAULT_HIDE } from '../../shared/hostDefaults'
 type Conn = SshConnection | LocalConnection
 type FsBackend = SftpFs | LocalFs
 
+export type HostShell = {
+  host: HostConfig
+  exec(cmd: string): Promise<{ stdout: string; stderr: string; code: number | null }>
+  resolve(path: string): Promise<string>
+  close(): Promise<void>
+}
+
 type Workspace = {
   state: WorkspaceState
   conn: Conn
@@ -90,6 +97,49 @@ export class WorkspaceManager {
     }
   }
 
+  /**
+   * A connection to a host that isn't bound to an open workspace — used by the AI
+   * runner to probe for task folders before deciding what to open. Caller closes.
+   */
+  async openHostShell(hostId: string): Promise<HostShell> {
+    const host = this.hosts.get(hostId)
+    if (!host) throw new Error('host not found')
+    const conn = this.createConn(host)
+    await conn.connect()
+    // ssh2's exec gets a non-login, non-interactive shell, so nvm / npm-global /
+    // ~/.local/bin are off PATH and the AI CLIs look missing. Local conns already
+    // go through `bash -lc`.
+    const exec =
+      host.kind === 'local'
+        ? (cmd: string) => conn.exec(cmd)
+        : (cmd: string) => conn.exec(`bash -lc ${shellQuote(cmd)}`)
+    return {
+      host,
+      exec,
+      resolve: (path: string) => this.resolvePath(conn, host, path),
+      close: () => conn.close().catch(() => undefined)
+    }
+  }
+
+  findByPath(hostId: string, path: string): WorkspaceState | undefined {
+    return [...this.workspaces.values()].find(
+      (w) => w.state.hostId === hostId && w.state.remotePath === path
+    )?.state
+  }
+
+  /** Resolves once the workspace connection is usable; rejects on error/timeout. */
+  async waitForConnected(id: string, timeoutMs = 60_000): Promise<void> {
+    const deadline = Date.now() + timeoutMs
+    for (;;) {
+      const ws = this.workspaces.get(id)
+      if (!ws) throw new Error('workspace closed')
+      if (ws.state.status === 'connected') return
+      if (ws.state.status === 'error') throw new Error('workspace failed to connect')
+      if (Date.now() > deadline) throw new Error('timed out waiting for workspace connection')
+      await new Promise((r) => setTimeout(r, 250))
+    }
+  }
+
   private async resolvePath(conn: Conn, host: HostConfig, path: string): Promise<string> {
     if (this.isLocal(host) || conn instanceof LocalConnection) {
       return expandHome(path)
@@ -102,7 +152,15 @@ export class WorkspaceManager {
     return joinRemote(home, path.slice(2))
   }
 
-  async open(hostId: string, remotePath: string): Promise<WorkspaceState> {
+  /**
+   * `focus: false` opens a workspace without pulling the browser view forward —
+   * used by the AI runner, which opens many workspaces while the user stays put.
+   */
+  async open(
+    hostId: string,
+    remotePath: string,
+    opts: { focus?: boolean } = {}
+  ): Promise<WorkspaceState> {
     const host = this.hosts.get(hostId)
     if (!host) throw new Error('host not found')
 
@@ -135,7 +193,7 @@ export class WorkspaceManager {
       derived,
       browser: { tabs: [], activeTabId: null },
       editor: { openFiles: [], activeFile: null },
-      terminal: { sessionIds: [], activeSessionId: null },
+      terminal: { sessions: [], activeSessionId: null },
       dev: { servers },
       mcp: { cdpEnabled: false },
       createdAt: Date.now()
@@ -167,7 +225,8 @@ export class WorkspaceManager {
         void ws.conn.close()
       })
 
-    this.bringToFront(id)
+    if (opts.focus !== false || !this.frontWsId) this.bringToFront(id)
+    else ws.browser.setVisible(false)
     this.persistSession()
     return state
   }
@@ -219,26 +278,31 @@ export class WorkspaceManager {
 
   async openTerminal(
     id: string,
-    opts: { cwd?: string; cols: number; rows: number }
+    opts: { cwd?: string; cols: number; rows: number; label?: string; aiTaskId?: string }
   ): Promise<string> {
     const ws = this.workspaces.get(id)
     if (!ws) throw new Error('workspace not found')
-    await this.waitUntilConnected(ws, 15_000)
+    await this.waitForConnected(id, 15_000)
     const session = new TerminalSession({
       wsId: id,
       conn: ws.conn,
       cwd: opts.cwd ?? ws.state.remotePath,
       cols: opts.cols,
       rows: opts.rows,
+      label: opts.label,
+      aiTaskId: opts.aiTaskId,
       getSender: this.getSender,
       onClosed: (sessionId) => this.forgetTerminal(id, sessionId)
     })
     const isFirst = ws.terminals.size === 0
     await session.start(opts.cols, opts.rows)
     ws.terminals.set(session.id, session)
-    ws.state.terminal.sessionIds.push(session.id)
+    ws.state.terminal.sessions.push({
+      id: session.id,
+      label: session.label,
+      ...(session.aiTaskId ? { aiTaskId: session.aiTaskId } : {})
+    })
     if (!ws.state.terminal.activeSessionId) ws.state.terminal.activeSessionId = session.id
-
     if (isFirst && !ws.startupCommandSent) {
       const host = this.hosts.get(ws.state.hostId)
       const cmd = host?.terminalStartup?.trim()
@@ -249,38 +313,17 @@ export class WorkspaceManager {
       }
     }
 
+    this.broadcast(id)
     return session.id
   }
 
-  private waitUntilConnected(ws: Workspace, timeoutMs: number): Promise<void> {
-    if (ws.state.status === 'connected') return Promise.resolve()
-    if (ws.state.status === 'error') {
-      return Promise.reject(new Error('workspace not connected'))
-    }
-    return new Promise((resolve, reject) => {
-      const onStatus = (s: WorkspaceStatus): void => {
-        if (s === 'connected') {
-          cleanup()
-          resolve()
-        } else if (s === 'error') {
-          cleanup()
-          reject(new Error('workspace not connected'))
-        }
-      }
-      const timer = setTimeout(() => {
-        cleanup()
-        reject(new Error('workspace not connected'))
-      }, timeoutMs)
-      const cleanup = (): void => {
-        clearTimeout(timer)
-        ws.conn.off('status', onStatus)
-      }
-      ws.conn.on('status', onStatus)
-      if (ws.state.status === 'connected') {
-        cleanup()
-        resolve()
-      }
-    })
+  /** Buffered output so a re-mounted terminal pane can redraw an existing session. */
+  terminalReplay(id: string, sessionId: string): string {
+    return this.workspaces.get(id)?.terminals.get(sessionId)?.replay() ?? ''
+  }
+
+  watchTerminal(id: string, sessionId: string, cb: (chunk: string) => void): () => void {
+    return this.workspaces.get(id)?.terminals.get(sessionId)?.watch(cb) ?? (() => undefined)
   }
 
   writeTerminal(id: string, sessionId: string, data: string): void {
@@ -304,10 +347,11 @@ export class WorkspaceManager {
     const ws = this.workspaces.get(id)
     if (!ws) return
     ws.terminals.delete(sessionId)
-    ws.state.terminal.sessionIds = ws.state.terminal.sessionIds.filter((s) => s !== sessionId)
+    ws.state.terminal.sessions = ws.state.terminal.sessions.filter((s) => s.id !== sessionId)
     if (ws.state.terminal.activeSessionId === sessionId) {
-      ws.state.terminal.activeSessionId = ws.state.terminal.sessionIds[0] ?? null
+      ws.state.terminal.activeSessionId = ws.state.terminal.sessions[0]?.id ?? null
     }
+    this.broadcast(id)
   }
 
   hideList(wsId?: string): string[] {
@@ -398,8 +442,23 @@ export class WorkspaceManager {
     return ws
   }
 
-  browserNewTab(id: string, url?: string): string {
-    return this.workspaces.get(id)!.browser.newTab(url)
+  browserNewTab(id: string, url?: string, groupId?: string): string {
+    return this.workspaces.get(id)!.browser.newTab(url, groupId)
+  }
+  browserNewGroup(id: string, label?: string): string {
+    return this.workspaces.get(id)!.browser.newGroup(label)
+  }
+  browserUpdateGroup(id: string, groupId: string, patch: { label?: string; color?: string }): void {
+    this.workspaces.get(id)?.browser.updateGroup(groupId, patch)
+  }
+  browserCloseGroup(id: string, groupId: string): void {
+    this.workspaces.get(id)?.browser.closeGroup(groupId)
+  }
+  async browserClearGroup(id: string, groupId: string): Promise<void> {
+    await this.workspaces.get(id)?.browser.clearGroup(groupId)
+  }
+  browserMoveTab(id: string, tabId: string, groupId: string): string | null {
+    return this.workspaces.get(id)?.browser.moveTab(tabId, groupId) ?? null
   }
   browserCloseTab(id: string, tabId: string): void {
     this.workspaces.get(id)?.browser.closeTab(tabId)

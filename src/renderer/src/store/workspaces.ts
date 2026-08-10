@@ -46,7 +46,12 @@ export const useWorkspacesStore = create<WorkspacesState>((set) => ({
 
   load: async () => {
     const workspaces = await window.api.workspace.list()
-    set({ workspaces, activeId: workspaces[0]?.id ?? null })
+    set((s) => ({
+      workspaces,
+      activeId: workspaces.some((w) => w.id === s.activeId)
+        ? s.activeId
+        : (workspaces[0]?.id ?? null)
+    }))
   },
 
   setActive: (id) => set({ activeId: id }),
@@ -123,12 +128,22 @@ export const useWorkspacesStore = create<WorkspacesState>((set) => ({
   },
 
   applyEvent: (id, status, state) => {
-    set((s) => ({
-      workspaces: s.workspaces.map((w) => {
-        if (w.id !== id) return w
-        if (state) return state
-        return { ...w, status }
-      })
-    }))
+    set((s) => {
+      // The AI runner opens workspaces in the main process, so an event can be
+      // the first time this side hears about one.
+      if (state && !s.workspaces.some((w) => w.id === id)) {
+        return {
+          workspaces: [...s.workspaces, state],
+          activeId: s.activeId ?? id
+        }
+      }
+      return {
+        workspaces: s.workspaces.map((w) => {
+          if (w.id !== id) return w
+          if (state) return state
+          return { ...w, status }
+        })
+      }
+    })
   }
 }))

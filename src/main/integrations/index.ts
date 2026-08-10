@@ -15,6 +15,8 @@ export interface IntegrationsSettingsInput {
   mcpAuthToken?: string
   taskProvider?: import('../../shared/types').TaskProviderId
   scmProvider?: import('../../shared/types').ScmProviderId
+  ai?: Partial<import('../../shared/types').AiSettings>
+  agent?: Partial<import('../../shared/types').AgentSettings>
 }
 
 export function registerIntegrationsIpc(
@@ -44,6 +46,12 @@ export function registerIntegrationsIpc(
     }
     if (input.scmProvider !== undefined) {
       patch.scmProvider = input.scmProvider
+    }
+    if (input.ai !== undefined) {
+      patch.ai = { ...current.ai, ...input.ai }
+    }
+    if (input.agent !== undefined) {
+      patch.agent = { ...current.agent, ...input.agent }
     }
     if (input.jira !== undefined) {
       patch.jira =

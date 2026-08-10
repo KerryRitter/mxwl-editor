@@ -3,11 +3,14 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
-import { Plus, RotateCw, Trash2 } from 'lucide-react'
+import { Bot, Plus, RotateCw, Trash2 } from 'lucide-react'
+import type { TerminalInfo } from '../../../shared/types'
 
 type TerminalPaneProps = {
   wsId: string
   cwd: string
+  /** Sessions the main process knows about — includes ones the AI runner opened */
+  sessions: TerminalInfo[]
   connected?: boolean
 }
 
@@ -25,6 +28,7 @@ type TermInstance = {
 export function TerminalPane({
   wsId,
   cwd,
+  sessions,
   connected = true
 }: TerminalPaneProps): JSX.Element {
   const stackRef = useRef<HTMLDivElement>(null)
@@ -35,27 +39,43 @@ export function TerminalPane({
   const [deadIds, setDeadIds] = useState<Set<string>>(new Set())
   const activeIdRef = useRef<string | null>(null)
   activeIdRef.current = activeId
+  // Ids already claimed by an in-flight attach/create, so overlapping session
+  // broadcasts can't mount the same shell twice.
+  const claimedRef = useRef<Set<string>>(new Set())
 
+  // Sessions live in the main process, so a pane that unmounts (workspace or
+  // bottom-tab switch) re-attaches to them instead of spawning new shells.
   useEffect(() => {
-    if (!connected) return
-    if (instancesRef.current.size > 0) return
-    void createSession()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsId, connected])
-
-  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      for (const s of sessions) {
+        if (cancelled) break
+        if (claimedRef.current.has(s.id)) continue
+        claimedRef.current.add(s.id)
+        await attachSession(s.id)
+      }
+      if (!cancelled && connected && sessions.length === 0 && claimedRef.current.size === 0) {
+        await createSession()
+      }
+    })()
     return () => {
-      for (const inst of instancesRef.current.values()) destroyInstance(inst, wsId)
-      instancesRef.current.clear()
+      cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wsId, sessions, connected])
+
+  // Detach on unmount — the shells keep running in the main process.
+  useEffect(() => {
+    return () => {
+      for (const inst of instancesRef.current.values()) detachInstance(inst)
+      instancesRef.current.clear()
+      claimedRef.current.clear()
+    }
   }, [wsId])
 
-  async function createSession(): Promise<void> {
-    if (creatingRef.current) return
+  function mountXterm(): { term: XTerm; fit: FitAddon; container: HTMLDivElement } | null {
     const stack = stackRef.current
-    if (!stack) return
-    creatingRef.current = true
+    if (!stack) return null
 
     const container = document.createElement('div')
     container.style.position = 'absolute'
@@ -80,34 +100,29 @@ export function TerminalPane({
     } catch {
       void fit
     }
+    return { term, fit, container }
+  }
 
-    let sessionId = ''
-    try {
-      sessionId = await openWithRetry(wsId, cwd, term.cols, term.rows)
-    } catch (err) {
-      term.writeln(`\x1b[31mFailed to open terminal: ${String(err)}\x1b[0m`)
-      term.writeln('\x1b[90mClick + to retry when connected.\x1b[0m')
-      container.style.display = 'block'
-      creatingRef.current = false
-      return
-    }
-
+  function wire(
+    sessionId: string,
+    parts: { term: XTerm; fit: FitAddon; container: HTMLDivElement },
+    focus: boolean
+  ): void {
+    const { term, fit, container } = parts
     term.onData((data) => {
-      const inst = instancesRef.current.get(sessionId)
-      if (!inst?.alive) return
-      void window.api.terminal.input(wsId, sessionId, data)
+      if (instancesRef.current.get(sessionId)?.alive) {
+        void window.api.terminal.input(wsId, sessionId, data)
+      }
     })
     term.onResize(({ cols, rows }) => {
-      const inst = instancesRef.current.get(sessionId)
-      if (!inst?.alive) return
-      void window.api.terminal.resize(wsId, sessionId, cols, rows)
+      if (instancesRef.current.get(sessionId)?.alive) {
+        void window.api.terminal.resize(wsId, sessionId, cols, rows)
+      }
     })
 
     const off = window.api.on('terminal:output', (...args: unknown[]) => {
       const payload = args[0] as { wsId: string; sessionId: string; data: string }
-      if (payload?.wsId === wsId && payload.sessionId === sessionId) {
-        term.write(payload.data)
-      }
+      if (payload?.wsId === wsId && payload.sessionId === sessionId) term.write(payload.data)
     })
 
     const offClosed = window.api.on('terminal:closed', (...args: unknown[]) => {
@@ -138,12 +153,14 @@ export function TerminalPane({
       alive: true
     }
     instancesRef.current.set(sessionId, inst)
-    setIds((prev) => [...prev, sessionId])
-    activeIdRef.current = sessionId
-    setActiveId(sessionId)
-    container.style.display = 'block'
-    creatingRef.current = false
+    setIds((prev) => (prev.includes(sessionId) ? prev : [...prev, sessionId]))
+    if (focus || !activeIdRef.current) {
+      activeIdRef.current = sessionId
+      setActiveId(sessionId)
+    }
     requestAnimationFrame(() => {
+      showActive()
+      if (activeIdRef.current !== sessionId) return
       try {
         fit.fit()
         term.focus()
@@ -154,6 +171,42 @@ export function TerminalPane({
     })
   }
 
+  async function attachSession(sessionId: string): Promise<void> {
+    const parts = mountXterm()
+    if (!parts) return
+    try {
+      const replay = await window.api.terminal.replay(wsId, sessionId)
+      if (replay) parts.term.write(replay)
+    } catch {
+      void sessionId
+    }
+    wire(sessionId, parts, false)
+  }
+
+  async function createSession(): Promise<void> {
+    if (!connected || creatingRef.current) return
+    creatingRef.current = true
+    const parts = mountXterm()
+    if (!parts) {
+      creatingRef.current = false
+      return
+    }
+
+    let sessionId = ''
+    try {
+      sessionId = await openWithRetry(wsId, cwd, parts.term.cols, parts.term.rows)
+    } catch (err) {
+      parts.term.writeln(`\x1b[31mFailed to open terminal: ${String(err)}\x1b[0m`)
+      parts.term.writeln('\x1b[90mClick + to retry when connected.\x1b[0m')
+      parts.container.style.display = 'block'
+      return
+    } finally {
+      creatingRef.current = false
+    }
+    claimedRef.current.add(sessionId)
+    wire(sessionId, parts, true)
+  }
+
   function showActive(): void {
     for (const [id, inst] of instancesRef.current) {
       inst.container.style.display = id === activeIdRef.current ? 'block' : 'none'
@@ -161,11 +214,10 @@ export function TerminalPane({
   }
 
   function activate(id: string): void {
+    activeIdRef.current = id
     setActiveId(id)
     requestAnimationFrame(() => {
-      for (const [iid, inst] of instancesRef.current) {
-        inst.container.style.display = iid === id ? 'block' : 'none'
-      }
+      showActive()
       const inst = instancesRef.current.get(id)
       try {
         inst?.fit.fit()
@@ -179,16 +231,21 @@ export function TerminalPane({
   function closeSession(id: string): void {
     const inst = instancesRef.current.get(id)
     if (!inst) return
-    destroyInstance(inst, wsId)
+    detachInstance(inst)
+    window.api.terminal.close(wsId, id).catch(() => undefined)
     instancesRef.current.delete(id)
     setDeadIds((prev) => {
       const next = new Set(prev)
       next.delete(id)
       return next
     })
+    claimedRef.current.delete(id)
     setIds((prev) => {
       const next = prev.filter((x) => x !== id)
-      if (activeIdRef.current === id) setActiveId(next[0] ?? null)
+      if (activeIdRef.current === id) {
+        activeIdRef.current = next[0] ?? null
+        setActiveId(activeIdRef.current)
+      }
       requestAnimationFrame(showActive)
       return next
     })
@@ -200,28 +257,36 @@ export function TerminalPane({
   }
 
   const activeDead = activeId ? deadIds.has(activeId) : false
+  const labels = new Map(sessions.map((s) => [s.id, s]))
 
   return (
     <div className="flex h-full flex-col bg-neutral-950">
-      <div className="flex items-center gap-1 border-b border-neutral-800 px-1.5 py-1">
-        {ids.map((id) => (
-          <button
-            key={id}
-            onClick={() => activate(id)}
-            className={`rounded px-2 py-0.5 text-[11px] ${
-              activeId === id
-                ? 'bg-neutral-800 text-neutral-100'
-                : 'text-neutral-500 hover:text-neutral-300'
-            }`}
-          >
-            shell{deadIds.has(id) ? ' ✕' : ''}
-          </button>
-        ))}
+      <div className="flex items-center gap-1 overflow-x-auto border-b border-neutral-800 px-1.5 py-1">
+        {ids.map((id) => {
+          const info = labels.get(id)
+          return (
+            <button
+              key={id}
+              onClick={() => activate(id)}
+              title={info?.label ?? 'shell'}
+              className={`flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[11px] ${
+                activeId === id
+                  ? 'bg-neutral-800 text-neutral-100'
+                  : 'text-neutral-500 hover:text-neutral-300'
+              }`}
+            >
+              {info?.aiTaskId && <Bot size={10} className="text-emerald-400" />}
+              <span className="max-w-[120px] truncate">
+                {info?.label ?? 'shell'}{deadIds.has(id) ? ' ✕' : ''}
+              </span>
+            </button>
+          )
+        })}
         <button
           onClick={() => void createSession()}
           title="New shell"
           disabled={!connected || creatingRef.current}
-          className="ml-1 rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 disabled:opacity-40"
+          className="ml-1 shrink-0 rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200 disabled:opacity-40"
         >
           <Plus size={12} />
         </button>
@@ -239,7 +304,7 @@ export function TerminalPane({
           <button
             onClick={() => closeSession(activeId)}
             title="Close shell"
-            className="rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-red-400"
+            className="shrink-0 rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-red-400"
           >
             <Trash2 size={12} />
           </button>
@@ -278,12 +343,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
 
-function destroyInstance(inst: TermInstance, wsId: string): void {
+/** Tears down the view only — the shell stays alive in the main process. */
+function detachInstance(inst: TermInstance): void {
   inst.alive = false
   inst.ro.disconnect()
   inst.off()
   inst.offClosed()
-  void window.api.terminal.close(wsId, inst.sessionId).catch(() => undefined)
   inst.term.dispose()
   inst.container.remove()
 }

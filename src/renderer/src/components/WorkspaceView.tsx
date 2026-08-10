@@ -216,6 +216,7 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
                 <BottomTabs
                   wsId={ws.id}
                   cwd={ws.remotePath}
+                  sessions={ws.terminal.sessions}
                   hasServices={(host?.services.length ?? 0) > 0}
                   workspaceActive={active}
                   connected={connected}

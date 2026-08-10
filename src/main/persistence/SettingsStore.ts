@@ -2,11 +2,15 @@ import { app } from 'electron'
 import { join } from 'path'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs'
 import type { AppSettings } from '../../shared/types'
+import { DEFAULT_AI_SETTINGS } from '../../shared/aiCli'
+import { DEFAULT_AGENT_SETTINGS } from '../../shared/acpAgents'
 import { encryptSecret, decryptSecret } from '../hosts/secrets'
 
 const DEFAULTS: AppSettings = {
   taskProvider: 'none',
   scmProvider: 'none',
+  ai: { ...DEFAULT_AI_SETTINGS },
+  agent: { ...DEFAULT_AGENT_SETTINGS },
   jira: null,
   bitbucket: null,
   defaultBrowserUrl: '',
@@ -31,7 +35,14 @@ export class SettingsStore {
     if (!existsSync(this.filePath)) return
     try {
       const raw = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<AppSettings>
-      this.settings = { ...DEFAULTS, ...raw }
+      // `ai` and `agent` are nested, so a shallow merge would drop keys added
+      // after the file was written
+      this.settings = {
+        ...DEFAULTS,
+        ...raw,
+        ai: { ...DEFAULT_AI_SETTINGS, ...(raw.ai ?? {}) },
+        agent: { ...DEFAULT_AGENT_SETTINGS, ...(raw.agent ?? {}) }
+      }
     } catch {
       this.settings = { ...DEFAULTS }
     }
@@ -44,7 +55,12 @@ export class SettingsStore {
 
   update(patch: Partial<AppSettings>): AppSettings {
     this.ensureLoaded()
-    this.settings = { ...this.settings, ...patch }
+    this.settings = {
+      ...this.settings,
+      ...patch,
+      ai: patch.ai ? { ...this.settings.ai, ...patch.ai } : this.settings.ai,
+      agent: patch.agent ? { ...this.settings.agent, ...patch.agent } : this.settings.agent
+    }
     this.persist()
     return this.all()
   }

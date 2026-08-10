@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  AgentId,
+  AgentSessionState,
+  AgentTranscript,
+  AgentTranscriptMeta,
+  AiCliId,
+  AiPlan,
+  AiRunState,
   BrowserTab,
   DirEntry,
   GitStatus,
@@ -47,8 +54,12 @@ const api = {
       ipcRenderer.invoke('workspace:listFiles', { wsId, query })
   },
   terminal: {
-    open: (wsId: string, opts: { cwd?: string; cols: number; rows: number }): Promise<string> =>
-      ipcRenderer.invoke('terminal:open', { wsId, ...opts }),
+    open: (
+      wsId: string,
+      opts: { cwd?: string; cols: number; rows: number; label?: string }
+    ): Promise<string> => ipcRenderer.invoke('terminal:open', { wsId, ...opts }),
+    replay: (wsId: string, sessionId: string): Promise<string> =>
+      ipcRenderer.invoke('terminal:replay', { wsId, sessionId }),
     input: (wsId: string, sessionId: string, data: string): Promise<void> =>
       ipcRenderer.invoke('terminal:input', { wsId, sessionId, data }),
     resize: (wsId: string, sessionId: string, cols: number, rows: number): Promise<void> =>
@@ -79,8 +90,21 @@ const api = {
       ipcRenderer.invoke('fs:delete', { wsId, path, isDir })
   },
   browser: {
-    newTab: (wsId: string, url?: string): Promise<string> =>
-      ipcRenderer.invoke('browser:newTab', { wsId, url }),
+    newTab: (wsId: string, url?: string, groupId?: string): Promise<string> =>
+      ipcRenderer.invoke('browser:newTab', { wsId, url, groupId }),
+    newGroup: (wsId: string, label?: string): Promise<string> =>
+      ipcRenderer.invoke('browser:newGroup', { wsId, label }),
+    updateGroup: (
+      wsId: string,
+      groupId: string,
+      patch: { label?: string; color?: string }
+    ): Promise<void> => ipcRenderer.invoke('browser:updateGroup', { wsId, groupId, ...patch }),
+    closeGroup: (wsId: string, groupId: string): Promise<void> =>
+      ipcRenderer.invoke('browser:closeGroup', { wsId, groupId }),
+    clearGroup: (wsId: string, groupId: string): Promise<void> =>
+      ipcRenderer.invoke('browser:clearGroup', { wsId, groupId }),
+    moveTab: (wsId: string, tabId: string, groupId: string): Promise<string | null> =>
+      ipcRenderer.invoke('browser:moveTab', { wsId, tabId, groupId }),
     closeTab: (wsId: string, tabId: string): Promise<void> =>
       ipcRenderer.invoke('browser:closeTab', { wsId, tabId }),
     setActive: (wsId: string, tabId: string): Promise<void> =>
@@ -136,7 +160,48 @@ const api = {
       mcpAuthToken?: string
       taskProvider?: import('../shared/types').TaskProviderId
       scmProvider?: import('../shared/types').ScmProviderId
+      ai?: Partial<import('../shared/types').AiSettings>
+      agent?: Partial<import('../shared/types').AgentSettings>
     }): Promise<SettingsSnapshot> => ipcRenderer.invoke('settings:update', input)
+  },
+  ai: {
+    plan: (req: {
+      brief: string
+      hostId: string
+      cli?: AiCliId
+      refine?: boolean
+    }): Promise<{ plan: AiPlan; refined: boolean; warning?: string }> =>
+      ipcRenderer.invoke('ai:plan', req),
+    run: (plan: AiPlan): Promise<AiRunState> => ipcRenderer.invoke('ai:run', plan),
+    runs: (): Promise<AiRunState[]> => ipcRenderer.invoke('ai:runs'),
+    cancel: (runId: string): Promise<void> => ipcRenderer.invoke('ai:cancel', runId)
+  },
+  agent: {
+    catalog: (): Promise<
+      { id: AgentId; label: string; hint: string; command: string; viaNpx: boolean }[]
+    > => ipcRenderer.invoke('agent:catalog'),
+    open: (wsId: string, agentId?: AgentId): Promise<AgentSessionState> =>
+      ipcRenderer.invoke('agent:open', { wsId, agentId }),
+    get: (wsId: string): Promise<AgentSessionState | null> => ipcRenderer.invoke('agent:get', wsId),
+    list: (): Promise<AgentSessionState[]> => ipcRenderer.invoke('agent:list'),
+    close: (wsId: string): Promise<void> => ipcRenderer.invoke('agent:close', wsId),
+    restart: (wsId: string): Promise<AgentSessionState> => ipcRenderer.invoke('agent:restart', wsId),
+    prompt: (wsId: string, text: string): Promise<void> =>
+      ipcRenderer.invoke('agent:prompt', { wsId, text }),
+    cancel: (wsId: string): Promise<void> => ipcRenderer.invoke('agent:cancel', wsId),
+    clear: (wsId: string): Promise<void> => ipcRenderer.invoke('agent:clear', wsId),
+    setMode: (wsId: string, modeId: string): Promise<void> =>
+      ipcRenderer.invoke('agent:setMode', { wsId, modeId }),
+    respond: (wsId: string, requestId: string, optionId: string | null): Promise<void> =>
+      ipcRenderer.invoke('agent:respond', { wsId, requestId, optionId }),
+    authenticate: (wsId: string, methodId: string): Promise<void> =>
+      ipcRenderer.invoke('agent:authenticate', { wsId, methodId }),
+    history: (cwd?: string): Promise<AgentTranscriptMeta[]> =>
+      ipcRenderer.invoke('agent:history', cwd),
+    transcript: (id: string): Promise<AgentTranscript | null> =>
+      ipcRenderer.invoke('agent:transcript', id),
+    deleteTranscript: (id: string): Promise<void> =>
+      ipcRenderer.invoke('agent:deleteTranscript', id)
   },
   jira: {
     get: (key: string): Promise<JiraIssue | null> => ipcRenderer.invoke('jira:get', key)

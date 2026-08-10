@@ -42,8 +42,13 @@ export function registerWorkspaceIpc(manager: WorkspaceManager): void {
     'terminal:open',
     (
       _e: IpcMainInvokeEvent,
-      payload: { wsId: string; cwd?: string; cols: number; rows: number }
+      payload: { wsId: string; cwd?: string; cols: number; rows: number; label?: string }
     ): Promise<string> => manager.openTerminal(payload.wsId, payload)
+  )
+  ipcMain.handle(
+    'terminal:replay',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; sessionId: string }): string =>
+      manager.terminalReplay(payload.wsId, payload.sessionId)
   )
   ipcMain.handle(
     'terminal:input',
@@ -99,8 +104,43 @@ export function registerWorkspaceIpc(manager: WorkspaceManager): void {
       manager.fsDelete(payload.wsId, payload.path, payload.isDir)
   )
 
-  ipcMain.handle('browser:newTab', (_e: IpcMainInvokeEvent, payload: { wsId: string; url?: string }): string =>
-    manager.browserNewTab(payload.wsId, payload.url)
+  ipcMain.handle(
+    'browser:newTab',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; url?: string; groupId?: string }): string =>
+      manager.browserNewTab(payload.wsId, payload.url, payload.groupId)
+  )
+  ipcMain.handle(
+    'browser:newGroup',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; label?: string }): string =>
+      manager.browserNewGroup(payload.wsId, payload.label)
+  )
+  ipcMain.handle(
+    'browser:updateGroup',
+    (
+      _e: IpcMainInvokeEvent,
+      payload: { wsId: string; groupId: string; label?: string; color?: string }
+    ): void =>
+      manager.browserUpdateGroup(payload.wsId, payload.groupId, {
+        label: payload.label,
+        color: payload.color
+      })
+  )
+  ipcMain.handle(
+    'browser:closeGroup',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; groupId: string }): void =>
+      manager.browserCloseGroup(payload.wsId, payload.groupId)
+  )
+  ipcMain.handle(
+    'browser:clearGroup',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; groupId: string }): Promise<void> =>
+      manager.browserClearGroup(payload.wsId, payload.groupId)
+  )
+  ipcMain.handle(
+    'browser:moveTab',
+    (
+      _e: IpcMainInvokeEvent,
+      payload: { wsId: string; tabId: string; groupId: string }
+    ): string | null => manager.browserMoveTab(payload.wsId, payload.tabId, payload.groupId)
   )
   ipcMain.handle('browser:closeTab', (_e: IpcMainInvokeEvent, payload: { wsId: string; tabId: string }): void =>
     manager.browserCloseTab(payload.wsId, payload.tabId)

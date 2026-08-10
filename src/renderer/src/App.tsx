@@ -1,15 +1,19 @@
 import { useEffect, useState, type FC } from 'react'
-import { Server, Settings as SettingsIcon } from 'lucide-react'
+import { Bot, Server, Settings as SettingsIcon } from 'lucide-react'
 import { useAppStore } from './store/app'
 import { useHostsStore } from './store/hosts'
 import { useWorkspacesStore } from './store/workspaces'
 import { useEditorStore } from './store/editor'
+import { useAiStore } from './store/ai'
+import { useAgentStore } from './store/agent'
 import { HostManager } from './components/HostManager'
 import { WorkspaceTabs } from './components/WorkspaceTabs'
 import { WorkspaceView } from './components/WorkspaceView'
 import { SettingsModal } from './components/SettingsModal'
 import { NewWorkspaceModal, NewWorkspaceButton } from './components/NewWorkspaceModal'
 import { CommandPalette } from './components/CommandPalette'
+import { AiTaskModal } from './components/AiTaskModal'
+import type { AiRunState } from '../../shared/types'
 
 const App: FC = () => {
   const pingResult = useAppStore((s) => s.pingResult)
@@ -26,12 +30,32 @@ const App: FC = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteMode, setPaletteMode] = useState<'files' | 'commands'>('commands')
+  const aiOpen = useAiStore((s) => s.modalOpen)
+  const setAiOpen = useAiStore((s) => s.setModalOpen)
+  const applyRun = useAiStore((s) => s.applyRun)
+  const loadRuns = useAiStore((s) => s.loadRuns)
+  const liveRuns = useAiStore((s) => s.runs.filter((r) => r.status === 'running').length)
+  const initAgents = useAgentStore((s) => s.init)
 
   useEffect(() => {
     window.api.ping().then(setPingResult).catch(console.error)
     loadHosts()
     loadWorkspaces()
-  }, [setPingResult, loadHosts, loadWorkspaces])
+    void loadRuns()
+  }, [setPingResult, loadHosts, loadWorkspaces, loadRuns])
+
+  // Runs are driven from the main process; workspace/terminal changes arrive
+  // separately on `workspace:event`.
+  useEffect(() => {
+    const off = window.api.on('ai:event', (...args: unknown[]) =>
+      applyRun(args[0] as AiRunState)
+    )
+    return off
+  }, [applyRun])
+
+  // Agent transcripts stream from main whether or not the panel is on screen,
+  // so the subscription belongs here rather than in the panel.
+  useEffect(() => initAgents(), [initAgents])
 
   useEffect(() => {
     const openPalette = (mode: 'files' | 'commands'): void => {
@@ -58,6 +82,9 @@ const App: FC = () => {
         e.preventDefault()
         clearEditorWs(activeId)
         void closeWs(activeId)
+      } else if (key === 'a' && e.shiftKey) {
+        e.preventDefault()
+        setAiOpen(true)
       } else if (e.key === ',') {
         e.preventDefault()
         setSettingsOpen(true)
@@ -74,7 +101,7 @@ const App: FC = () => {
       window.removeEventListener('keydown', onKey, true)
       off()
     }
-  }, [setNewModalOpen, closeWs, clearEditorWs, activeId])
+  }, [setNewModalOpen, closeWs, clearEditorWs, activeId, setAiOpen])
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
@@ -107,6 +134,18 @@ const App: FC = () => {
             className="rounded px-1.5 py-0.5 text-[11px] text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
           >
             ⌘K
+          </button>
+          <button
+            onClick={() => setAiOpen(true)}
+            title="Run AI tasks (Ctrl+Shift+A)"
+            className={`relative rounded p-1 hover:bg-neutral-800 ${
+              liveRuns > 0 ? 'text-emerald-400' : 'text-neutral-400 hover:text-neutral-100'
+            }`}
+          >
+            <Bot size={15} />
+            {liveRuns > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            )}
           </button>
           <button
             onClick={() => {
@@ -157,11 +196,14 @@ const App: FC = () => {
         <NewWorkspaceModal onClose={() => setNewModalOpen(false)} hideBrowserWs={activeId} />
       )}
 
+      {aiOpen && <AiTaskModal onClose={() => setAiOpen(false)} hideBrowserWs={activeId} />}
+
       {paletteOpen && (
         <CommandPalette
           mode={paletteMode}
           onClose={() => setPaletteOpen(false)}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenAi={() => setAiOpen(true)}
           hideBrowserWs={activeId}
         />
       )}
