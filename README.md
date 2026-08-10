@@ -1,10 +1,10 @@
 # mxwl
 
-**SSH + browser + editor + terminal**, locked to one folder — with an MCP/CDP bridge so agents on the box can drive the desktop browser.
+**SSH + browser + editor + terminal**, locked to one folder. mxwl is a workspace-first desktop tool for worktrees, ticket branches, and remote development boxes — with coding agents and an MCP/CDP bridge built in.
 
 > **Alpha** (`0.2.0-alpha.2`) — see [ALPHA.md](./ALPHA.md) before shipping to teammates.
 
-Not a VS Code clone. Ideal when you use **git worktrees** or **clone/copy into a new folder per ticket** so the folder name *is* the work unit (e.g. `myapp-PROJ-42`). mxwl opens that folder as one workspace: browser URL, title, and issue key come from **per-host** folder mapping.
+Not a VS Code clone. It is ideal when you use **git worktrees** or **clone/copy into a new folder per ticket** so the folder name is the work unit (for example, `myapp-PROJ-42`). mxwl opens that folder as one workspace, with its browser, editor, terminals, agents, and integrations all scoped to that folder.
 
 ```
 ┌─ workspace tabs (one per folder) ──────────────────────────┐
@@ -15,7 +15,15 @@ Not a VS Code clone. Ideal when you use **git worktrees** or **clone/copy into a
 └──────────────────────┴───────────────────────────────────────┘
 ```
 
-## Full install
+## Install
+
+### Linux — one line
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/KerryRitter/mxwl-editor/main/scripts/install.sh | bash
+```
+
+The installer builds the current `main` branch as an AppImage and installs `mxwl` to `~/.local/bin`. Re-run it to update. It needs Git, Node.js 20+, npm, and the native build tools below.
 
 ### Prerequisites
 
@@ -52,7 +60,7 @@ If the terminal pane fails to load after Electron upgrades, rebuild the native m
 npx electron-rebuild -f -w node-pty
 ```
 
-### Packaged install (Linux)
+### Build a Linux package yourself
 
 Build AppImage + deb locally:
 
@@ -99,14 +107,40 @@ npm run ci           # typecheck + tests + build
 npm run package:linux   # AppImage + deb → dist/
 ```
 
-## Per-host config
+## Features
 
-- Folder regex → `${ticket}` / `${ticketNum}` for titles & preview URLs
-- Dev services (any start/stop/logs commands)
-- Folder filter + file-tree hide list
-- Optional **test credentials** + CSS selectors for “Login as test user” in the browser toolbar
+### Workspace-first development
 
-Global **Settings**: credentials (Jira/Bitbucket), MCP token, fallback URL. Schema notes: [docs/presets.md](./docs/presets.md).
+- Open local folders or SSH hosts; keep several workspaces open, each bound to one folder.
+- Restore open workspaces on launch, switch between them without interrupting their browser, editor, terminal, or agent state, and reconnect SSH sessions when the network blips.
+- Configure each host independently: workspace root, folder filter, naming regex, title/browser/issue templates, hidden files, terminal startup command, and dev services. Clone a host to reuse that configuration.
+- Extract ticket and branch context from folder names, show Git status, open linked Jira issues and Bitbucket pull requests, and add custom browser URLs for each workspace.
+
+### Browser and cookie sandboxes
+
+- Use an embedded Chromium browser with multiple tabs, navigation, hard refresh, zoom, external-browser handoff, and native DevTools.
+- Create coloured cookie sandboxes so the same site can be signed in as different users at once. Rename, clear, close, and move tabs between sandboxes.
+- Save per-host test credentials and selectors, then use **Login as test user** to fill a browser login form.
+
+### Code, terminals, and services
+
+- Browse local or SFTP files, edit with Monaco, save files, and search the workspace with ripgrep.
+- Run multiple PTY terminals per workspace; sessions survive panel switches, replay their scrollback when remounted, recover connection state, and can start a configured command in the first shell.
+- Define per-host services with start, stop, restart, and log-tail commands; manage them from the Dev logs tab.
+
+### Coding agents and AI task runs
+
+- Talk to Claude Code, Codex, Cursor, Gemini, Kimi, Copilot, Qwen, OpenCode, Goose, or a custom ACP agent in the **Agent** tab. The agent runs on the workspace host, so remote workspaces use remote credentials and files.
+- Render streamed responses, thoughts, tool calls, diffs, plans, permission requests, usage, and saved conversation history inline. Command and permission-mode aliases translate across agents.
+- Start one AI run from a brief, fan it out across ticket workspaces and labelled terminals, optionally prepare/refine prompts, and follow or cancel progress without killing already-running shells. See [agent details](./docs/agent.md) and [AI task details](./docs/ai.md).
+
+### Integrations and automation
+
+- Connect Jira and Bitbucket credentials, resolve issue and pull-request links from workspace metadata, and keep secrets in Electron safe storage where available.
+- Enable an MCP bridge per workspace: reverse-tunnel CDP and a workspace MCP server to the host so local tools and agents can drive the desktop browser. Set an MCP token for shared remotes.
+- Use the command palette and keyboard shortcuts for workspace, file, settings, AI, and search actions.
+
+For the full host configuration schema, see [host project settings](./docs/presets.md). For cookie-sandbox behavior, see [tab groups](./docs/tab-groups.md).
 
 ## Keybinds
 
@@ -118,26 +152,9 @@ Global **Settings**: credentials (Jira/Bitbucket), MCP token, fallback URL. Sche
 | `Ctrl/⌘ W` | Close workspace |
 | `Ctrl/⌘ S` | Save file |
 | `Ctrl/⌘ Shift F` | Search (ripgrep) |
+| `Ctrl/⌘ Shift A` | Run AI tasks |
 | `Ctrl/⌘ ,` | Settings |
 | `Esc` | Close modal |
-
-## Agent panel
-
-A chat tab in the bottom panel, speaking [ACP](https://agentclientprotocol.com) to
-Claude Code, Codex, Cursor, Gemini, Kimi, Copilot, Qwen, OpenCode or Goose — as a
-subprocess of the workspace host, so a remote workspace gets a remote agent.
-Slash commands autocomplete and translate between agents (`/compact` finds
-`/compress`), and diffs, tool calls and plans render inline instead of scrolling
-past in a terminal. See [docs/agent.md](./docs/agent.md).
-
-## MCP bridge
-
-Enable **MCP** on a workspace. mxwl reverse-tunnels CDP + a workspace MCP server through SSH:
-
-- CDP → `http://localhost:9222` on the host (Playwright `connectOverCDP`)
-- MCP → `http://localhost:9223/mcp`
-
-Set an **MCP auth token** in Settings on shared remotes.
 
 ## Architecture
 
