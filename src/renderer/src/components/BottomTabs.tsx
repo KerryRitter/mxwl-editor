@@ -66,7 +66,11 @@ export const BottomTabs: FC<BottomTabsProps> = ({
         {/* Same for the agent: the transcript lives in main, but an unmount would
             throw away scroll position and whatever is half-typed in the composer */}
         <div className={`absolute inset-0 ${active === 'agent' ? '' : 'hidden'}`}>
-          <AgentPanel key={wsId} wsId={wsId} visible={active === 'agent'} />
+          <AgentPanel
+            key={wsId}
+            wsId={wsId}
+            visible={workspaceActive && active === 'agent'}
+          />
         </div>
         {active === 'devtools' && <DevToolsPanel wsId={wsId} visible={showDevtools} />}
         {active === 'logs' && hasServices && <DevPanel wsId={wsId} />}
