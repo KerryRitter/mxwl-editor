@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.0-alpha.3
+
+### Added
+- ACP-backed Agent tab with streaming output, permissions, modes, saved conversations, slash commands, and file mentions
+- AI task planning and execution workflows
+- Workspace tab groups and multi-open support
+- Installer and macOS release packaging improvements
+
+### Changed
+- Terminal and browser sessions reconnect more reliably as workspace visibility changes
+- Agent transcript text can be selected and copied
+
 ## 0.2.0-alpha.2
 
 ### Added

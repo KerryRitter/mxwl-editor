@@ -2,7 +2,7 @@
 
 **SSH + browser + editor + terminal**, locked to one folder. mxwl is a workspace-first desktop tool for worktrees, ticket branches, and remote development boxes — with coding agents and an MCP/CDP bridge built in.
 
-> **Alpha** (`0.2.0-alpha.2`) — see [ALPHA.md](./ALPHA.md) before shipping to teammates.
+> **Alpha** (`0.2.0-alpha.3`) — see [ALPHA.md](./ALPHA.md) before shipping to teammates.
 
 Not a VS Code clone. It is ideal when you use **git worktrees** or **clone/copy into a new folder per ticket** so the folder name is the work unit (for example, `myapp-PROJ-42`). mxwl opens that folder as one workspace, with its browser, editor, terminals, agents, and integrations all scoped to that folder.
 

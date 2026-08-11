@@ -106,6 +106,22 @@ test('streams a turn back as merged blocks', async ({ page, workRoot }) => {
   expect(state.usage).toEqual({ used: 120, size: 1000 })
 })
 
+test('conversation text can be selected for copying', async ({ page, workRoot }) => {
+  await useFakeAgent(page)
+  const wsId = await openWorkspace(page, workRoot)
+  await startAgent(page, wsId)
+
+  await page.evaluate((id) => window.api.agent.prompt(id, 'copy this response'), wsId)
+  await transcript(page, wsId)
+  await showWorkspace(page)
+
+  const conversation = page.getByLabel('Agent conversation')
+  await expect(conversation.getByText('echo: copy this response')).toBeVisible()
+  await expect
+    .poll(() => conversation.evaluate((el) => getComputedStyle(el).userSelect))
+    .toBe('text')
+})
+
 test('a permission request is answered from the panel', async ({ page, workRoot }) => {
   await useFakeAgent(page)
   const wsId = await openWorkspace(page, workRoot)

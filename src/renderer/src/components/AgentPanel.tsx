@@ -172,13 +172,14 @@ export const AgentPanel: FC<AgentPanelProps> = ({ wsId, visible }) => {
 
       <div
         ref={scroller}
+        aria-label="Agent conversation"
         onScroll={(e) => {
           const el = e.currentTarget
           // Auto-scroll only while the user is already at the bottom, so reading
           // back through a long turn isn't yanked forward by every chunk.
           pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
         }}
-        className="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 py-2"
+        className="min-h-0 flex-1 select-text space-y-2 overflow-y-auto px-2 py-2"
       >
         {archive ? (
           archive.messages.map((m) => <MessageView key={m.id} message={m} />)

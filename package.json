@@ -1,6 +1,6 @@
 {
   "name": "mxwl-editor",
-  "version": "0.2.0-alpha.2",
+  "version": "0.2.0-alpha.3",
   "description": "Multi-workspace tool — local or SSH — browser + editor + terminal locked to a folder, with MCP/CDP bridge",
   "homepage": "https://github.com/kerryritter/mxwl-editor",
   "main": "out/main/index.js",
