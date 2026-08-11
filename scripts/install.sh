@@ -5,6 +5,7 @@ set -euo pipefail
 # Re-running this script safely replaces ~/.local/bin/mxwl with a fresh build.
 repo_url="https://github.com/KerryRitter/mxwl-editor.git"
 bin_dir="${MXWL_BIN_DIR:-$HOME/.local/bin}"
+desktop_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
 build_dir="$(mktemp -d)"
 
 cleanup() {
@@ -48,7 +49,28 @@ fi
 install -d "$bin_dir"
 install -m 755 "$appimage" "$bin_dir/mxwl"
 
+# Use the same desktop-entry id as the deb package. A user entry takes
+# precedence over /usr/share/applications, so the app menu stops launching an
+# older system-wide mxwl installation.
+install -d "$desktop_dir"
+cat > "$desktop_dir/mxwl-editor.desktop" <<EOF
+[Desktop Entry]
+Name=mxwl
+Exec="${bin_dir}/mxwl" %U
+Terminal=false
+Type=Application
+Icon=applications-development
+StartupWMClass=mxwl
+Comment=Multi-workspace tool for local and SSH development
+Categories=Development;
+EOF
+
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database "$desktop_dir" >/dev/null 2>&1 || true
+fi
+
 printf 'Installed mxwl to %s\n' "$bin_dir/mxwl"
+printf 'Updated desktop launcher: %s\n' "$desktop_dir/mxwl-editor.desktop"
 case ":$PATH:" in
   *":$bin_dir:"*) printf 'Run: mxwl\n' ;;
   *) printf 'Add %s to PATH, then run: mxwl\n' "$bin_dir" ;;

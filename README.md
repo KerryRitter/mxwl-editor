@@ -23,7 +23,7 @@ Not a VS Code clone. It is ideal when you use **git worktrees** or **clone/copy 
 curl -fsSL https://raw.githubusercontent.com/KerryRitter/mxwl-editor/main/scripts/install.sh | bash
 ```
 
-The installer builds the current `main` branch as an AppImage and installs `mxwl` to `~/.local/bin`. Re-run it to update. It needs Git, Node.js 20+, npm, and the native build tools below.
+The installer builds the current `main` branch as an AppImage, installs `mxwl` to `~/.local/bin`, and registers it as the desktop-menu launcher. Its user-level launcher overrides an older system-wide `mxwl-editor` package. Re-run it to update. It needs Git, Node.js 20+, npm, and the native build tools below.
 
 ### Prerequisites
 
