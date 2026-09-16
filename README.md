@@ -1,36 +1,63 @@
-# mxwl
+<div align="center">
 
-**SSH + browser + editor + terminal**, locked to one folder. mxwl is a workspace-first desktop tool for worktrees, ticket branches, and remote development boxes — with coding agents and an MCP/CDP bridge built in.
+<h1>mxwl</h1>
 
-> **Alpha** (`0.2.0-alpha.4`) — see [ALPHA.md](./ALPHA.md) before shipping to teammates.
+**The agent command center for local and remote workspaces.**
 
-Not a VS Code clone. It is ideal when you use **git worktrees** or **clone/copy into a new folder per ticket** so the folder name is the work unit (for example, `myapp-PROJ-42`). mxwl opens that folder as one workspace, with its browser, editor, terminals, agents, and integrations all scoped to that folder.
+Browser, code review, terminals, services, and coding agents—locked to the same folder.
 
+[![Release](https://img.shields.io/github/v/release/KerryRitter/mxwl-editor?include_prereleases&sort=semver&style=flat-square&color=8b5cf6)](https://github.com/KerryRitter/mxwl-editor/releases) [![CI](https://img.shields.io/github/actions/workflow/status/KerryRitter/mxwl-editor/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/KerryRitter/mxwl-editor/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/KerryRitter/mxwl-editor?style=flat-square)](./LICENSE) [![Linux](https://img.shields.io/badge/Linux-AppImage%20%7C%20deb-0ea5e9?style=flat-square&logo=linux&logoColor=white)](#install) [![macOS](https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-64748b?style=flat-square&logo=apple&logoColor=white)](#install)
+
+[Install](#install) · [See what it does](#one-folder-one-command-center) · [Control your agents](#run-the-fleet-not-just-one-chat) · [Docs](#docs) · [Latest release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.4)
+
+</div>
+
+> [!IMPORTANT]
+> mxwl is an early alpha. Start on a non-production machine and read the [current limitations](./ALPHA.md) before rolling it out to a team.
+
+## Why mxwl exists
+
+Modern development rarely lives in one editor window. A ticket may need its own worktree, authenticated browser session, dev server, terminals, pull-request review, and one or more coding agents. The hard part is keeping all of that context together—especially across SSH hosts, app restarts, and several tickets in flight.
+
+mxwl makes the **folder the unit of work**. Open a repository, worktree, or ticket folder once and get a complete, isolated cockpit around it.
+
+```text
+myapp-PROJ-42/
+├── browser       isolated cookies, tabs, DevTools, CDP
+├── code          local or SFTP files in Monaco
+├── changes       PR-style unified/split diffs and Git actions
+├── terminals     PTYs, named tabs, optional tmux persistence
+├── agent         Claude, Codex, Cursor, Gemini, and more via ACP
+└── context       branch, ticket, services, links, history, layout
 ```
-┌─ workspace tabs (one per folder) ──────────────────────────┐
-├──────────────────────┬──────────────────────────────────────┤
-│                      │ file tree │ Monaco (SFTP / local)    │
-│   Chromium browser   ├───────────┴───────────────────────────┤
-│   multi-tab · CDP    │ Agent · Terminal · Dev Tools · logs   │
-└──────────────────────┴───────────────────────────────────────┘
-```
+
+It is built for developers who run several worktrees, supervise coding agents, work on remote boxes, test multiple browser identities, or simply want to stop rebuilding their setup every time they change tickets.
 
 ## Install
 
-### Linux — one line
+### Linux — one command
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/KerryRitter/mxwl-editor/main/scripts/install.sh | bash
 ```
 
-The installer downloads and verifies the `0.2.0-alpha.4` x86_64 AppImage, installs `mxwl` to `~/.local/bin`, and registers it as the desktop-menu launcher. Its user-level launcher overrides an older system-wide `mxwl-editor` package. Re-run it to update; only `curl` and `sha256sum` are required.
+The installer downloads and verifies the **x86_64 AppImage**, places `mxwl` in `~/.local/bin`, and registers a desktop launcher. Re-run the command to update. It requires `curl` and `sha256sum`.
 
-### Source-build prerequisites
+### Download a release
 
-- **Node.js 20+** (CI uses Node 20; Node 22/24 also fine)
-- **npm** (comes with Node)
-- **Git**
-- Native build tools for `node-pty` (needed on first `npm install`):
+| Platform | Artifact | Status |
+|---|---|---|
+| Linux x86_64 | [AppImage](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/mxwl-0.2.0-alpha.4.AppImage) · [deb](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/mxwl-editor_0.2.0-alpha.4_amd64.deb) · [checksums](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/SHA256SUMS) | Primary / best tested |
+| macOS Apple Silicon | [arm64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/mxwl-0.2.0-alpha.4-arm64-mac.zip) | Ad-hoc signed, not notarized |
+| macOS Intel | [x64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/mxwl-0.2.0-alpha.4-mac.zip) | Ad-hoc signed, not notarized |
+| Windows | Build from source | Portable build, lightly tested |
+
+All current binaries are on the [`v0.2.0-alpha.4` release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.4).
+
+<details>
+<summary><strong>Build from source</strong></summary>
+
+Prerequisites: Node.js 20+, npm, Git, and native build tools for `node-pty`.
 
 ```bash
 # Debian / Ubuntu / Pop!_OS
@@ -39,154 +66,221 @@ sudo apt install -y build-essential python3 make g++
 # Fedora
 sudo dnf install -y @development-tools python3 make gcc-c++
 
-# macOS (Xcode CLI tools)
+# macOS
 xcode-select --install
 ```
 
-### From source (dev)
+Then clone and launch:
 
 ```bash
 git clone https://github.com/KerryRitter/mxwl-editor.git
 cd mxwl-editor
 npm install
-npm run typecheck   # optional sanity check
-npm run test        # optional
-npm run dev         # electron-vite — launches the app
+npm run dev
 ```
 
-If the terminal pane fails to load after Electron upgrades, rebuild the native module:
+Package for a platform:
 
 ```bash
-npx electron-rebuild -f -w node-pty
+npm run package:linux   # AppImage + deb
+npm run package:mac     # Intel + Apple Silicon zip
+npm run package:win     # portable exe
 ```
 
-### Build a Linux package yourself
+If the terminal pane fails after an Electron upgrade, rebuild its native module with `npx electron-rebuild -f -w node-pty`.
 
-Build AppImage + deb locally:
-
-```bash
-npm install
-npm run package:linux
-# → dist/mxwl-*.AppImage
-# → dist/mxwl-editor_*_amd64.deb
-```
-
-Or download those artifacts from [GitHub Releases](https://github.com/KerryRitter/mxwl-editor/releases).
-
-```bash
-# AppImage (no root)
-chmod +x mxwl-*.AppImage
-./mxwl-*.AppImage
-
-# deb
-sudo apt install ./mxwl-editor_*_amd64.deb
-```
-
-macOS / Windows packages:
-
-```bash
-npm run package:mac   # unsigned zip → dist/
-npm run package:win   # portable exe → dist/
-```
+</details>
 
 ### First launch
 
-1. **Add host** (this machine or SSH) → folder pattern, browser URL, Dev services
-2. **Test** → **Open** a folder (or `Ctrl+T`)
-3. Browser, editor, and terminal lock to that folder
-4. **Clone host** to copy connection + project settings
+1. Add **This machine** or an **SSH host**, then choose its workspace root and browser URL.
+2. Test the connection and open a folder—or press `Ctrl/⌘ T`.
+3. mxwl binds the browser, code, terminals, services, and agents to that folder.
+4. Clone the host configuration when another machine or environment uses the same project shape.
 
-## Quick start
+## One folder, one command center
 
-Already have deps installed?
-
-```bash
-npm install
-npm run dev          # electron-vite
-npm run ci           # typecheck + tests + build
-npm run package:linux   # AppImage + deb → dist/
+```text
+┌─ workspaces: PROJ-42  ·  PROJ-51  ·  api-server ───────────────┐
+├───────────────────────────┬─────────────────────────────────────┤
+│                           │  Code  │  Changes •                 │
+│   Chromium browser        │────────┬────────────────────────────│
+│   tabs + cookie groups    │ files  │ unified / split diff       │
+│   per-workspace DevTools  │        │ stage · commit · push · PR │
+│                           ├────────┴────────────────────────────│
+│                           │  Agent  │  Terminal  │  Dev Tools   │
+└───────────────────────────┴─────────────────────────────────────┘
 ```
 
-## Features
+| Surface | What it gives you |
+|---|---|
+| **Workspace bar** | Several local or SSH folders open at once, with live Git and agent state on each tab. Rename tabs when ticket names are not enough. |
+| **Browser** | Embedded Chromium, multiple tabs, isolated cookie groups, test-user login helpers, native DevTools, zoom, and external-browser handoff. |
+| **Code / Changes** | Monaco editing plus a fast changed-file list and PR-style unified or split diffs. |
+| **Bottom deck** | ACP agents, multiple named terminals, and service logs without leaving the workspace. |
+| **Command bar** | `Ctrl/⌘ K` search across files, workspaces, tabs, agents, and commands. |
+| **Attention bell** | A durable inbox for finished work, approval or authentication requests, and failures across the entire fleet. |
 
-### Workspace-first development
+Maximize any quadrant or switch among **Balanced**, **Code**, **Review**, **Debug**, and **Agent** layouts. Whole-app zoom ranges from 75–200%, so the cockpit works on a dense desktop display or a laptop screen.
 
-- Open local folders or SSH hosts; keep several workspaces open, each bound to one folder.
-- Restore open workspaces on launch, switch between them without interrupting their browser, editor, terminal, or agent state, and reconnect SSH sessions when the network blips.
-- Configure each host independently: workspace root, folder filter, naming regex, title/browser/issue templates, hidden files, terminal startup command, and dev services. Clone a host to reuse that configuration.
-- Extract ticket and branch context from folder names, show Git status, open linked Jira issues and Bitbucket pull requests, and add custom browser URLs for each workspace.
+## Review changes like a pull request
 
-### Browser and cookie sandboxes
+The top-right quadrant switches between the file explorer and a dedicated **Changes** surface:
 
-- Use an embedded Chromium browser with multiple tabs, navigation, hard refresh, zoom, external-browser handoff, and native DevTools.
-- Create coloured cookie sandboxes so the same site can be signed in as different users at once. Rename, clear, close, and move tabs between sandboxes.
-- Save per-host test credentials and selectors, then use **Login as test user** to fill a browser login form.
+- See every changed file without waiting on a heavyweight refresh.
+- Read the patch in unified or side-by-side mode with Monaco syntax highlighting.
+- Stage an entire file or one hunk.
+- Commit, push, and open the GitHub, GitLab, or Bitbucket pull request.
+- Select changed lines and send them to the active agent for an explanation or a fix.
 
-### Code, terminals, and services
+```text
+changed file → inspect diff → select lines → ask agent → stage hunk → commit → push → PR
+```
 
-- Browse local or SFTP files, edit with Monaco, save files, and search the workspace with ripgrep.
-- Review every changed file in the **Changes** tab with fast unified or split diffs; stage a whole file or one hunk, commit, push, and open a GitHub/GitLab/Bitbucket PR. Select changed lines to send an explain-or-fix request directly to the workspace agent.
-- Run multiple PTY terminals per workspace; sessions survive panel switches, replay their scrollback when remounted, recover connection state, and can start a configured command in the first shell. Named tmux tabs attach to a host-side session when tmux is installed, so the process can survive the desktop app or machine connection dropping.
-- Define per-host services with start, stop, restart, and log-tail commands; manage them from the Dev logs tab.
-- Maximize the browser, code, or bottom pane and switch among saved Balanced, Code, Review, Debug, and Agent layouts.
+It is the review loop of a hosted PR tool, next to the code and agent that can act on the feedback.
 
-### Coding agents and AI task runs
+## Run the fleet, not just one chat
 
-- Talk to Claude Code, Codex, Cursor, Gemini, Kimi, Copilot, Qwen, OpenCode, Goose, or a custom ACP agent in the **Agent** tab. The agent runs on the workspace host, so remote workspaces use remote credentials and files.
-- Render streamed responses, thoughts, tool calls, diffs, plans, permission requests, usage, and saved conversation history inline. Command and permission-mode aliases translate across agents.
-- Follow every agent from the workspace-tab status icons and persistent notification bell. Finished work, approval requests, authentication prompts, and failures enter one attention queue; selecting one jumps straight to that agent.
-- Switch the bell between the attention queue and a live fleet view spanning every local and SSH workspace, with one-line summaries of what each agent is doing.
-- Keep the runtime in the system tray when the window closes. After an app or machine restart, mxwl restores the same workspaces and relaunches their selected agents with saved conversation history available.
-- Start one AI run from a brief, fan it out across ticket workspaces and labelled terminals, optionally prepare/refine prompts, and follow or cancel progress without killing already-running shells. See [agent details](./docs/agent.md) and [AI task details](./docs/ai.md).
+mxwl talks to coding tools through the [Agent Client Protocol](https://agentclientprotocol.com/). Run **Claude Code, Codex, Cursor, Gemini, Kimi, Copilot, Qwen, OpenCode, Goose**, or a custom ACP agent on the same host as the workspace.
 
-### Integrations and automation
+- Watch streamed responses, reasoning, tool calls, plans, diffs, permissions, and usage inline.
+- See `working`, `idle`, `blocked`, and `failed` state directly on workspace tabs.
+- Switch the bell from the attention inbox to a live fleet view spanning local and SSH hosts.
+- Configure delivery, delay, sound, active-workspace suppression, and per-agent notification muting.
+- Keep the runtime resident in the system tray and optionally launch it at login.
+- Supervise from a responsive, token-authenticated local/LAN dashboard.
 
-- Connect Jira and Bitbucket credentials, resolve issue and pull-request links from workspace metadata, and keep secrets in Electron safe storage where available.
-- Enable an MCP bridge per workspace: reverse-tunnel CDP and a workspace MCP server to the host so local tools and agents can drive the desktop browser. Set an MCP token for shared remotes.
-- Launch a ticket in one action: create or reopen its sibling Git worktree, open a named browser cookie sandbox, start the default agent, and seed it with the ticket mission.
-- Use `Ctrl/⌘ K` to fuzzy-search files, workspaces, editor/browser/terminal/agent tabs, agents, and commands across every open workspace.
-- Zoom the entire workspace UI from 75–200% with persistent header controls or keyboard shortcuts.
-- Supervise the fleet from the responsive, token-authenticated web dashboard, or script it with `mxwl agent list|focus|prompt|wait`. Notification delivery, delay, sound, active-workspace suppression, and per-agent muting are configurable. See [background runtime and agent control](./docs/agent-control.md).
+The installed CLI controls that same runtime:
 
-For the full host configuration schema, see [host project settings](./docs/presets.md). For cookie-sandbox behavior, see [tab groups](./docs/tab-groups.md).
+```bash
+mxwl agent list
+mxwl agent get PROJ-42 --json
+mxwl agent focus PROJ-42
+mxwl agent prompt PROJ-42 "Run the failing tests and fix them"
+mxwl agent prompt PROJ-42 "Ship the fix" --wait
+mxwl agent wait PROJ-42 --until idle,attention,error --timeout 600
+```
 
-## Keybinds
+Targets can be workspace IDs, workspace titles, issue keys, or unique agent labels. See the [agent control guide](./docs/agent-control.md) for dashboard and API setup.
+
+## Start a ticket in one action
+
+The ticket launcher turns a brief into an isolated execution environment:
+
+```mermaid
+flowchart LR
+    A[Ticket or branch] --> B[Sibling Git worktree]
+    B --> C[Workspace]
+    C --> D[Cookie sandbox]
+    C --> E[Named terminal]
+    C --> F[ACP agent + seeded mission]
+```
+
+Reopen an existing worktree or create a new one, start a named browser cookie sandbox, launch the default agent, and seed it with the ticket mission. The workspace then carries the ticket and branch context into Jira, Bitbucket, browser URLs, and pull-request actions.
+
+## Designed to come back
+
+Closing a window should not erase the operating context around a task.
+
+| Event | What mxwl preserves |
+|---|---|
+| Hide or close the window with background runtime enabled | Live SSH connections, browser state, terminals, agents, notifications, and control API keep running in the tray. |
+| App or machine restart | Open workspaces, manual tab names, editor and terminal tabs, active tabs, recent terminal output, agent drafts and transcripts, and panel layout are restored. |
+| Agent restart | The selected ACP agent relaunches in the restored workspace with its saved transcript available. |
+| Terminal process continuity | A named tmux tab reattaches to its host-side session when tmux is installed. |
+
+Ordinary PTYs reopen as fresh shells after a process restart, and ACP cannot resume halfway through an interrupted tool call. mxwl restores the context honestly; use tmux when the underlying process itself must survive.
+
+## Built for local and remote work
+
+- Browse and edit local files or SFTP files on an SSH host.
+- Run terminals, services, and agents where the workspace actually lives.
+- Reconnect SSH workspaces after network interruptions.
+- Configure roots, folder filters, naming rules, hidden files, terminal startup commands, browser templates, issue templates, and service commands per host.
+- Clone a host configuration when several machines share the same project shape.
+- Create browser cookie groups for several identities against the same application.
+- Expose loopback-only MCP/CDP bridges so a remote agent can operate the desktop browser.
+
+## Keybindings
 
 | Key | Action |
 |---|---|
-| `Ctrl/⌘ P` | Quick open file |
 | `Ctrl/⌘ K` | Search everything |
-| `Ctrl/⌘ Shift P` | Commands only |
-| `Ctrl/⌘ T` | New workspace |
+| `Ctrl/⌘ P` | Quick-open a file |
+| `Ctrl/⌘ Shift P` | Search commands only |
+| `Ctrl/⌘ T` | Open a workspace |
 | `Ctrl/⌘ Shift T` | Launch ticket worktree + sandbox + agent |
-| `Ctrl/⌘ W` | Close workspace |
-| `Ctrl/⌘ S` | Save file |
-| `Ctrl/⌘ Shift F` | Search (ripgrep) |
+| `Ctrl/⌘ W` | Close the current workspace |
+| `Ctrl/⌘ S` | Save the current file |
+| `Ctrl/⌘ Shift F` | Search the workspace with ripgrep |
 | `Ctrl/⌘ Shift A` | Run AI tasks |
-| `Ctrl/⌘ ,` | Settings |
-| `Ctrl/⌘ +` / `Ctrl/⌘ -` | Zoom the app UI in / out |
-| `Ctrl/⌘ 0` | Reset app UI zoom |
+| `Ctrl/⌘ ,` | Open settings |
+| `Ctrl/⌘ +` / `Ctrl/⌘ -` / `Ctrl/⌘ 0` | Zoom in / out / reset |
 | `Ctrl/⌘ Shift 1/2/3` | Maximize browser / code / bottom pane |
-| `Esc` | Restore a maximized pane or close a modal |
+| `Esc` | Restore a pane or close a modal |
 
 ## Architecture
 
-```
-main: HostManager · WorkspaceManager (ssh2 / local) · agent runtime · authenticated control API · MCP
-preload: typed window.api
-renderer: React + Zustand + Monaco + xterm + WebContentsView chrome
+mxwl keeps privileged host operations in Electron's main process and exposes a narrow typed API to the renderer.
+
+```mermaid
+flowchart TB
+    UI[React + Zustand UI] --> PRELOAD[Typed preload bridge]
+    PRELOAD --> MAIN[Electron main process]
+    MAIN --> LOCAL[Local workspace]
+    MAIN --> SSH[SSH + SFTP workspace]
+    MAIN --> ACP[ACP agent runtimes]
+    MAIN --> WEB[Chromium WebContentsView]
+    MAIN --> CONTROL[Authenticated control API]
+    CLI[mxwl CLI] --> CONTROL
+    MOBILE[Mobile dashboard] --> CONTROL
+    ACP -. MCP / CDP .-> WEB
 ```
 
-## Releases
+Core stack: Electron, React, TypeScript, Zustand, Monaco, xterm.js, ssh2, ACP, and MCP.
 
-| Script | Output |
+## Security model
+
+- SSH passwords, key passphrases, and Jira/Bitbucket tokens use Electron `safeStorage` when available.
+- Chromium debugging, MCP, and the control API bind to loopback by default.
+- LAN dashboard access is opt-in and every API route requires the generated bearer token.
+- Reverse tunnels expose ports on the remote host's loopback—not directly to the public internet.
+- Shared remote machines should always use an MCP auth token.
+
+Treat mxwl like a privileged developer tool: it can reach your hosts, files, browsers, and agents. Read the full [security guide](./SECURITY.md) before enabling remote control.
+
+## Development
+
+```bash
+npm install
+npm run dev          # launch with electron-vite
+npm run typecheck    # TypeScript checks
+npm test             # unit tests
+npm run e2e          # Electron end-to-end suite
+npm run ci           # typecheck + tests + production build
+```
+
+## Docs
+
+| Guide | Covers |
 |---|---|
-| `npm run package:linux` | AppImage + deb |
-| `npm run package:mac` | unsigned zip |
-| `npm run package:win` | portable exe |
+| [Alpha status](./ALPHA.md) | Platform support, sharp edges, and recovery limits |
+| [Agent runtime](./docs/agent.md) | ACP agents, conversations, permissions, and modes |
+| [Agent control](./docs/agent-control.md) | Notifications, fleet view, CLI, dashboard, and API |
+| [AI task runs](./docs/ai.md) | Planning and running work across several workspaces |
+| [Host settings](./docs/presets.md) | Per-host project and service configuration |
+| [Cookie sandboxes](./docs/tab-groups.md) | Browser identity isolation and tab groups |
+| [Changelog](./CHANGELOG.md) | Release-by-release changes |
+| [Security](./SECURITY.md) | Secrets, tunnels, tokens, and reporting |
 
-Changelog: [CHANGELOG.md](./CHANGELOG.md) · Security: [SECURITY.md](./SECURITY.md)
+## Release status
+
+Current release: **[`v0.2.0-alpha.4`](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.4)**
+
+Linux is the primary platform. macOS artifacts are ad-hoc signed but not notarized. Windows is buildable as a portable executable and is still lightly tested. There is no auto-updater yet.
+
+Found a bug or have an idea? [Open an issue](https://github.com/KerryRitter/mxwl-editor/issues) with your OS, package type, host kind, and reproduction steps.
 
 ## License
 
-MIT — see [LICENSE](./LICENSE).
+[MIT](./LICENSE) © Kerry Ritter
