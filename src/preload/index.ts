@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AgentId,
+  AgentNotificationRecord,
   AgentSessionState,
   AgentTranscript,
   AgentTranscriptMeta,
@@ -8,8 +9,12 @@ import type {
   AiPlan,
   AiRunState,
   BrowserTab,
+  ControlStatus,
   DirEntry,
+  GitChangesSnapshot,
+  GitFileDiff,
   GitStatus,
+  FleetAgent,
   HostConfig,
   HostInput,
   JiraIssue,
@@ -24,6 +29,7 @@ import type {
 
 const api = {
   ping: (): Promise<{ pong: boolean; ts: number }> => ipcRenderer.invoke('app:ping'),
+  setZoom: (factor: number): Promise<number> => ipcRenderer.invoke('app:setZoom', factor),
   invoke: (channel: string, ...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
   on: (channel: string, cb: (...args: unknown[]) => void) => {
     const wrapped = (_e: unknown, ...args: unknown[]) => cb(...args)
@@ -46,17 +52,36 @@ const api = {
       ipcRenderer.invoke('workspace:discover', hostId),
     open: (hostId: string, remotePath: string): Promise<WorkspaceState> =>
       ipcRenderer.invoke('workspace:open', { hostId, remotePath }),
+    createWorktree: (wsId: string, ticket: string, branch?: string): Promise<WorkspaceState> =>
+      ipcRenderer.invoke('workspace:createWorktree', { wsId, ticket, branch }),
     close: (id: string): Promise<void> => ipcRenderer.invoke('workspace:close', id),
+    rename: (wsId: string, title: string): Promise<void> =>
+      ipcRenderer.invoke('workspace:rename', { wsId, title }),
     git: (wsId: string): Promise<GitStatus | null> => ipcRenderer.invoke('workspace:git', wsId),
     search: (wsId: string, query: string): Promise<SearchHit[]> =>
       ipcRenderer.invoke('workspace:search', { wsId, query }),
     listFiles: (wsId: string, query?: string): Promise<string[]> =>
-      ipcRenderer.invoke('workspace:listFiles', { wsId, query })
+      ipcRenderer.invoke('workspace:listFiles', { wsId, query }),
+    changes: (wsId: string): Promise<GitChangesSnapshot> =>
+      ipcRenderer.invoke('workspace:changes', wsId),
+    fileDiff: (wsId: string, path: string): Promise<GitFileDiff> =>
+      ipcRenderer.invoke('workspace:fileDiff', { wsId, path }),
+    gitStageFile: (wsId: string, path: string): Promise<string> =>
+      ipcRenderer.invoke('workspace:gitStageFile', { wsId, path }),
+    gitUnstageFile: (wsId: string, path: string): Promise<string> =>
+      ipcRenderer.invoke('workspace:gitUnstageFile', { wsId, path }),
+    gitStageHunk: (wsId: string, path: string, hunkId: string): Promise<string> =>
+      ipcRenderer.invoke('workspace:gitStageHunk', { wsId, path, hunkId }),
+    gitCommit: (wsId: string, message: string): Promise<string> =>
+      ipcRenderer.invoke('workspace:gitCommit', { wsId, message }),
+    gitPush: (wsId: string): Promise<string> => ipcRenderer.invoke('workspace:gitPush', wsId),
+    gitPullRequestUrl: (wsId: string): Promise<string> =>
+      ipcRenderer.invoke('workspace:gitPullRequestUrl', wsId)
   },
   terminal: {
     open: (
       wsId: string,
-      opts: { cwd?: string; cols: number; rows: number; label?: string }
+      opts: { cwd?: string; cols: number; rows: number; label?: string; tmuxName?: string }
     ): Promise<string> => ipcRenderer.invoke('terminal:open', { wsId, ...opts }),
     replay: (wsId: string, sessionId: string): Promise<string> =>
       ipcRenderer.invoke('terminal:replay', { wsId, sessionId }),
@@ -65,7 +90,11 @@ const api = {
     resize: (wsId: string, sessionId: string, cols: number, rows: number): Promise<void> =>
       ipcRenderer.invoke('terminal:resize', { wsId, sessionId, cols, rows }),
     close: (wsId: string, sessionId: string): Promise<void> =>
-      ipcRenderer.invoke('terminal:close', { wsId, sessionId })
+      ipcRenderer.invoke('terminal:close', { wsId, sessionId }),
+    rename: (wsId: string, sessionId: string, label: string): Promise<void> =>
+      ipcRenderer.invoke('terminal:rename', { wsId, sessionId, label }),
+    setActive: (wsId: string, sessionId: string): Promise<void> =>
+      ipcRenderer.invoke('terminal:setActive', { wsId, sessionId })
   },
   fs: {
     readDir: (wsId: string, path: string): Promise<DirEntry[]> =>
@@ -162,7 +191,14 @@ const api = {
       scmProvider?: import('../shared/types').ScmProviderId
       ai?: Partial<import('../shared/types').AiSettings>
       agent?: Partial<import('../shared/types').AgentSettings>
+      notifications?: Partial<import('../shared/types').AgentNotificationSettings>
+      control?: Partial<import('../shared/types').ControlSettings>
+      runtime?: Partial<import('../shared/types').RuntimeSettings>
     }): Promise<SettingsSnapshot> => ipcRenderer.invoke('settings:update', input)
+  },
+  control: {
+    status: (): Promise<ControlStatus> => ipcRenderer.invoke('control:status'),
+    fleet: (): Promise<FleetAgent[]> => ipcRenderer.invoke('control:fleet')
   },
   ai: {
     plan: (req: {
@@ -202,6 +238,14 @@ const api = {
       ipcRenderer.invoke('agent:transcript', id),
     deleteTranscript: (id: string): Promise<void> =>
       ipcRenderer.invoke('agent:deleteTranscript', id)
+  },
+  attention: {
+    list: (): Promise<AgentNotificationRecord[]> => ipcRenderer.invoke('attention:list'),
+    markRead: (id: string): Promise<AgentNotificationRecord[]> =>
+      ipcRenderer.invoke('attention:markRead', id),
+    markAllRead: (): Promise<AgentNotificationRecord[]> =>
+      ipcRenderer.invoke('attention:markAllRead'),
+    clear: (): Promise<void> => ipcRenderer.invoke('attention:clear')
   },
   jira: {
     get: (key: string): Promise<JiraIssue | null> => ipcRenderer.invoke('jira:get', key)

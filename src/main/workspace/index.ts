@@ -1,5 +1,5 @@
 import { ipcMain, type IpcMainInvokeEvent } from 'electron'
-import type { DirEntry, WorkspaceState } from '../../shared/types'
+import type { DirEntry, GitChangesSnapshot, GitFileDiff, WorkspaceState } from '../../shared/types'
 import { WorkspaceManager } from './WorkspaceManager'
 
 export { WorkspaceManager, SshConnection } from './WorkspaceManager'
@@ -18,8 +18,21 @@ export function registerWorkspaceIpc(manager: WorkspaceManager): void {
       payload: { hostId: string; remotePath: string }
     ): Promise<WorkspaceState> => manager.open(payload.hostId, payload.remotePath)
   )
+  ipcMain.handle(
+    'workspace:createWorktree',
+    (
+      _e: IpcMainInvokeEvent,
+      payload: { wsId: string; ticket: string; branch?: string }
+    ): Promise<WorkspaceState> =>
+      manager.createWorktree(payload.wsId, { ticket: payload.ticket, branch: payload.branch })
+  )
   ipcMain.handle('workspace:close', (_e: IpcMainInvokeEvent, id: string): void =>
     manager.close(id)
+  )
+  ipcMain.handle(
+    'workspace:rename',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; title: string }): void =>
+      manager.renameWorkspace(payload.wsId, payload.title)
   )
   ipcMain.handle('workspace:git', (_e: IpcMainInvokeEvent, wsId: string) =>
     manager.refreshGit(wsId)
@@ -34,6 +47,46 @@ export function registerWorkspaceIpc(manager: WorkspaceManager): void {
     (_e: IpcMainInvokeEvent, payload: { wsId: string; query?: string }) =>
       manager.listFiles(payload.wsId, payload.query ?? '')
   )
+  ipcMain.handle(
+    'workspace:changes',
+    (_e: IpcMainInvokeEvent, wsId: string): Promise<GitChangesSnapshot> =>
+      manager.gitChanges(wsId)
+  )
+  ipcMain.handle(
+    'workspace:fileDiff',
+    (
+      _e: IpcMainInvokeEvent,
+      payload: { wsId: string; path: string }
+    ): Promise<GitFileDiff> => manager.gitFileDiff(payload.wsId, payload.path)
+  )
+  ipcMain.handle(
+    'workspace:gitStageFile',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; path: string }): Promise<string> =>
+      manager.gitStageFile(payload.wsId, payload.path)
+  )
+  ipcMain.handle(
+    'workspace:gitUnstageFile',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; path: string }): Promise<string> =>
+      manager.gitUnstageFile(payload.wsId, payload.path)
+  )
+  ipcMain.handle(
+    'workspace:gitStageHunk',
+    (
+      _e: IpcMainInvokeEvent,
+      payload: { wsId: string; path: string; hunkId: string }
+    ): Promise<string> => manager.gitStageHunk(payload.wsId, payload.path, payload.hunkId)
+  )
+  ipcMain.handle(
+    'workspace:gitCommit',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; message: string }): Promise<string> =>
+      manager.gitCommit(payload.wsId, payload.message)
+  )
+  ipcMain.handle('workspace:gitPush', (_e: IpcMainInvokeEvent, wsId: string): Promise<string> =>
+    manager.gitPush(wsId)
+  )
+  ipcMain.handle('workspace:gitPullRequestUrl', (_e: IpcMainInvokeEvent, wsId: string): Promise<string> =>
+    manager.gitPullRequestUrl(wsId)
+  )
   ipcMain.handle('dev:services', (_e: IpcMainInvokeEvent, wsId: string) =>
     manager.listServices(wsId)
   )
@@ -42,7 +95,7 @@ export function registerWorkspaceIpc(manager: WorkspaceManager): void {
     'terminal:open',
     (
       _e: IpcMainInvokeEvent,
-      payload: { wsId: string; cwd?: string; cols: number; rows: number; label?: string }
+      payload: { wsId: string; cwd?: string; cols: number; rows: number; label?: string; tmuxName?: string }
     ): Promise<string> => manager.openTerminal(payload.wsId, payload)
   )
   ipcMain.handle(
@@ -66,6 +119,16 @@ export function registerWorkspaceIpc(manager: WorkspaceManager): void {
     'terminal:close',
     (_e: IpcMainInvokeEvent, payload: { wsId: string; sessionId: string }): void =>
       manager.closeTerminal(payload.wsId, payload.sessionId)
+  )
+  ipcMain.handle(
+    'terminal:rename',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; sessionId: string; label: string }): void =>
+      manager.renameTerminal(payload.wsId, payload.sessionId, payload.label)
+  )
+  ipcMain.handle(
+    'terminal:setActive',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; sessionId: string }): void =>
+      manager.setActiveTerminal(payload.wsId, payload.sessionId)
   )
 
   ipcMain.handle(

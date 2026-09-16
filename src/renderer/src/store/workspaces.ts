@@ -27,7 +27,9 @@ type WorkspacesState = {
   discover: (hostId: string) => Promise<void>
   open: (hostId: string, remotePath: string) => Promise<void>
   openMany: (hostId: string, remotePaths: string[]) => Promise<void>
+  adopt: (workspace: WorkspaceState) => void
   close: (id: string) => Promise<void>
+  rename: (id: string, title: string) => Promise<void>
   applyEvent: (
     id: string,
     status: WorkspaceState['status'],
@@ -118,13 +120,35 @@ export const useWorkspacesStore = create<WorkspacesState>((set) => ({
     if (lastId) set({ activeId: lastId })
   },
 
+  adopt: (workspace) =>
+    set((state) => ({
+      workspaces: state.workspaces.some((item) => item.id === workspace.id)
+        ? state.workspaces.map((item) => (item.id === workspace.id ? workspace : item))
+        : [...state.workspaces, workspace],
+      activeId: workspace.id
+    })),
+
   close: async (id) => {
+    // Stop and forget the ACP runtime while the workspace mapping still exists,
+    // otherwise it would be relaunched by crash recovery on the next start.
+    await window.api.agent.close(id).catch(() => undefined)
     await window.api.workspace.close(id)
     set((s) => {
       const workspaces = s.workspaces.filter((w) => w.id !== id)
       const activeId = s.activeId === id ? (workspaces[0]?.id ?? null) : s.activeId
       return { workspaces, activeId }
     })
+  },
+
+  rename: async (id, title) => {
+    const next = title.trim()
+    if (!next) return
+    await window.api.workspace.rename(id, next)
+    set((s) => ({
+      workspaces: s.workspaces.map((workspace) =>
+        workspace.id === id ? { ...workspace, title: next.slice(0, 120) } : workspace
+      )
+    }))
   },
 
   applyEvent: (id, status, state) => {

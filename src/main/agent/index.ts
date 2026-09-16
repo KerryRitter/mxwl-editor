@@ -6,13 +6,15 @@ import type {
   AgentTranscriptMeta
 } from '../../shared/types'
 import { AgentController, type AgentCatalogEntry } from './AgentController'
+import type { AttentionController } from './AttentionController'
 
 export { AgentController }
+export { AttentionController } from './AttentionController'
 export type { AgentCatalogEntry }
 export { AcpSession } from './AcpSession'
 export { TranscriptStore } from './TranscriptStore'
 
-export function registerAgentIpc(agents: AgentController): void {
+export function registerAgentIpc(agents: AgentController, attention?: AttentionController): void {
   ipcMain.handle('agent:catalog', (): AgentCatalogEntry[] => agents.catalog())
 
   ipcMain.handle(
@@ -69,4 +71,13 @@ export function registerAgentIpc(agents: AgentController): void {
   ipcMain.handle('agent:deleteTranscript', (_e: IpcMainInvokeEvent, id: string) =>
     agents.deleteTranscript(id)
   )
+
+  if (attention) {
+    ipcMain.handle('attention:list', () => attention.list())
+    ipcMain.handle('attention:markRead', (_e: IpcMainInvokeEvent, id: string) =>
+      attention.markRead(id)
+    )
+    ipcMain.handle('attention:markAllRead', () => attention.markAllRead())
+    ipcMain.handle('attention:clear', () => attention.clear())
+  }
 }

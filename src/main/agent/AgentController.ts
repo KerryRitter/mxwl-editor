@@ -1,4 +1,6 @@
-import type { BrowserWindow } from 'electron'
+import { app, type BrowserWindow } from 'electron'
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import type {
   AgentId,
   AgentSessionState,
@@ -19,6 +21,12 @@ import { TranscriptStore } from './TranscriptStore'
 /** Chunks stream in token by token; saving on each one would rewrite the file per word. */
 const SAVE_DEBOUNCE_MS = 1500
 
+type RestorableAgent = {
+  hostId: string
+  cwd: string
+  agentId: AgentId
+}
+
 export type AgentCatalogEntry = {
   id: AgentId
   label: string
@@ -36,12 +44,19 @@ export type AgentCatalogEntry = {
 export class AgentController {
   private sessions = new Map<string, AcpSession>()
   private saveTimers = new Map<string, NodeJS.Timeout>()
+  private lastStates = new Map<string, AgentSessionState>()
+  private runtimeFile = join(app.getPath('userData'), 'agent-runtime.json')
+  private restorable = this.loadRestorable()
 
   constructor(
     private workspaces: WorkspaceManager,
     private settings: SettingsStore,
     private getSender: () => BrowserWindow | null,
-    private transcripts = new TranscriptStore()
+    private transcripts = new TranscriptStore(),
+    private onState?: (
+      previous: AgentSessionState | undefined,
+      next: AgentSessionState
+    ) => void
   ) {}
 
   /** Saved conversations for a folder, newest first. */
@@ -93,7 +108,7 @@ export class AgentController {
       if (current.snapshot().status === 'idle') await current.start()
       return current.snapshot()
     }
-    if (current) await this.close(wsId)
+    if (current) await this.close(wsId, false)
 
     const ws = this.workspaces.list().find((w) => w.id === wsId)
     if (!ws) throw new Error('workspace not found')
@@ -109,22 +124,28 @@ export class AgentController {
     this.sessions.set(wsId, session)
     this.emit(session.snapshot())
     await session.start()
+    this.remember(wsId, want)
     return session.snapshot()
   }
 
-  async close(wsId: string): Promise<void> {
+  async close(wsId: string, forget = true): Promise<void> {
     const session = this.sessions.get(wsId)
-    if (!session) return
+    if (!session) {
+      if (forget) this.forget(wsId)
+      return
+    }
     this.flush(wsId)
     this.sessions.delete(wsId)
+    this.lastStates.delete(wsId)
     await session.dispose()
-    this.getSender()?.webContents.send('agent:closed', { wsId })
+    if (forget) this.forget(wsId)
+    this.send('agent:closed', { wsId })
   }
 
   /** Same agent, fresh process — the fix for a hung or half-authenticated CLI. */
   async restart(wsId: string): Promise<AgentSessionState> {
     const agentId = this.sessions.get(wsId)?.agentId
-    await this.close(wsId)
+    await this.close(wsId, false)
     return this.open(wsId, agentId)
   }
 
@@ -156,7 +177,25 @@ export class AgentController {
 
   async disposeAll(): Promise<void> {
     const ids = [...this.sessions.keys()]
-    for (const id of ids) await this.close(id)
+    for (const id of ids) await this.close(id, false)
+  }
+
+  /**
+   * ACP processes cannot survive a machine crash, but the runtime can relaunch
+   * the same agent against the restored workspace and keep the saved transcript
+   * available. A failed host is left in the restore file for the next launch.
+   */
+  async restoreSessions(): Promise<void> {
+    for (const entry of this.restorable) {
+      const workspace = this.workspaces.findByPath(entry.hostId, entry.cwd)
+      if (!workspace || this.sessions.has(workspace.id)) continue
+      try {
+        await this.workspaces.waitForConnected(workspace.id, 30_000)
+        await this.open(workspace.id, entry.agentId)
+      } catch {
+        // Workspace status already carries connection failures. Keep the entry.
+      }
+    }
   }
 
   private require(wsId: string): AcpSession {
@@ -187,7 +226,67 @@ export class AgentController {
   }
 
   private emit(state: AgentSessionState): void {
+    const previous = this.lastStates.get(state.wsId)
+    this.lastStates.set(state.wsId, state)
+    this.onState?.(previous, state)
     this.scheduleSave(state.wsId)
-    this.getSender()?.webContents.send('agent:event', state)
+    this.send('agent:event', state)
   }
+
+  private send(channel: string, payload: unknown): void {
+    const window = this.getSender()
+    if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
+    window.webContents.send(channel, payload)
+  }
+
+  private remember(wsId: string, agentId: AgentId): void {
+    const workspace = this.workspaces.list().find((candidate) => candidate.id === wsId)
+    if (!workspace) return
+    this.restorable = [
+      ...this.restorable.filter(
+        (entry) => entry.hostId !== workspace.hostId || entry.cwd !== workspace.remotePath
+      ),
+      { hostId: workspace.hostId, cwd: workspace.remotePath, agentId }
+    ]
+    this.persistRestorable()
+  }
+
+  private forget(wsId: string): void {
+    const workspace = this.workspaces.list().find((candidate) => candidate.id === wsId)
+    if (!workspace) return
+    this.restorable = this.restorable.filter(
+      (entry) => entry.hostId !== workspace.hostId || entry.cwd !== workspace.remotePath
+    )
+    this.persistRestorable()
+  }
+
+  private loadRestorable(): RestorableAgent[] {
+    if (!existsSync(this.runtimeFile)) return []
+    try {
+      const value = JSON.parse(readFileSync(this.runtimeFile, 'utf8')) as unknown
+      if (!Array.isArray(value)) return []
+      return value.filter(isRestorableAgent)
+    } catch {
+      return []
+    }
+  }
+
+  private persistRestorable(): void {
+    const dir = dirname(this.runtimeFile)
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+    const temporary = `${this.runtimeFile}.tmp`
+    writeFileSync(temporary, JSON.stringify(this.restorable, null, 2), 'utf8')
+    renameSync(temporary, this.runtimeFile)
+  }
+}
+
+function isRestorableAgent(value: unknown): value is RestorableAgent {
+  if (!value || typeof value !== 'object') return false
+  const entry = value as Partial<RestorableAgent>
+  return (
+    typeof entry.hostId === 'string' &&
+    typeof entry.cwd === 'string' &&
+    typeof entry.agentId === 'string' &&
+    ACP_AGENT_ORDER.includes(entry.agentId as AgentId)
+  )
 }

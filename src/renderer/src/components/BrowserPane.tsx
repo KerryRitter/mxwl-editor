@@ -4,6 +4,8 @@ import {
   ArrowRight,
   Cookie,
   ExternalLink,
+  Maximize2,
+  Minimize2,
   Minus,
   Plus,
   RotateCw,
@@ -27,13 +29,17 @@ interface BrowserPaneProps {
   defaultUrl?: string
   active?: boolean
   canTestLogin?: boolean
+  maximized?: boolean
+  onToggleMaximize?: () => void
 }
 
 export function BrowserPane({
   wsId,
   defaultUrl,
   active: wsActive = true,
-  canTestLogin = false
+  canTestLogin = false,
+  maximized = false,
+  onToggleMaximize
 }: BrowserPaneProps): JSX.Element {
   const viewportRef = useRef<HTMLDivElement>(null)
   const [snap, setSnap] = useState<Snapshot>({ wsId, activeId: null, tabs: [], groups: [] })
@@ -210,6 +216,14 @@ export function BrowserPane({
         >
           <ExternalLink size={13} />
         </ChromeBtn>
+        {onToggleMaximize && (
+          <ChromeBtn
+            onClick={onToggleMaximize}
+            title={`${maximized ? 'Restore layout' : 'Maximize browser'} (Ctrl+Shift+1)`}
+          >
+            {maximized ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+          </ChromeBtn>
+        )}
       </div>
 
       <div className="flex items-center gap-1 overflow-x-auto border-b border-neutral-800/70 px-1.5 py-1">

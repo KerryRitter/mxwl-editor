@@ -199,6 +199,8 @@ export type TerminalInfo = {
   label: string
   /** Set when the session was spawned by an AI run rather than by the user. */
   aiTaskId?: string
+  /** A named tmux session whose processes survive app and SSH restarts. */
+  tmuxName?: string
 }
 
 export type WorkspaceState = {
@@ -210,7 +212,12 @@ export type WorkspaceState = {
   derived: DerivedWorkspace
   browser: { tabs: BrowserTab[]; activeTabId: string | null }
   editor: { openFiles: OpenFile[]; activeFile: string | null }
-  terminal: { sessions: TerminalInfo[]; activeSessionId: string | null }
+  terminal: {
+    sessions: TerminalInfo[]
+    activeSessionId: string | null
+    /** True while crash-recovery shells are being recreated in the main process. */
+    restoring?: boolean
+  }
   dev: { servers: Record<string, DevServerState> }
   mcp: { cdpEnabled: boolean }
   createdAt: number
@@ -252,11 +259,38 @@ export type AgentSettings = {
   autoApprove: boolean
 }
 
+export type AgentNotificationSettings = {
+  /** Popup delivery; the bell history is always kept unless the agent is muted. */
+  delivery: 'off' | 'in-app' | 'system' | 'both'
+  /** Wait for the state to remain stable before alerting. */
+  delaySeconds: number
+  sound: boolean
+  suppressActiveWorkspace: boolean
+  mutedAgents: AgentId[]
+}
+
+export type ControlSettings = {
+  enabled: boolean
+  port: number
+  /** Bind beyond loopback. Requires the bearer token and an explicit opt-in. */
+  remoteAccess: boolean
+  authToken: string
+}
+
+export type RuntimeSettings = {
+  /** Closing the window hides it while agents and terminals continue running. */
+  keepAlive: boolean
+  launchAtLogin: boolean
+}
+
 export type AppSettings = {
   taskProvider: TaskProviderId
   scmProvider: ScmProviderId
   ai: AiSettings
   agent: AgentSettings
+  notifications: AgentNotificationSettings
+  control: ControlSettings
+  runtime: RuntimeSettings
   jira: { host: string; email: string; apiTokenEnc: string } | null
   bitbucket: {
     host: string
@@ -313,6 +347,53 @@ export type GitStatus = {
   dirty: boolean
   ahead: number
   behind: number
+}
+
+export type GitChangeKind =
+  | 'modified'
+  | 'added'
+  | 'deleted'
+  | 'renamed'
+  | 'copied'
+  | 'untracked'
+  | 'conflicted'
+
+/** One path in the current workspace compared with HEAD. */
+export type GitChange = {
+  path: string
+  oldPath?: string
+  indexStatus: string
+  worktreeStatus: string
+  kind: GitChangeKind
+  staged: boolean
+  unstaged: boolean
+  /** Null means git reported a binary file or the count is not known yet. */
+  additions: number | null
+  deletions: number | null
+}
+
+export type GitChangesSnapshot = {
+  branch: string | null
+  files: GitChange[]
+  additions: number
+  deletions: number
+}
+
+export type GitDiffHunk = {
+  id: string
+  header: string
+  patch: string
+  additions: number
+  deletions: number
+}
+
+/** Text needed by Monaco's diff editor for one changed path. */
+export type GitFileDiff = GitChange & {
+  oldText: string | null
+  newText: string | null
+  binary: boolean
+  /** Unstaged text hunks that can be applied independently to the index. */
+  hunks: GitDiffHunk[]
 }
 
 /** One AI CLI invocation — becomes a terminal tab inside a workspace. */
@@ -554,4 +635,46 @@ export type AgentSessionState = {
   /** Context window fill, when the agent reports it */
   usage: { used: number; size: number } | null
   startedAt: number
+}
+
+export type AgentActivityState = 'starting' | 'working' | 'attention' | 'idle' | 'error'
+
+export type AgentActivity = {
+  state: AgentActivityState
+  summary: string
+}
+
+export type AgentNotificationRecord = {
+  id: string
+  wsId: string
+  agentId: AgentId
+  agentLabel: string
+  kind: 'done' | 'attention' | 'error'
+  title: string
+  detail: string
+  createdAt: number
+  read: boolean
+}
+
+export type FleetAgent = {
+  wsId: string
+  workspaceTitle: string
+  issueKey: string | null
+  cwd: string
+  hostId: string
+  hostLabel: string
+  agentId: AgentId
+  agentLabel: string
+  activity: AgentActivity
+  permission: AgentPermissionRequest | null
+  startedAt: number
+}
+
+export type ControlStatus = {
+  enabled: boolean
+  running: boolean
+  host: string
+  port: number
+  url: string
+  error?: string
 }

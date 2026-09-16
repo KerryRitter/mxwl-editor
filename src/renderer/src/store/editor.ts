@@ -12,6 +12,7 @@ type WsEditor = {
 
 type EditorState = {
   byWs: Record<string, WsEditor>
+  restore: (wsId: string, paths: string[], activePath: string | null) => void
   open: (wsId: string, path: string) => void
   close: (wsId: string, path: string) => void
   setActive: (wsId: string, path: string) => void
@@ -26,6 +27,23 @@ const getWs = (byWs: Record<string, WsEditor>, wsId: string): WsEditor =>
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   byWs: {},
+
+  restore: (wsId, paths, activePath) =>
+    set((s) => {
+      if (s.byWs[wsId]) return s
+      const files = [...new Set(paths)].map((path) => ({ path, dirty: false }))
+      return {
+        byWs: {
+          ...s.byWs,
+          [wsId]: {
+            files,
+            activePath: activePath && files.some((file) => file.path === activePath)
+              ? activePath
+              : (files[0]?.path ?? null)
+          }
+        }
+      }
+    }),
 
   open: (wsId, path) => {
     const cur = getWs(get().byWs, wsId)

@@ -19,6 +19,9 @@ mxwl is an **early alpha** desktop tool (`0.2.0-alpha.3`). Expect sharp edges. U
 - SSH reconnect gives up after ~12 failures (re-open the workspace)
 - If OS keychain/`safeStorage` is unavailable, secrets are stored with an `insecure:` marker — prefer SSH agent
 - MCP/CDP is loopback-only; still set an MCP token on shared remotes
+- After an app or machine restart, terminal tabs and recent output are restored but ordinary PTYs are fresh shells; use the terminal pane's tmux button (and install tmux on that host) when the underlying process itself must survive
+- Agent recovery relaunches the same ACP agent against the restored workspace and retains its saved transcript; it cannot resume an interrupted subprocess instruction pointer or an in-flight tool call
+- The control dashboard binds to loopback by default. LAN access is an explicit setting and should only be used with the generated bearer token on a trusted network, VPN, or tailnet
 
 ## Feedback
 

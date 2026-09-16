@@ -3,7 +3,12 @@ import { ipcMain, type IpcMainInvokeEvent } from 'electron'
 type Handler = (event: IpcMainInvokeEvent, ...args: any[]) => any | Promise<any>
 
 const handlers: Record<string, Handler> = {
-  'app:ping': async () => ({ pong: true, ts: Date.now() })
+  'app:ping': async () => ({ pong: true, ts: Date.now() }),
+  'app:setZoom': (event, requested: number) => {
+    const factor = Number.isFinite(requested) ? Math.min(2, Math.max(0.75, requested)) : 1
+    event.sender.setZoomFactor(factor)
+    return factor
+  }
 }
 
 export function registerIpc(): void {

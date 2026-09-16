@@ -28,6 +28,7 @@ import { AgentComposer } from './AgentComposer'
 
 type AgentPanelProps = {
   wsId: string
+  persistenceKey: string
   /** The panel stays mounted behind the other tabs; only a visible one starts an agent */
   visible: boolean
 }
@@ -41,7 +42,7 @@ const STATUS_DOT: Record<AgentConnStatus, string> = {
   exited: 'bg-neutral-500'
 }
 
-export const AgentPanel: FC<AgentPanelProps> = ({ wsId, visible }) => {
+export const AgentPanel: FC<AgentPanelProps> = ({ wsId, persistenceKey, visible }) => {
   const session = useAgentStore((s) => s.sessions[wsId] ?? null)
   const catalog = useAgentStore((s) => s.catalog)
   const busy = useAgentStore((s) => s.busy[wsId] ?? false)
@@ -62,6 +63,8 @@ export const AgentPanel: FC<AgentPanelProps> = ({ wsId, visible }) => {
   const viewTranscript = useAgentStore((s) => s.viewTranscript)
   const closeTranscript = useAgentStore((s) => s.closeTranscript)
   const deleteTranscript = useAgentStore((s) => s.deleteTranscript)
+  const queuedPrompt = useAgentStore((s) => s.queuedPrompts[wsId] ?? null)
+  const consumePrompt = useAgentStore((s) => s.consumePrompt)
   const [historyOpen, setHistoryOpen] = useState(false)
 
   const scroller = useRef<HTMLDivElement>(null)
@@ -77,11 +80,36 @@ export const AgentPanel: FC<AgentPanelProps> = ({ wsId, visible }) => {
   // Showing the tab is the request — waiting on a click to pick the agent that
   // Settings already names is a step with one answer.
   useEffect(() => {
-    if (visible) void ensureOpen(wsId)
-  }, [visible, wsId, ensureOpen])
+    if (!visible || catalog.length === 0) return
+    const saved = localStorage.getItem(`${persistenceKey}.agentId`)
+    const remembered = catalog.find((entry) => entry.id === saved)?.id
+    void ensureOpen(wsId, remembered)
+  }, [visible, wsId, ensureOpen, catalog, persistenceKey])
+
+  useEffect(() => {
+    if (!visible || !queuedPrompt || session?.status !== 'ready' || session.turn !== 'idle') return
+    const queued = queuedPrompt
+    consumePrompt(wsId, queued.id)
+    void send(wsId, queued.text).then((result) => {
+      if (result.kind === 'prompt') setNote(wsId, null)
+      else setNote(wsId, { text: result.note, tone: result.kind === 'error' ? 'error' : 'info' })
+    })
+  }, [visible, queuedPrompt, session?.status, session?.turn, consumePrompt, send, setNote, wsId])
+
+  const openRemembered = (id: AgentId): void => {
+    localStorage.setItem(`${persistenceKey}.agentId`, id)
+    void open(wsId, id)
+  }
 
   if (!session)
-    return <StartScreen wsId={wsId} catalog={catalog} busy={busy} note={note} onOpen={open} />
+    return (
+      <StartScreen
+        catalog={catalog}
+        busy={busy}
+        note={note}
+        onOpen={openRemembered}
+      />
+    )
 
   const running = session.turn !== 'idle'
   const live = session.status === 'ready'
@@ -92,7 +120,7 @@ export const AgentPanel: FC<AgentPanelProps> = ({ wsId, visible }) => {
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT[session.status]}`} />
         <select
           value={session.agentId}
-          onChange={(e) => void open(wsId, e.currentTarget.value as AgentId)}
+          onChange={(e) => openRemembered(e.currentTarget.value as AgentId)}
           className="rounded bg-neutral-900 px-1.5 py-0.5 text-[11px] text-neutral-200 outline-none"
         >
           {catalog.map((c) => (
@@ -251,6 +279,7 @@ export const AgentPanel: FC<AgentPanelProps> = ({ wsId, visible }) => {
 
       <AgentComposer
         wsId={wsId}
+        persistenceKey={persistenceKey}
         commands={session.commands}
         disabled={!live || archive !== null}
         running={running}
@@ -318,12 +347,11 @@ const HistoryList: FC<{
 
 /** Only reached while the default agent is starting, or after it failed to. */
 const StartScreen: FC<{
-  wsId: string
   catalog: AgentCatalogEntry[]
   busy: boolean
   note: AgentNote | null
-  onOpen: (wsId: string, agentId?: AgentId) => Promise<void>
-}> = ({ wsId, catalog, busy, note, onOpen }) => (
+  onOpen: (agentId: AgentId) => void
+}> = ({ catalog, busy, note, onOpen }) => (
   <div className="flex h-full flex-col items-center justify-center gap-3 bg-neutral-950 p-4">
     <div className="flex items-center gap-2 text-[12px] text-neutral-400">
       {busy ? <Loader2 size={14} className="animate-spin" /> : <Bot size={14} />}
@@ -341,7 +369,7 @@ const StartScreen: FC<{
           <button
             key={c.id}
             disabled={busy}
-            onClick={() => void onOpen(wsId, c.id)}
+            onClick={() => onOpen(c.id)}
             title={c.hint}
             className="flex items-center gap-1.5 rounded border border-neutral-800 bg-neutral-900 px-2.5 py-1.5 text-[11px] text-neutral-300 hover:border-neutral-700 hover:text-neutral-100 disabled:opacity-50"
           >

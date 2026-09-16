@@ -24,6 +24,10 @@ export interface ExecResult {
   code: number | null
 }
 
+export interface ExecOptions {
+  timeoutMs?: number
+}
+
 export class SshConnection extends EventEmitter {
   readonly hostId: string
   private host: HostConfig
@@ -137,11 +141,40 @@ export class SshConnection extends EventEmitter {
     return this.sftpCache
   }
 
-  exec(cmd: string): Promise<ExecResult> {
+  exec(cmd: string, opts: ExecOptions = {}): Promise<ExecResult> {
     this.requireConnected()
     return new Promise<ExecResult>((resolve, reject) => {
+      let channel: ClientChannel | null = null
+      let settled = false
+      const timer = opts.timeoutMs
+        ? setTimeout(() => {
+            if (settled) return
+            settled = true
+            channel?.close()
+            reject(new Error(`Command timed out after ${Math.ceil(opts.timeoutMs! / 1000)} seconds`))
+          }, opts.timeoutMs)
+        : null
+      timer?.unref?.()
+      const finish = (result: ExecResult): void => {
+        if (settled) return
+        settled = true
+        if (timer) clearTimeout(timer)
+        resolve(result)
+      }
+      const fail = (err: Error): void => {
+        if (settled) return
+        settled = true
+        if (timer) clearTimeout(timer)
+        reject(err)
+      }
+
       this.client!.exec(cmd, (err, stream) => {
-        if (err) return reject(err)
+        if (err) return fail(err)
+        if (settled) {
+          stream.close()
+          return
+        }
+        channel = stream
         let stdout = ''
         let stderr = ''
         let code: number | null = null
@@ -149,8 +182,9 @@ export class SshConnection extends EventEmitter {
         stream.stderr.on('data', (d: Buffer) => (stderr += d.toString()))
         stream.on('close', (c: number | null) => {
           code = c
-          resolve({ stdout, stderr, code })
+          finish({ stdout, stderr, code })
         })
+        stream.on('error', fail)
       })
     })
   }

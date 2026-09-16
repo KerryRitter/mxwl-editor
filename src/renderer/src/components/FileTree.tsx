@@ -16,9 +16,14 @@ type DirNodeProps = {
   name: string
   depth: number
   refreshNonce: number
+  enabled: boolean
 }
 
-export const FileTree: FC<{ wsId: string; root: string }> = ({ wsId, root }) => {
+export const FileTree: FC<{ wsId: string; root: string; enabled?: boolean }> = ({
+  wsId,
+  root,
+  enabled = true
+}) => {
   const [refreshNonce, setRefreshNonce] = useState(0)
   return (
     <div className="flex h-full flex-col bg-neutral-950">
@@ -40,39 +45,43 @@ export const FileTree: FC<{ wsId: string; root: string }> = ({ wsId, root }) => 
           name={basename(root)}
           depth={0}
           refreshNonce={refreshNonce}
+          enabled={enabled}
         />
       </div>
     </div>
   )
 }
 
-const DirNode: FC<DirNodeProps> = ({ wsId, path, name, depth, refreshNonce }) => {
+const DirNode: FC<DirNodeProps> = ({ wsId, path, name, depth, refreshNonce, enabled }) => {
   const [expanded, setExpanded] = useState(depth === 0)
   const [children, setChildren] = useState<DirEntry[] | null>(null)
   const [loading, setLoading] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
   const open = useEditorStore((s) => s.open)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
       setChildren(await window.api.fs.readDir(wsId, path))
+      setLoadFailed(false)
     } catch {
       setChildren([])
+      setLoadFailed(true)
     } finally {
       setLoading(false)
     }
   }, [wsId, path])
 
   useEffect(() => {
-    if (expanded) void load()
-  }, [expanded, load, refreshNonce])
+    if (enabled && expanded) void load()
+  }, [enabled, expanded, load, refreshNonce])
 
   // poll while expanded so remote edits show up
   useEffect(() => {
-    if (!expanded) return
+    if (!enabled || !expanded || loadFailed) return
     const t = setInterval(() => void load(), 12000)
     return () => clearInterval(t)
-  }, [expanded, load])
+  }, [enabled, expanded, load, loadFailed])
 
   const indent = { paddingLeft: depth * 12 + 8 }
 
@@ -101,6 +110,14 @@ const DirNode: FC<DirNodeProps> = ({ wsId, path, name, depth, refreshNonce }) =>
           …
         </div>
       )}
+      {expanded && loadFailed && (
+        <div
+          style={{ paddingLeft: (depth + 1) * 12 + 28 }}
+          className="py-0.5 text-[11px] text-red-400/80"
+        >
+          Folder unavailable — refresh to retry
+        </div>
+      )}
       {expanded &&
         children?.map((c) =>
           c.isDirectory ? (
@@ -111,6 +128,7 @@ const DirNode: FC<DirNodeProps> = ({ wsId, path, name, depth, refreshNonce }) =>
               name={c.name}
               depth={depth + 1}
               refreshNonce={refreshNonce}
+              enabled={enabled}
             />
           ) : (
             <FileRow

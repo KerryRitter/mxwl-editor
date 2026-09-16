@@ -1,7 +1,7 @@
 import { BrowserWindow, Menu, shell } from 'electron'
 import { join } from 'path'
 
-export function createMainWindow(): BrowserWindow {
+export function createMainWindow(options: { startHidden?: boolean } = {}): BrowserWindow {
   const win = new BrowserWindow({
     width: 1600,
     height: 1000,
@@ -40,9 +40,21 @@ export function createMainWindow(): BrowserWindow {
           { role: 'reload' },
           { role: 'toggleDevTools' },
           { type: 'separator' },
-          { role: 'resetZoom' },
-          { role: 'zoomIn' },
-          { role: 'zoomOut' },
+          {
+            label: 'Actual Size',
+            accelerator: 'CmdOrCtrl+0',
+            click: () => win.webContents.send('shortcut:zoom', { action: 'reset' })
+          },
+          {
+            label: 'Zoom In',
+            accelerator: 'CmdOrCtrl+Plus',
+            click: () => win.webContents.send('shortcut:zoom', { action: 'in' })
+          },
+          {
+            label: 'Zoom Out',
+            accelerator: 'CmdOrCtrl+-',
+            click: () => win.webContents.send('shortcut:zoom', { action: 'out' })
+          },
           { type: 'separator' },
           { role: 'togglefullscreen' }
         ]
@@ -60,13 +72,35 @@ export function createMainWindow(): BrowserWindow {
       win.webContents.send('shortcut:palette', { mode: 'files' })
       return
     }
-    if (key === 'k' && !input.shift) {
+    if (key === 'p' && input.shift) {
       event.preventDefault()
       win.webContents.send('shortcut:palette', { mode: 'commands' })
+      return
+    }
+    if (key === 'k' && !input.shift) {
+      event.preventDefault()
+      win.webContents.send('shortcut:palette', { mode: 'all' })
+      return
+    }
+    if (key === '0' && !input.shift) {
+      event.preventDefault()
+      win.webContents.send('shortcut:zoom', { action: 'reset' })
+      return
+    }
+    if (key === '-' || key === '_') {
+      event.preventDefault()
+      win.webContents.send('shortcut:zoom', { action: 'out' })
+      return
+    }
+    if (key === '+' || key === '=') {
+      event.preventDefault()
+      win.webContents.send('shortcut:zoom', { action: 'in' })
     }
   })
 
-  win.on('ready-to-show', () => win.show())
+  win.on('ready-to-show', () => {
+    if (!options.startHidden) win.show()
+  })
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)

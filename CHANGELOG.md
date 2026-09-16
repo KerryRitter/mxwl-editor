@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Live working-tree review in the Code quadrant with changed-file navigation and unified / split Monaco diffs
+- Manual names for workspace and terminal tabs
+- Crash-safe workspace / terminal tab recovery, including active tabs, terminal output checkpoints, agent drafts, editor tabs, and panel layout
+- Persistent whole-app UI zoom (75–200%) with header controls and keyboard shortcuts
+- Stage files or individual hunks, commit, push, and open a pull request from the Changes tab
+- Send selected diff lines to the active agent for explanation or a fix
+- Maximizable quadrants and persistent Balanced, Code, Review, Debug, and Agent layout presets
+- Named tmux terminal tabs for host-side process survival
+- One-action ticket launcher for a sibling worktree, browser cookie sandbox, and seeded agent
+- Global fuzzy search across files, workspaces, commands, agents, and open editor/browser/terminal/agent tabs
+- Persistent agent notification bell with finished, needs-attention, and failed events; background toasts jump directly to the originating agent
+- Agent working, idle, blocked, and failed status rollups on workspace tabs
+- Background-resident agent runtime with tray controls and optional launch at login
+- Agent restart recovery: selected agents relaunch in restored local or SSH workspaces, with conversation history retained
+- One live fleet/attention view across every open host with concise activity summaries
+- Notification controls for in-app/desktop delivery, stable-state delay, sound, active-workspace suppression, and per-agent muting
+- Token-authenticated local/LAN control API and responsive mobile dashboard
+- `mxwl agent list`, `get`, `focus`, `prompt`, and `wait` automation commands
+
+### Changed
+- Session checkpoints are written atomically; restored terminal tabs clearly identify a fresh shell or a reattached tmux session
+
 ## 0.2.0-alpha.3
 
 ### Added

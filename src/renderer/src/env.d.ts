@@ -1,8 +1,10 @@
 /// <reference types="vite/client" />
 import type {
   AgentId,
+  AgentNotificationRecord,
   AgentSessionState,
   AgentSettings,
+  AgentNotificationSettings,
   AgentTranscript,
   AgentTranscriptMeta,
   AiCliId,
@@ -10,8 +12,13 @@ import type {
   AiRunState,
   AiSettings,
   BrowserTab,
+  ControlSettings,
+  ControlStatus,
   DirEntry,
+  GitChangesSnapshot,
+  GitFileDiff,
   GitStatus,
+  FleetAgent,
   HostConfig,
   HostInput,
   JiraIssue,
@@ -19,6 +26,7 @@ import type {
   PresetService,
   PullRequest,
   SearchHit,
+  RuntimeSettings,
   SettingsSnapshot,
   TabGroup,
   TestResult,
@@ -29,6 +37,7 @@ declare global {
   interface Window {
     api: {
       ping: () => Promise<{ pong: boolean; ts: number }>
+      setZoom: (factor: number) => Promise<number>
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
       on: (channel: string, cb: (...args: unknown[]) => void) => () => void
       host: {
@@ -44,20 +53,32 @@ declare global {
         list: () => Promise<WorkspaceState[]>
         discover: (hostId: string) => Promise<DirEntry[]>
         open: (hostId: string, remotePath: string) => Promise<WorkspaceState>
+        createWorktree: (wsId: string, ticket: string, branch?: string) => Promise<WorkspaceState>
         close: (id: string) => Promise<void>
+        rename: (wsId: string, title: string) => Promise<void>
         git: (wsId: string) => Promise<GitStatus | null>
         search: (wsId: string, query: string) => Promise<SearchHit[]>
         listFiles: (wsId: string, query?: string) => Promise<string[]>
+        changes: (wsId: string) => Promise<GitChangesSnapshot>
+        fileDiff: (wsId: string, path: string) => Promise<GitFileDiff>
+        gitStageFile: (wsId: string, path: string) => Promise<string>
+        gitUnstageFile: (wsId: string, path: string) => Promise<string>
+        gitStageHunk: (wsId: string, path: string, hunkId: string) => Promise<string>
+        gitCommit: (wsId: string, message: string) => Promise<string>
+        gitPush: (wsId: string) => Promise<string>
+        gitPullRequestUrl: (wsId: string) => Promise<string>
       }
       terminal: {
         open: (
           wsId: string,
-          opts: { cwd?: string; cols: number; rows: number; label?: string }
+          opts: { cwd?: string; cols: number; rows: number; label?: string; tmuxName?: string }
         ) => Promise<string>
         replay: (wsId: string, sessionId: string) => Promise<string>
         input: (wsId: string, sessionId: string, data: string) => Promise<void>
         resize: (wsId: string, sessionId: string, cols: number, rows: number) => Promise<void>
         close: (wsId: string, sessionId: string) => Promise<void>
+        rename: (wsId: string, sessionId: string, label: string) => Promise<void>
+        setActive: (wsId: string, sessionId: string) => Promise<void>
       }
       fs: {
         readDir: (wsId: string, path: string) => Promise<DirEntry[]>
@@ -139,7 +160,14 @@ declare global {
           scmProvider?: import('../../shared/types').ScmProviderId
           ai?: Partial<AiSettings>
           agent?: Partial<AgentSettings>
+          notifications?: Partial<AgentNotificationSettings>
+          control?: Partial<ControlSettings>
+          runtime?: Partial<RuntimeSettings>
         }) => Promise<SettingsSnapshot>
+      }
+      control: {
+        status: () => Promise<ControlStatus>
+        fleet: () => Promise<FleetAgent[]>
       }
       ai: {
         plan: (req: {
@@ -170,6 +198,12 @@ declare global {
         history: (cwd?: string) => Promise<AgentTranscriptMeta[]>
         transcript: (id: string) => Promise<AgentTranscript | null>
         deleteTranscript: (id: string) => Promise<void>
+      }
+      attention: {
+        list: () => Promise<AgentNotificationRecord[]>
+        markRead: (id: string) => Promise<AgentNotificationRecord[]>
+        markAllRead: () => Promise<AgentNotificationRecord[]>
+        clear: () => Promise<void>
       }
       jira: { get: (key: string) => Promise<JiraIssue | null> }
       pr: { get: (wsId: string) => Promise<PullRequest | null> }

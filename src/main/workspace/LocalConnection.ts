@@ -4,7 +4,7 @@ import { homedir, userInfo, hostname } from 'node:os'
 import { existsSync } from 'node:fs'
 import * as pty from 'node-pty'
 import type { HostConfig, WorkspaceStatus } from '../../shared/types'
-import type { ExecResult, ShellOptions } from './SshConnection'
+import type { ExecOptions, ExecResult, ShellOptions } from './SshConnection'
 import { expandHome } from '../hosts/HostManager'
 import { shellQuote } from './util'
 import { DEFAULT_DERIVE, DEFAULT_HIDE } from '../../shared/hostDefaults'
@@ -78,19 +78,41 @@ export class LocalConnection extends EventEmitter {
     }
   }
 
-  exec(cmd: string): Promise<ExecResult> {
+  exec(cmd: string, opts: ExecOptions = {}): Promise<ExecResult> {
     this.requireConnected()
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const child = spawn('/bin/bash', ['-lc', cmd], {
         env: process.env,
         cwd: expandHome(this.host.workspacesRoot || homedir())
       })
       let stdout = ''
       let stderr = ''
+      let settled = false
+      const timer = opts.timeoutMs
+        ? setTimeout(() => {
+            if (settled) return
+            settled = true
+            child.kill()
+            reject(new Error(`Command timed out after ${Math.ceil(opts.timeoutMs! / 1000)} seconds`))
+          }, opts.timeoutMs)
+        : null
+      timer?.unref?.()
+      const finish = (result: ExecResult): void => {
+        if (settled) return
+        settled = true
+        if (timer) clearTimeout(timer)
+        resolve(result)
+      }
+      const fail = (err: Error): void => {
+        if (settled) return
+        settled = true
+        if (timer) clearTimeout(timer)
+        reject(err)
+      }
       child.stdout.on('data', (d: Buffer) => (stdout += d.toString()))
       child.stderr.on('data', (d: Buffer) => (stderr += d.toString()))
-      child.on('close', (code) => resolve({ stdout, stderr, code }))
-      child.on('error', (err) => resolve({ stdout, stderr: stderr + String(err), code: 1 }))
+      child.on('close', (code) => finish({ stdout, stderr, code }))
+      child.on('error', fail)
     })
   }
 

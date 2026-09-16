@@ -9,9 +9,13 @@ import {
 } from '../../../shared/acpAgents'
 import type {
   AgentId,
+  AgentNotificationSettings,
   AgentSettings,
   AiCliId,
   AiSettings,
+  ControlSettings,
+  ControlStatus,
+  RuntimeSettings,
   ScmProviderId,
   TaskProviderId
 } from '../../../shared/types'
@@ -50,6 +54,25 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
   const [mcpToken, setMcpToken] = useState('')
   const [ai, setAi] = useState<AiSettings>({ ...DEFAULT_AI_SETTINGS })
   const [agent, setAgent] = useState<AgentSettings>({ ...DEFAULT_AGENT_SETTINGS })
+  const [notifications, setNotifications] = useState<AgentNotificationSettings>({
+    delivery: 'in-app',
+    delaySeconds: 1,
+    sound: true,
+    suppressActiveWorkspace: true,
+    mutedAgents: []
+  })
+  const [control, setControl] = useState<ControlSettings>({
+    enabled: true,
+    port: 9233,
+    remoteAccess: false,
+    authToken: ''
+  })
+  const [runtime, setRuntime] = useState<RuntimeSettings>({
+    keepAlive: true,
+    launchAtLogin: false
+  })
+  const [controlStatus, setControlStatus] = useState<ControlStatus | null>(null)
+  const [copied, setCopied] = useState(false)
   const [saving, setSaving] = useState(false)
   const [encryptionOk, setEncryptionOk] = useState(true)
   const [configured, setConfigured] = useState<{ jira: boolean; bb: boolean }>({
@@ -78,9 +101,13 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
       setMcpToken(s.mcpAuthToken ?? '')
       setAi({ ...DEFAULT_AI_SETTINGS, ...(s.ai ?? {}) })
       setAgent({ ...DEFAULT_AGENT_SETTINGS, ...(s.agent ?? {}) })
+      setNotifications(s.notifications)
+      setControl(s.control)
+      setRuntime(s.runtime)
       setEncryptionOk(s.encryptionAvailable !== false)
       setConfigured({ jira: Boolean(s.jira?.host), bb: Boolean(s.bitbucket?.workspace) })
     })
+    void window.api.control.status().then(setControlStatus)
   }, [])
 
   async function save(): Promise<void> {
@@ -90,6 +117,9 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
       scmProvider,
       ai,
       agent,
+      notifications,
+      control,
+      runtime,
       defaultBrowserUrl: defaultUrl,
       mcpAuthToken: mcpToken,
       jira:
@@ -327,6 +357,222 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
                 </span>
               </span>
             </label>
+          </div>
+        </ProviderSection>
+
+        <ProviderSection title="Notifications">
+          <p className="mb-2 text-[11px] text-neutral-500">
+            Alerts fire after an agent finishes, fails, or needs permission. History remains in the
+            bell even when popup delivery is off.
+          </p>
+          <ProviderPicker
+            options={[
+              { id: 'off', label: 'Bell only', ready: true },
+              { id: 'in-app', label: 'In app', ready: true },
+              { id: 'system', label: 'Desktop', ready: true },
+              { id: 'both', label: 'Both', ready: true }
+            ]}
+            value={notifications.delivery}
+            onChange={(delivery) =>
+              setNotifications((value) => ({
+                ...value,
+                delivery: delivery as AgentNotificationSettings['delivery']
+              }))
+            }
+          />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Field label="Delay" hint="seconds; avoids noisy transitions">
+              <input
+                className={inputCls}
+                type="number"
+                min={0}
+                max={3600}
+                value={notifications.delaySeconds}
+                onChange={(event) =>
+                  setNotifications((value) => ({
+                    ...value,
+                    delaySeconds: Math.max(0, Math.min(3600, Number(event.target.value) || 0))
+                  }))
+                }
+              />
+            </Field>
+            <label className="flex items-center gap-2 self-end pb-2 text-[11px] text-neutral-400">
+              <input
+                type="checkbox"
+                checked={notifications.sound}
+                onChange={(event) =>
+                  setNotifications((value) => ({ ...value, sound: event.target.checked }))
+                }
+                className="accent-emerald-500"
+              />
+              Play notification sound
+            </label>
+          </div>
+          <label className="mt-2 flex items-center gap-2 text-[11px] text-neutral-400">
+            <input
+              type="checkbox"
+              checked={notifications.suppressActiveWorkspace}
+              onChange={(event) =>
+                setNotifications((value) => ({
+                  ...value,
+                  suppressActiveWorkspace: event.target.checked
+                }))
+              }
+              className="accent-emerald-500"
+            />
+            Stay quiet when I am already looking at that workspace
+          </label>
+          <div className="mt-3">
+            <p className="mb-1.5 text-[10px] uppercase tracking-wide text-neutral-600">
+              Mute agent types
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {ACP_AGENT_ORDER.map((id) => {
+                const muted = notifications.mutedAgents.includes(id)
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() =>
+                      setNotifications((value) => ({
+                        ...value,
+                        mutedAgents: muted
+                          ? value.mutedAgents.filter((agentId) => agentId !== id)
+                          : [...value.mutedAgents, id]
+                      }))
+                    }
+                    className={`rounded border px-2 py-1 text-[10px] ${
+                      muted
+                        ? 'border-amber-600/70 bg-amber-950/30 text-amber-300'
+                        : 'border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                    }`}
+                  >
+                    {muted ? 'Muted · ' : ''}{ACP_AGENTS[id].label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </ProviderSection>
+
+        <ProviderSection title="Background runtime">
+          <div className="grid gap-2">
+            <label className="flex items-start gap-2 text-[11px] text-neutral-400">
+              <input
+                type="checkbox"
+                checked={runtime.keepAlive}
+                onChange={(event) =>
+                  setRuntime((value) => ({ ...value, keepAlive: event.target.checked }))
+                }
+                className="mt-0.5 accent-emerald-500"
+              />
+              <span>
+                Keep agents and terminals running when the window closes
+                <span className="block text-[10px] text-neutral-600">
+                  The window hides to the tray. Use Quit mxwl from the tray to stop the runtime.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-[11px] text-neutral-400">
+              <input
+                type="checkbox"
+                checked={runtime.launchAtLogin}
+                onChange={(event) =>
+                  setRuntime((value) => ({ ...value, launchAtLogin: event.target.checked }))
+                }
+                className="mt-0.5 accent-emerald-500"
+              />
+              Start the mxwl runtime in the background when I log in
+            </label>
+          </div>
+        </ProviderSection>
+
+        <ProviderSection title="Control API & mobile dashboard">
+          <div className="grid gap-3">
+            <label className="flex items-center gap-2 text-[11px] text-neutral-400">
+              <input
+                type="checkbox"
+                checked={control.enabled}
+                onChange={(event) =>
+                  setControl((value) => ({ ...value, enabled: event.target.checked }))
+                }
+                className="accent-emerald-500"
+              />
+              Enable authenticated control server and <code>mxwl agent</code> CLI
+            </label>
+            <div className="grid grid-cols-[120px_1fr] gap-2">
+              <Field label="Port">
+                <input
+                  className={inputCls}
+                  type="number"
+                  min={1024}
+                  max={65535}
+                  value={control.port}
+                  onChange={(event) =>
+                    setControl((value) => ({
+                      ...value,
+                      port: Math.max(1024, Math.min(65535, Number(event.target.value) || 9233))
+                    }))
+                  }
+                />
+              </Field>
+              <Field label="Bearer token" hint="generated locally">
+                <div className="flex gap-1.5">
+                  <input className={inputCls} readOnly type="password" value={control.authToken} />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(control.authToken)
+                      setCopied(true)
+                      window.setTimeout(() => setCopied(false), 1200)
+                    }}
+                    className="rounded-md border border-neutral-700 px-2 text-[10px] text-neutral-400 hover:text-neutral-100"
+                  >
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </Field>
+            </div>
+            <label className="flex items-start gap-2 text-[11px] text-neutral-400">
+              <input
+                type="checkbox"
+                checked={control.remoteAccess}
+                onChange={(event) =>
+                  setControl((value) => ({ ...value, remoteAccess: event.target.checked }))
+                }
+                className="mt-0.5 accent-amber-500"
+              />
+              <span>
+                Allow devices on this network
+                <span className="block text-[10px] text-amber-600/90">
+                  Binds to every network interface. Keep the bearer token private and use a trusted
+                  LAN, VPN, or tailnet.
+                </span>
+              </span>
+            </label>
+            <div className="flex items-center justify-between rounded-md border border-neutral-800 bg-neutral-950 px-2.5 py-2">
+              <div>
+                <p className="text-[11px] text-neutral-300">
+                  {controlStatus?.running ? 'Runtime online' : 'Runtime will start after save'}
+                </p>
+                <p className="text-[10px] text-neutral-600">
+                  {controlStatus?.url ?? `http://127.0.0.1:${control.port}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={!control.authToken}
+                onClick={() =>
+                  window.open(
+                    `${controlStatus?.url ?? `http://127.0.0.1:${control.port}`}/?token=${encodeURIComponent(control.authToken)}`,
+                    '_blank'
+                  )
+                }
+                className="rounded-md bg-violet-600 px-2.5 py-1.5 text-[10px] text-white hover:bg-violet-500 disabled:opacity-40"
+              >
+                Open dashboard
+              </button>
+            </div>
           </div>
         </ProviderSection>
 

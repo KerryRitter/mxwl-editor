@@ -36,11 +36,12 @@ type AgentStore = {
   history: Record<string, AgentTranscriptMeta[]>
   /** The archived conversation on screen, if the user opened one */
   viewing: Record<string, AgentTranscript | null>
+  queuedPrompts: Record<string, { id: number; text: string } | null>
 
   init: () => () => void
   loadCatalog: () => Promise<void>
   open: (wsId: string, agentId?: AgentId) => Promise<void>
-  ensureOpen: (wsId: string) => Promise<void>
+  ensureOpen: (wsId: string, agentId?: AgentId) => Promise<void>
   close: (wsId: string) => Promise<void>
   restart: (wsId: string) => Promise<void>
   send: (wsId: string, text: string) => Promise<SendResult>
@@ -54,7 +55,11 @@ type AgentStore = {
   viewTranscript: (wsId: string, id: string) => Promise<void>
   closeTranscript: (wsId: string) => void
   deleteTranscript: (wsId: string, id: string, cwd: string) => Promise<void>
+  ask: (wsId: string, text: string) => void
+  consumePrompt: (wsId: string, id: number) => void
 }
+
+let promptSeq = 0
 
 function errText(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -68,6 +73,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   attempted: {},
   history: {},
   viewing: {},
+  queuedPrompts: {},
 
   init: () => {
     const offEvent = window.api.on('agent:event', (payload) => {
@@ -115,10 +121,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
    * Tried once per workspace, so an agent that dies — or one the user closed —
    * leaves the picker up instead of being respawned behind their back.
    */
-  ensureOpen: async (wsId) => {
+  ensureOpen: async (wsId, agentId) => {
     if (get().sessions[wsId] || get().attempted[wsId] || get().busy[wsId]) return
     set((s) => ({ attempted: { ...s.attempted, [wsId]: true } }))
-    await get().open(wsId)
+    await get().open(wsId, agentId)
   },
 
   close: async (wsId) => {
@@ -224,7 +230,21 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     await window.api.agent.deleteTranscript(id)
     if (get().viewing[wsId]?.id === id) get().closeTranscript(wsId)
     await get().loadHistory(wsId, cwd)
-  }
+  },
+
+  ask: (wsId, text) =>
+    set((state) => ({
+      queuedPrompts: {
+        ...state.queuedPrompts,
+        [wsId]: { id: ++promptSeq, text: text.trim() }
+      }
+    })),
+
+  consumePrompt: (wsId, id) =>
+    set((state) => {
+      if (state.queuedPrompts[wsId]?.id !== id) return state
+      return { queuedPrompts: { ...state.queuedPrompts, [wsId]: null } }
+    })
 }))
 
 async function runClientCommand(

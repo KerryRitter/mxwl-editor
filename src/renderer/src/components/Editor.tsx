@@ -6,14 +6,16 @@ import { basename, languageForPath } from '../util'
 
 interface EditorProps {
   wsId: string
+  storageKey?: string
 }
 
-export function Editor({ wsId }: EditorProps): JSX.Element {
+export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
   const files = useEditorStore((s) => s.byWs[wsId]?.files ?? [])
   const activePath = useEditorStore((s) => s.byWs[wsId]?.activePath ?? null)
   const setActive = useEditorStore((s) => s.setActive)
   const close = useEditorStore((s) => s.close)
   const setDirty = useEditorStore((s) => s.setDirty)
+  const restore = useEditorStore((s) => s.restore)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
@@ -26,6 +28,27 @@ export function Editor({ wsId }: EditorProps): JSX.Element {
 
   const [binaryPaths, setBinaryPaths] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!storageKey) return
+    try {
+      const saved = JSON.parse(localStorage.getItem(`${storageKey}.editorTabs`) ?? 'null') as {
+        paths?: string[]
+        activePath?: string | null
+      } | null
+      if (saved?.paths) restore(wsId, saved.paths, saved.activePath ?? null)
+    } catch {
+      // A bad UI checkpoint should never keep the editor from opening.
+    }
+  }, [restore, storageKey, wsId])
+
+  useEffect(() => {
+    if (!storageKey) return
+    localStorage.setItem(
+      `${storageKey}.editorTabs`,
+      JSON.stringify({ paths: files.map((file) => file.path), activePath })
+    )
+  }, [files, activePath, storageKey])
 
   useEffect(() => {
     const container = containerRef.current

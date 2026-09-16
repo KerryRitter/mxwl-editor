@@ -1,14 +1,29 @@
-import { useEffect, useState, type FC, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type FC, type ReactNode } from 'react'
 import { ExternalLink, GitBranch, GitPullRequest, Globe, Loader2, Server, Ticket, XCircle } from 'lucide-react'
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
+import {
+  Panel,
+  PanelGroup,
+  PanelResizeHandle,
+  type ImperativePanelGroupHandle
+} from 'react-resizable-panels'
 import type { HostConfig, WorkspaceState } from '../../../shared/types'
 import { BottomTabs } from './BottomTabs'
-import { FileTree } from './FileTree'
-import { Editor } from './Editor'
 import { BrowserPane } from './BrowserPane'
+import { CodePane } from './CodePane'
 import { IntegrationsModal } from './IntegrationsModal'
 import { McpToggle } from './McpToggle'
-import { SearchPanel } from './SearchPanel'
+import { useNavigationStore } from '../store/navigation'
+
+type LayoutPreset = 'balanced' | 'code' | 'review' | 'debug' | 'agent'
+export type MaximizedPane = 'browser' | 'code' | 'bottom' | null
+
+const PRESET_SIZES: Record<LayoutPreset, { main: [number, number]; right: [number, number] }> = {
+  balanced: { main: [48, 52], right: [58, 42] },
+  code: { main: [24, 76], right: [78, 22] },
+  review: { main: [18, 82], right: [84, 16] },
+  debug: { main: [42, 58], right: [34, 66] },
+  agent: { main: [30, 70], right: [28, 72] }
+}
 
 export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   ws,
@@ -22,6 +37,60 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   const [bbWebBase, setBbWebBase] = useState<string | null>(null)
   const [prUrl, setPrUrl] = useState<string | null>(null)
   const [everReady, setEverReady] = useState(ws.status === 'connected')
+  const layoutKey = `mxwl.workspace.${ws.hostId}::${ws.remotePath}`
+  const [layoutPreset, setLayoutPresetState] = useState<LayoutPreset>(() => {
+    const saved = localStorage.getItem(`${layoutKey}.layoutPreset`)
+    return saved === 'code' || saved === 'review' || saved === 'debug' || saved === 'agent'
+      ? saved
+      : 'balanced'
+  })
+  const [maximized, setMaximized] = useState<MaximizedPane>(null)
+  const mainPanels = useRef<ImperativePanelGroupHandle>(null)
+  const rightPanels = useRef<ImperativePanelGroupHandle>(null)
+  const focusPanel = useNavigationStore((state) => state.focus)
+
+  const choosePreset = useCallback(
+    (preset: LayoutPreset): void => {
+      setMaximized(null)
+      setLayoutPresetState(preset)
+      localStorage.setItem(`${layoutKey}.layoutPreset`, preset)
+      if (preset === 'code') focusPanel(ws.id, 'code')
+      if (preset === 'review') focusPanel(ws.id, 'changes')
+      if (preset === 'debug') focusPanel(ws.id, 'terminal')
+      if (preset === 'agent') focusPanel(ws.id, 'agent')
+    },
+    [focusPanel, layoutKey, ws.id]
+  )
+
+  const toggleMaximized = useCallback((pane: Exclude<MaximizedPane, null>): void => {
+    setMaximized((current) => (current === pane ? null : pane))
+  }, [])
+
+  useEffect(() => {
+    const sizes = PRESET_SIZES[layoutPreset]
+    const main: [number, number] =
+      maximized === 'browser' ? [100, 0] : maximized ? [0, 100] : sizes.main
+    const right: [number, number] =
+      maximized === 'code' ? [100, 0] : maximized === 'bottom' ? [0, 100] : sizes.right
+    mainPanels.current?.setLayout(main)
+    rightPanels.current?.setLayout(right)
+  }, [layoutPreset, maximized])
+
+  useEffect(() => {
+    if (!active) return
+    const onKey = (event: KeyboardEvent): void => {
+      const cmd = event.metaKey || event.ctrlKey
+      if (cmd && event.shiftKey && ['1', '2', '3'].includes(event.key)) {
+        event.preventDefault()
+        toggleMaximized(event.key === '1' ? 'browser' : event.key === '2' ? 'code' : 'bottom')
+      } else if (event.key === 'Escape' && maximized) {
+        event.preventDefault()
+        setMaximized(null)
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [active, maximized, toggleMaximized])
 
   useEffect(() => {
     if (ws.status === 'connected') setEverReady(true)
@@ -56,10 +125,10 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   }, [])
 
   useEffect(() => {
-    if (ws.status !== 'connected') return
+    if (!active || ws.status !== 'connected') return
     const t = setInterval(() => void window.api.workspace.git(ws.id), 20000)
     return () => clearInterval(t)
-  }, [ws.id, ws.status])
+  }, [active, ws.id, ws.status])
 
   useEffect(() => {
     if (ws.status !== 'connected' || !ws.derived.branch) {
@@ -115,7 +184,6 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
       : null)
   const devUrl = ws.derived.browserUrl || null
   const showTicketBtn = showIntegrations && (ws.derived.issueKey || branch)
-
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-neutral-800 px-4 py-1.5 text-xs text-neutral-400">
@@ -172,18 +240,38 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
         >
           Search
         </button>
-        <div className="ml-auto">
+        <label className="ml-auto flex items-center gap-1 text-[10px] text-neutral-500">
+          Layout
+          <select
+            aria-label="Workspace layout preset"
+            value={layoutPreset}
+            onChange={(event) => choosePreset(event.currentTarget.value as LayoutPreset)}
+            className="rounded border border-neutral-800 bg-neutral-900 px-1.5 py-0.5 text-[10px] text-neutral-300 outline-none"
+          >
+            <option value="balanced">Balanced</option>
+            <option value="code">Code</option>
+            <option value="review">Review</option>
+            <option value="debug">Debug</option>
+            <option value="agent">Agent</option>
+          </select>
+        </label>
+        <div>
           <McpToggle wsId={ws.id} />
         </div>
       </div>
 
       <div className="min-h-0 flex-1 p-1.5">
-        <PanelGroup direction="horizontal" className="h-full rounded-lg border border-neutral-800">
-          <Panel defaultSize={48} minSize={20}>
+        <PanelGroup
+          ref={mainPanels}
+          direction="horizontal"
+          autoSaveId={`${layoutKey}.mainSplit`}
+          className="h-full rounded-lg border border-neutral-800"
+        >
+          <Panel defaultSize={48} minSize={15} collapsible collapsedSize={0}>
             <BrowserPane
               wsId={ws.id}
               defaultUrl={ws.derived.browserUrl}
-              active={active}
+              active={active && (maximized === null || maximized === 'browser')}
               canTestLogin={Boolean(
                 host?.testLogin?.username &&
                   host.testLogin.usernameSelector &&
@@ -191,35 +279,42 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
                   host.testLogin.submitSelector &&
                   host.testLogin.passwordEnc
               )}
+              maximized={maximized === 'browser'}
+              onToggleMaximize={() => toggleMaximized('browser')}
             />
           </Panel>
           <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-neutral-700" />
-          <Panel defaultSize={52} minSize={20}>
-            <PanelGroup direction="vertical" className="h-full">
-              <Panel defaultSize={58} minSize={15}>
-                <PanelGroup direction="horizontal" className="h-full">
-                  <Panel defaultSize={22} minSize={12} maxSize={45}>
-                    {searchOpen ? (
-                      <SearchPanel wsId={ws.id} onClose={() => setSearchOpen(false)} />
-                    ) : (
-                      <FileTree wsId={ws.id} root={ws.remotePath} />
-                    )}
-                  </Panel>
-                  <PanelResizeHandle className="w-1 bg-neutral-800 hover:bg-neutral-700" />
-                  <Panel defaultSize={78} minSize={30}>
-                    <Editor wsId={ws.id} />
-                  </Panel>
-                </PanelGroup>
+          <Panel defaultSize={52} minSize={15} collapsible collapsedSize={0}>
+            <PanelGroup
+              ref={rightPanels}
+              direction="vertical"
+              autoSaveId={`${layoutKey}.rightSplit`}
+              className="h-full"
+            >
+              <Panel defaultSize={58} minSize={15} collapsible collapsedSize={0}>
+                <CodePane
+                  ws={ws}
+                  active={active && (maximized === null || maximized === 'code')}
+                  searchOpen={searchOpen}
+                  onCloseSearch={() => setSearchOpen(false)}
+                  maximized={maximized === 'code'}
+                  onToggleMaximize={() => toggleMaximized('code')}
+                />
               </Panel>
               <PanelResizeHandle className="h-1 bg-neutral-800 hover:bg-neutral-700" />
-              <Panel defaultSize={42} minSize={15}>
+              <Panel defaultSize={42} minSize={15} collapsible collapsedSize={0}>
                 <BottomTabs
                   wsId={ws.id}
                   cwd={ws.remotePath}
+                  persistenceKey={layoutKey}
                   sessions={ws.terminal.sessions}
+                  activeSessionId={ws.terminal.activeSessionId}
+                  restoringTerminals={ws.terminal.restoring}
                   hasServices={(host?.services.length ?? 0) > 0}
-                  workspaceActive={active}
+                  workspaceActive={active && (maximized === null || maximized === 'bottom')}
                   connected={connected}
+                  maximized={maximized === 'bottom'}
+                  onToggleMaximize={() => toggleMaximized('bottom')}
                 />
               </Panel>
             </PanelGroup>

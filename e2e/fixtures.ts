@@ -34,7 +34,12 @@ export const test = base.extend<AppFixture>({
         '--no-sandbox',
         '--disable-gpu'
       ],
-      env: { ...process.env, NODE_ENV: 'production' }
+      env: {
+        ...process.env,
+        NODE_ENV: 'production',
+        MXWL_DISABLE_KEEP_ALIVE: '1',
+        MXWL_CONTROL_PORT: '0'
+      }
     })
     await use(app)
     await app.close().catch(() => undefined)

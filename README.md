@@ -125,20 +125,28 @@ npm run package:linux   # AppImage + deb → dist/
 ### Code, terminals, and services
 
 - Browse local or SFTP files, edit with Monaco, save files, and search the workspace with ripgrep.
-- Run multiple PTY terminals per workspace; sessions survive panel switches, replay their scrollback when remounted, recover connection state, and can start a configured command in the first shell.
+- Review every changed file in the **Changes** tab with fast unified or split diffs; stage a whole file or one hunk, commit, push, and open a GitHub/GitLab/Bitbucket PR. Select changed lines to send an explain-or-fix request directly to the workspace agent.
+- Run multiple PTY terminals per workspace; sessions survive panel switches, replay their scrollback when remounted, recover connection state, and can start a configured command in the first shell. Named tmux tabs attach to a host-side session when tmux is installed, so the process can survive the desktop app or machine connection dropping.
 - Define per-host services with start, stop, restart, and log-tail commands; manage them from the Dev logs tab.
+- Maximize the browser, code, or bottom pane and switch among saved Balanced, Code, Review, Debug, and Agent layouts.
 
 ### Coding agents and AI task runs
 
 - Talk to Claude Code, Codex, Cursor, Gemini, Kimi, Copilot, Qwen, OpenCode, Goose, or a custom ACP agent in the **Agent** tab. The agent runs on the workspace host, so remote workspaces use remote credentials and files.
 - Render streamed responses, thoughts, tool calls, diffs, plans, permission requests, usage, and saved conversation history inline. Command and permission-mode aliases translate across agents.
+- Follow every agent from the workspace-tab status icons and persistent notification bell. Finished work, approval requests, authentication prompts, and failures enter one attention queue; selecting one jumps straight to that agent.
+- Switch the bell between the attention queue and a live fleet view spanning every local and SSH workspace, with one-line summaries of what each agent is doing.
+- Keep the runtime in the system tray when the window closes. After an app or machine restart, mxwl restores the same workspaces and relaunches their selected agents with saved conversation history available.
 - Start one AI run from a brief, fan it out across ticket workspaces and labelled terminals, optionally prepare/refine prompts, and follow or cancel progress without killing already-running shells. See [agent details](./docs/agent.md) and [AI task details](./docs/ai.md).
 
 ### Integrations and automation
 
 - Connect Jira and Bitbucket credentials, resolve issue and pull-request links from workspace metadata, and keep secrets in Electron safe storage where available.
 - Enable an MCP bridge per workspace: reverse-tunnel CDP and a workspace MCP server to the host so local tools and agents can drive the desktop browser. Set an MCP token for shared remotes.
-- Use the command palette and keyboard shortcuts for workspace, file, settings, AI, and search actions.
+- Launch a ticket in one action: create or reopen its sibling Git worktree, open a named browser cookie sandbox, start the default agent, and seed it with the ticket mission.
+- Use `Ctrl/⌘ K` to fuzzy-search files, workspaces, editor/browser/terminal/agent tabs, agents, and commands across every open workspace.
+- Zoom the entire workspace UI from 75–200% with persistent header controls or keyboard shortcuts.
+- Supervise the fleet from the responsive, token-authenticated web dashboard, or script it with `mxwl agent list|focus|prompt|wait`. Notification delivery, delay, sound, active-workspace suppression, and per-agent muting are configurable. See [background runtime and agent control](./docs/agent-control.md).
 
 For the full host configuration schema, see [host project settings](./docs/presets.md). For cookie-sandbox behavior, see [tab groups](./docs/tab-groups.md).
 
@@ -147,19 +155,24 @@ For the full host configuration schema, see [host project settings](./docs/prese
 | Key | Action |
 |---|---|
 | `Ctrl/⌘ P` | Quick open file |
-| `Ctrl/⌘ K` | Command palette |
+| `Ctrl/⌘ K` | Search everything |
+| `Ctrl/⌘ Shift P` | Commands only |
 | `Ctrl/⌘ T` | New workspace |
+| `Ctrl/⌘ Shift T` | Launch ticket worktree + sandbox + agent |
 | `Ctrl/⌘ W` | Close workspace |
 | `Ctrl/⌘ S` | Save file |
 | `Ctrl/⌘ Shift F` | Search (ripgrep) |
 | `Ctrl/⌘ Shift A` | Run AI tasks |
 | `Ctrl/⌘ ,` | Settings |
-| `Esc` | Close modal |
+| `Ctrl/⌘ +` / `Ctrl/⌘ -` | Zoom the app UI in / out |
+| `Ctrl/⌘ 0` | Reset app UI zoom |
+| `Ctrl/⌘ Shift 1/2/3` | Maximize browser / code / bottom pane |
+| `Esc` | Restore a maximized pane or close a modal |
 
 ## Architecture
 
 ```
-main: HostManager · WorkspaceManager (ssh2 / local) · MCP
+main: HostManager · WorkspaceManager (ssh2 / local) · agent runtime · authenticated control API · MCP
 preload: typed window.api
 renderer: React + Zustand + Monaco + xterm + WebContentsView chrome
 ```

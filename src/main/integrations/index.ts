@@ -17,6 +17,9 @@ export interface IntegrationsSettingsInput {
   scmProvider?: import('../../shared/types').ScmProviderId
   ai?: Partial<import('../../shared/types').AiSettings>
   agent?: Partial<import('../../shared/types').AgentSettings>
+  notifications?: Partial<import('../../shared/types').AgentNotificationSettings>
+  control?: Partial<import('../../shared/types').ControlSettings>
+  runtime?: Partial<import('../../shared/types').RuntimeSettings>
 }
 
 export function registerIntegrationsIpc(
@@ -52,6 +55,19 @@ export function registerIntegrationsIpc(
     }
     if (input.agent !== undefined) {
       patch.agent = { ...current.agent, ...input.agent }
+    }
+    if (input.notifications !== undefined) {
+      patch.notifications = { ...current.notifications, ...input.notifications }
+    }
+    if (input.control !== undefined) {
+      patch.control = {
+        ...current.control,
+        ...input.control,
+        authToken: current.control.authToken
+      }
+    }
+    if (input.runtime !== undefined) {
+      patch.runtime = { ...current.runtime, ...input.runtime }
     }
     if (input.jira !== undefined) {
       patch.jira =

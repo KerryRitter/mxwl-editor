@@ -18,6 +18,7 @@ type Suggestion =
 
 type AgentComposerProps = {
   wsId: string
+  persistenceKey?: string
   commands: AgentCommand[]
   disabled: boolean
   running: boolean
@@ -42,6 +43,7 @@ function triggerAt(text: string, caret: number): Trigger | null {
 
 export const AgentComposer: FC<AgentComposerProps> = ({
   wsId,
+  persistenceKey,
   commands,
   disabled,
   running,
@@ -49,12 +51,19 @@ export const AgentComposer: FC<AgentComposerProps> = ({
   onSend,
   onCancel
 }) => {
-  const [text, setText] = useState('')
+  const draftKey = persistenceKey ? `${persistenceKey}.agentDraft` : null
+  const [text, setText] = useState(() => (draftKey ? localStorage.getItem(draftKey) ?? '' : ''))
   const [caret, setCaret] = useState(0)
   const [files, setFiles] = useState<string[]>([])
   const [index, setIndex] = useState(0)
   const [dismissed, setDismissed] = useState(false)
   const ref = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    if (!draftKey) return
+    if (text) localStorage.setItem(draftKey, text)
+    else localStorage.removeItem(draftKey)
+  }, [draftKey, text])
 
   const trigger = useMemo(() => (dismissed ? null : triggerAt(text, caret)), [text, caret, dismissed])
 

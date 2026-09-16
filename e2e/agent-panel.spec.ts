@@ -76,6 +76,40 @@ test('connects over ACP and reports what the agent published', async ({ page, wo
   expect(state.modes.available.map((m) => m.canonical)).toEqual(['ask', 'auto', 'plan'])
 })
 
+test('serves the authenticated fleet API and mobile dashboard', async ({ page, workRoot }) => {
+  await useFakeAgent(page)
+  const wsId = await openWorkspace(page, workRoot)
+  await startAgent(page, wsId)
+
+  const connection = await page.evaluate(async () => ({
+    status: await window.api.control.status(),
+    token: (await window.api.settings.get()).control.authToken
+  }))
+  await expect.poll(async () => (await page.evaluate(() => window.api.control.status())).running).toBe(true)
+  const liveStatus = await page.evaluate(() => window.api.control.status())
+
+  const dashboard = await fetch(liveStatus.url)
+  expect(dashboard.status).toBe(200)
+  expect(await dashboard.text()).toContain('mxwl agent control')
+
+  const rejected = await fetch(`${liveStatus.url}/api/agents`)
+  expect(rejected.status).toBe(401)
+
+  const response = await fetch(`${liveStatus.url}/api/agents`, {
+    headers: { Authorization: `Bearer ${connection.token}` }
+  })
+  expect(response.status).toBe(200)
+  const agents = (await response.json()) as { wsId: string; activity: { state: string; summary: string } }[]
+  expect(agents).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        wsId,
+        activity: expect.objectContaining({ state: 'idle' })
+      })
+    ])
+  )
+})
+
 test('showing the tab starts the configured agent, with no pick', async ({ page, workRoot }) => {
   await useFakeAgent(page)
   const wsId = await openWorkspace(page, workRoot)
@@ -122,6 +156,30 @@ test('conversation text can be selected for copying', async ({ page, workRoot })
     .toBe('text')
 })
 
+test('the notification bell records a finished agent and jumps back to it', async ({
+  page,
+  workRoot
+}) => {
+  await useFakeAgent(page)
+  const wsId = await openWorkspace(page, workRoot)
+  await startAgent(page, wsId)
+  await showWorkspace(page)
+
+  const composer = page.getByPlaceholder(/Message Custom/)
+  await composer.fill('finish the notification test')
+  await composer.press('Enter')
+  await expect(page.getByText('echo: finish the notification test').last()).toBeVisible()
+
+  const bell = page.getByRole('button', { name: 'Agent notifications' })
+  await expect(bell).toHaveAttribute('title', '1 unread agent notification')
+  await bell.click()
+  await expect(page.getByText('Agent control', { exact: true })).toBeVisible()
+  await expect(page.getByText('Custom finished', { exact: true })).toBeVisible()
+  await page.getByText('Custom finished', { exact: true }).click()
+  await expect(bell).toHaveAttribute('title', 'No unread agent notifications')
+  await expect(page.getByPlaceholder(/Message Custom/)).toBeVisible()
+})
+
 test('a permission request is answered from the panel', async ({ page, workRoot }) => {
   await useFakeAgent(page)
   const wsId = await openWorkspace(page, workRoot)
@@ -136,7 +194,7 @@ test('a permission request is answered from the panel', async ({ page, workRoot 
   await expect(page.getByText('+hello')).toBeVisible()
   await page.getByRole('button', { name: 'Allow' }).click()
 
-  await expect(page.getByText('wrote the file')).toBeVisible()
+  await expect(page.getByText('wrote the file').last()).toBeVisible()
   expect((await agentState(page, wsId))?.permission).toBeNull()
 })
 
@@ -158,7 +216,7 @@ test('auto-approve answers the permission request and picks the permissive mode'
   await composer.press('Enter')
 
   // The agent only says this when the client selected the allow option.
-  await expect(page.getByText('wrote the file')).toBeVisible()
+  await expect(page.getByText('wrote the file').last()).toBeVisible()
   expect((await agentState(page, wsId))?.permission).toBeNull()
   await expect(page.getByRole('button', { name: 'Allow' })).toBeHidden()
 })
