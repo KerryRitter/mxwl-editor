@@ -1,6 +1,6 @@
 {
   "name": "mxwl-editor",
-  "version": "0.2.0-alpha.3",
+  "version": "0.2.0-alpha.4",
   "description": "Multi-workspace tool — local or SSH — browser + editor + terminal locked to a folder, with MCP/CDP bridge",
   "homepage": "https://github.com/kerryritter/mxwl-editor",
   "main": "out/main/index.js",
@@ -19,10 +19,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "ci": "npm run typecheck && npm test && npm run build",
-    "package": "electron-vite build && electron-builder",
-    "package:linux": "electron-vite build && electron-builder --linux",
-    "package:mac": "electron-vite build && electron-builder --mac --arm64 --x64 -c.npmRebuild=false",
-    "package:win": "electron-vite build && electron-builder --win",
+    "package": "electron-vite build && electron-builder --publish never",
+    "package:linux": "electron-vite build && electron-builder --linux --publish never",
+    "package:mac": "electron-vite build && electron-builder --mac --arm64 --x64 -c.npmRebuild=false --publish never",
+    "package:win": "electron-vite build && electron-builder --win --publish never",
     "e2e": "electron-vite build && playwright test",
     "e2e:only": "playwright test"
   },

@@ -1,0 +1,50 @@
+name: release-linux
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run ci
+      - run: npm run package:linux
+
+      - name: checksums
+        working-directory: dist
+        run: |
+          for asset in *.AppImage *_amd64.deb; do
+            sha256sum "$asset" > "$asset.sha256"
+          done
+          sha256sum *.AppImage *_amd64.deb > SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mxwl-linux
+          path: |
+            dist/*.AppImage
+            dist/*.AppImage.sha256
+            dist/*_amd64.deb
+            dist/*_amd64.deb.sha256
+            dist/SHA256SUMS
+
+      - name: release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          files: |
+            dist/*.AppImage
+            dist/*.AppImage.sha256
+            dist/*_amd64.deb
+            dist/*_amd64.deb.sha256
+            dist/SHA256SUMS

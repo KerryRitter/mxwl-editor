@@ -2,7 +2,7 @@
 
 **SSH + browser + editor + terminal**, locked to one folder. mxwl is a workspace-first desktop tool for worktrees, ticket branches, and remote development boxes — with coding agents and an MCP/CDP bridge built in.
 
-> **Alpha** (`0.2.0-alpha.3`) — see [ALPHA.md](./ALPHA.md) before shipping to teammates.
+> **Alpha** (`0.2.0-alpha.4`) — see [ALPHA.md](./ALPHA.md) before shipping to teammates.
 
 Not a VS Code clone. It is ideal when you use **git worktrees** or **clone/copy into a new folder per ticket** so the folder name is the work unit (for example, `myapp-PROJ-42`). mxwl opens that folder as one workspace, with its browser, editor, terminals, agents, and integrations all scoped to that folder.
 
@@ -23,9 +23,9 @@ Not a VS Code clone. It is ideal when you use **git worktrees** or **clone/copy 
 curl -fsSL https://raw.githubusercontent.com/KerryRitter/mxwl-editor/main/scripts/install.sh | bash
 ```
 
-The installer builds the current `main` branch as an AppImage, installs `mxwl` to `~/.local/bin`, and registers it as the desktop-menu launcher. Its user-level launcher overrides an older system-wide `mxwl-editor` package. Re-run it to update. It needs Git, Node.js 20+, npm, and the native build tools below.
+The installer downloads and verifies the `0.2.0-alpha.4` x86_64 AppImage, installs `mxwl` to `~/.local/bin`, and registers it as the desktop-menu launcher. Its user-level launcher overrides an older system-wide `mxwl-editor` package. Re-run it to update; only `curl` and `sha256sum` are required.
 
-### Prerequisites
+### Source-build prerequisites
 
 - **Node.js 20+** (CI uses Node 20; Node 22/24 also fine)
 - **npm** (comes with Node)

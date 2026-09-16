@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-alpha.4
 
 ### Added
 - Live working-tree review in the Code quadrant with changed-file navigation and unified / split Monaco diffs

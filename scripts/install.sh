@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Builds the current main branch as an AppImage, then installs it for this user.
-# Re-running this script safely replaces ~/.local/bin/mxwl with a fresh build.
-repo_url="https://github.com/KerryRitter/mxwl-editor.git"
+# Downloads the release AppImage, verifies its published checksum, and installs
+# it for this user. Re-running safely replaces ~/.local/bin/mxwl.
+release_version="${MXWL_VERSION:-0.2.0-alpha.4}"
+asset_name="mxwl-${release_version}.AppImage"
+release_url="https://github.com/KerryRitter/mxwl-editor/releases/download/v${release_version}"
 bin_dir="${MXWL_BIN_DIR:-$HOME/.local/bin}"
 desktop_dir="${XDG_DATA_HOME:-$HOME/.local/share}/applications"
-build_dir="$(mktemp -d)"
+download_dir="$(mktemp -d)"
 
 cleanup() {
-  rm -rf "$build_dir"
+  rm -rf "$download_dir"
 }
 trap cleanup EXIT
 
@@ -25,29 +27,30 @@ if [[ "$(uname -s)" != "Linux" ]]; then
   exit 1
 fi
 
-require git
-require node
-require npm
+case "$(uname -m)" in
+  x86_64|amd64) ;;
+  *)
+    printf 'The release installer currently supports x86_64 Linux only. See the README for source builds.\n' >&2
+    exit 1
+    ;;
+esac
 
-node_major="$(node -p 'process.versions.node.split(".")[0]')"
-if ((node_major < 20)); then
-  printf 'mxwl requires Node.js 20 or newer; found %s.\n' "$(node --version)" >&2
-  exit 1
-fi
+require curl
+require sha256sum
 
-git clone --depth 1 --branch main "$repo_url" "$build_dir/mxwl-editor"
-cd "$build_dir/mxwl-editor"
-npm ci
-npm run package:linux
+printf 'Downloading mxwl %s…\n' "$release_version"
+curl --fail --location --retry 3 --output "$download_dir/$asset_name" \
+  "$release_url/$asset_name"
+curl --fail --location --retry 3 --output "$download_dir/$asset_name.sha256" \
+  "$release_url/$asset_name.sha256"
 
-appimage="$(find dist -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
-if [[ -z "$appimage" ]]; then
-  printf 'The Linux package completed without producing an AppImage.\n' >&2
+if ! (cd "$download_dir" && sha256sum --check "$asset_name.sha256"); then
+  printf 'mxwl checksum verification failed; nothing was installed.\n' >&2
   exit 1
 fi
 
 install -d "$bin_dir"
-install -m 755 "$appimage" "$bin_dir/mxwl"
+install -m 755 "$download_dir/$asset_name" "$bin_dir/mxwl"
 
 # Use the same desktop-entry id as the deb package. A user entry takes
 # precedence over /usr/share/applications, so the app menu stops launching an
@@ -69,7 +72,7 @@ if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database "$desktop_dir" >/dev/null 2>&1 || true
 fi
 
-printf 'Installed mxwl to %s\n' "$bin_dir/mxwl"
+printf 'Installed mxwl %s to %s\n' "$release_version" "$bin_dir/mxwl"
 printf 'Updated desktop launcher: %s\n' "$desktop_dir/mxwl-editor.desktop"
 case ":$PATH:" in
   *":$bin_dir:"*) printf 'Run: mxwl\n' ;;
