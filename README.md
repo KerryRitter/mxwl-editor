@@ -15,6 +15,22 @@ Browser, code review, terminals, services, and coding agents—locked to the sam
 > [!IMPORTANT]
 > mxwl is an early alpha. Start on a non-production machine and read the [current limitations](./ALPHA.md) before rolling it out to a team.
 
+## Product tour
+
+### Review the working tree without leaving the cockpit
+
+[![mxwl Changes view showing a side-by-side TypeScript diff, changed-file navigation, hunk staging, commit, push, and pull-request controls](./docs/assets/mxwl-review.png)](./docs/assets/mxwl-review.png)
+
+<p align="center"><sub><strong>Changes</strong> — every changed file, unified or split diffs, hunk staging, commit, push, PR, and agent handoff.</sub></p>
+
+### Know which agent needs you
+
+[![mxwl Agent view showing three workspaces and a live fleet popover with attention, working, and idle agents](./docs/assets/mxwl-agent-fleet.png)](./docs/assets/mxwl-agent-fleet.png)
+
+<p align="center"><sub><strong>Agent control</strong> — one attention queue and live fleet across local and SSH workspaces.</sub></p>
+
+<p align="center"><sub>Captured from the real app with reproducible demo workspaces. No UI mockups.</sub></p>
+
 ## Why mxwl exists
 
 Modern development rarely lives in one editor window. A ticket may need its own worktree, authenticated browser session, dev server, terminals, pull-request review, and one or more coding agents. The hard part is keeping all of that context together—especially across SSH hosts, app restarts, and several tickets in flight.
@@ -32,6 +48,30 @@ myapp-PROJ-42/
 ```
 
 It is built for developers who run several worktrees, supervise coding agents, work on remote boxes, test multiple browser identities, or simply want to stop rebuilding their setup every time they change tickets.
+
+## Where mxwl fits
+
+These tools overlap, but they optimize for different centers of gravity. mxwl is not trying to out-terminal Herdr or out-editor Cursor—it connects the operational surface around a ticket.
+
+| | **mxwl** | **Herdr** | **Agent CLI + tmux** | **Cursor** |
+|---|---|---|---|---|
+| **Center of gravity** | Folder/worktree command center | Terminal-native agent multiplexer | The current shell and repository | AI-native editor and agent platform |
+| **Agent model** | Embedded ACP sessions across several agent providers | Existing agent CLIs running in real terminal panes | One agent process per shell, composed manually | Cursor Agent locally plus background/cloud agents |
+| **Fleet awareness** | Workspace status, durable attention queue, fleet view, CLI, and mobile dashboard | Agent-aware sidebar, status detection, CLI, and socket API | Whatever tmux, hooks, and scripts you assemble | Agent sidebar/window, cloud projects, and remote agent control |
+| **Browser loop** | Human- and agent-driven Chromium with tabs, cookie sandboxes, DevTools, and MCP/CDP | Bring your preferred browser workflow | Bring your preferred browser workflow | Built-in agent browser with workspace-persistent state |
+| **Review loop** | Changed-file inbox, unified/split Monaco diff, stage file/hunk, commit, push, PR, ask agent | Use terminal Git/review tools in a pane | Agent- or CLI-specific | Deep editor, source-control, and agent review workflow |
+| **Local + remote** | Local and saved SSH workspaces in one desktop cockpit | Local and remote machines in one TUI client | Runs wherever the shell runs | Local desktop agents plus managed cloud agents |
+| **Persistence** | Tray runtime; restores the cockpit; optional tmux for process survival; ACP transcript recovery | Background server keeps panes alive; supported agent sessions can resume after restart | tmux preserves shells when configured; agent history depends on the agent | Local chat history plus persistent background/cloud runs |
+| **Best fit** | You want the entire ticket environment—browser identities, diffs, services, terminals, and agents—bound to one folder | You live in terminals and want a fast, persistent herd across machines | You want the smallest, most composable setup and do not mind wiring it together | You want the deepest AI editor experience, autocomplete, and managed cloud agents |
+
+The practical choice:
+
+- Pick **mxwl** when browser state, remote environments, Git review, and multiple agent providers are all part of the same task.
+- Pick **[Herdr](https://herdr.dev/)** when the terminal *is* the product surface and persistent real PTYs are the priority.
+- Pick a **raw agent CLI + tmux** when maximum simplicity and composability matter more than a unified control plane.
+- Pick **[Cursor](https://cursor.com/docs)** when editor intelligence, autocomplete, and Cursor's local/cloud agent ecosystem are the priority.
+
+Comparison reviewed September 2026 using first-party documentation for [Herdr agents and session integrations](https://herdr.dev/docs/agents/), [Claude Code's terminal workflow](https://docs.anthropic.com/en/docs/claude-code/getting-started), and [Cursor Agent](https://cursor.com/docs/agent/overview), [Browser](https://cursor.com/docs/agent/tools/browser), and [Cloud Agents](https://cursor.com/docs/cloud-agent). Capabilities change quickly; “best fit” is an opinionated workflow recommendation, not a benchmark result.
 
 ## Install
 
@@ -258,6 +298,7 @@ npm run typecheck    # TypeScript checks
 npm test             # unit tests
 npm run e2e          # Electron end-to-end suite
 npm run ci           # typecheck + tests + production build
+npm run docs:screenshots  # regenerate README captures with demo data
 ```
 
 ## Docs

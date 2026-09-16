@@ -24,7 +24,8 @@
     "package:mac": "electron-vite build && electron-builder --mac --arm64 --x64 -c.npmRebuild=false --publish never",
     "package:win": "electron-vite build && electron-builder --win --publish never",
     "e2e": "electron-vite build && playwright test",
-    "e2e:only": "playwright test"
+    "e2e:only": "playwright test",
+    "docs:screenshots": "electron-vite build && node scripts/capture-readme-screenshots.mjs"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.3.0",

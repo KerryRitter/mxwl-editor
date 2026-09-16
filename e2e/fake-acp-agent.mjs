@@ -46,21 +46,24 @@ async function handlePrompt(params) {
   }
 
   if (text.startsWith('permission')) {
+    const showcase = text.toLowerCase().includes('ledger')
+    const toolTitle = showcase ? 'Apply ledger schema migration' : 'Write hello.txt'
+    const toolPath = showcase ? '/tmp/migrations/2026_09_add_ledger.sql' : '/tmp/hello.txt'
     update(sessionId, {
       sessionUpdate: 'tool_call',
       toolCallId: 'tool-1',
-      title: 'Write hello.txt',
+      title: toolTitle,
       kind: 'edit',
       status: 'pending',
-      content: [{ type: 'diff', path: '/tmp/hello.txt', oldText: null, newText: 'hello\n' }]
+      content: [{ type: 'diff', path: toolPath, oldText: null, newText: 'hello\n' }]
     })
     const answer = await askClient('session/request_permission', {
       sessionId,
       toolCall: {
         toolCallId: 'tool-1',
-        title: 'Write hello.txt',
+        title: toolTitle,
         kind: 'edit',
-        content: [{ type: 'diff', path: '/tmp/hello.txt', oldText: null, newText: 'hello\n' }]
+        content: [{ type: 'diff', path: toolPath, oldText: null, newText: 'hello\n' }]
       },
       options: [
         { optionId: 'yes', name: 'Allow', kind: 'allow_once' },
@@ -81,20 +84,50 @@ async function handlePrompt(params) {
   }
 
   if (text.startsWith('slow')) {
-    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'thinking' } })
+    update(sessionId, {
+      sessionUpdate: 'agent_message_chunk',
+      content: {
+        type: 'text',
+        text: text.toLowerCase().includes('checkout')
+          ? 'Running checkout tests and reviewing risk thresholds…'
+          : 'thinking'
+      }
+    })
     return new Promise((resolve) => {
       cancelTurn = () => resolve({ stopReason: 'cancelled' })
     })
   }
 
   if (text.startsWith('plan')) {
+    const showcase = text.toLowerCase().includes('catalog')
     update(sessionId, {
       sessionUpdate: 'plan',
       entries: [
-        { content: 'first step', priority: 'high', status: 'completed' },
-        { content: 'second step', priority: 'medium', status: 'in_progress' }
+        {
+          content: showcase ? 'Verify ranking and empty-state coverage' : 'first step',
+          priority: 'high',
+          status: 'completed'
+        },
+        {
+          content: showcase ? 'Run keyboard navigation checks' : 'second step',
+          priority: 'medium',
+          status: 'in_progress'
+        }
       ]
     })
+    return { stopReason: 'end_turn' }
+  }
+
+  if (text.startsWith('showcase ')) {
+    update(sessionId, {
+      sessionUpdate: 'agent_thought_chunk',
+      content: { type: 'text', text: 'Cross-checking the release criteria' }
+    })
+    update(sessionId, {
+      sessionUpdate: 'agent_message_chunk',
+      content: { type: 'text', text: text.slice('showcase '.length) }
+    })
+    update(sessionId, { sessionUpdate: 'usage_update', used: 120, size: 1000 })
     return { stopReason: 'end_turn' }
   }
 
