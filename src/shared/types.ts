@@ -283,6 +283,8 @@ export type RuntimeSettings = {
   launchAtLogin: boolean
 }
 
+export type { PluginSettings } from './plugins'
+
 export type AppSettings = {
   taskProvider: TaskProviderId
   scmProvider: ScmProviderId
@@ -291,6 +293,7 @@ export type AppSettings = {
   notifications: AgentNotificationSettings
   control: ControlSettings
   runtime: RuntimeSettings
+  plugins: import('./plugins').PluginSettings
   jira: { host: string; email: string; apiTokenEnc: string } | null
   bitbucket: {
     host: string

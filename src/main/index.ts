@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage } from 'electron'
+import { app, BrowserWindow, Menu, Tray, nativeImage, protocol } from 'electron'
 import { join } from 'node:path'
 import {
   appendFileSync,
@@ -24,6 +24,14 @@ import {
   registerControlIpc,
   runControlCli
 } from './control'
+import { PluginManager, registerPluginIpc } from './plugins'
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'mxwl-plugin',
+    privileges: { standard: true, secure: true }
+  }
+])
 
 const controlCli = isControlCli()
 const hasSingleInstanceLock = controlCli || app.requestSingleInstanceLock()
@@ -47,6 +55,7 @@ let aiRunner: AiRunner | null = null
 let agentController: AgentController | null = null
 let attentionController: AttentionController | null = null
 let controlServer: ControlServer | null = null
+let pluginManager: PluginManager | null = null
 let isQuitting = false
 let trayRefreshTimer: NodeJS.Timeout | null = null
 
@@ -237,6 +246,15 @@ async function bootstrap(): Promise<void> {
   )
   registerAgentIpc(agentController, attentionController)
 
+  pluginManager = new PluginManager(
+    settingsStore,
+    workspaceManager,
+    agentController,
+    () => mainWindow
+  )
+  registerPluginIpc(pluginManager)
+  protocol.handle('mxwl-plugin', (request) => pluginManager!.resource(request.url))
+
   controlServer = new ControlServer(
     agentController,
     attentionController,
@@ -310,5 +328,6 @@ export {
   aiRunner,
   agentController,
   attentionController,
-  controlServer
+  controlServer,
+  pluginManager
 }

@@ -20,6 +20,7 @@ export interface IntegrationsSettingsInput {
   notifications?: Partial<import('../../shared/types').AgentNotificationSettings>
   control?: Partial<import('../../shared/types').ControlSettings>
   runtime?: Partial<import('../../shared/types').RuntimeSettings>
+  plugins?: Partial<import('../../shared/plugins').PluginSettings>
 }
 
 export function registerIntegrationsIpc(
@@ -68,6 +69,14 @@ export function registerIntegrationsIpc(
     }
     if (input.runtime !== undefined) {
       patch.runtime = { ...current.runtime, ...input.runtime }
+    }
+    if (input.plugins !== undefined) {
+      patch.plugins = {
+        ...current.plugins,
+        ...input.plugins,
+        enabled: { ...current.plugins.enabled, ...(input.plugins.enabled ?? {}) },
+        grants: { ...current.plugins.grants, ...(input.plugins.grants ?? {}) }
+      }
     }
     if (input.jira !== undefined) {
       patch.jira =

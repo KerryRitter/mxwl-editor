@@ -8,6 +8,7 @@ export type WorkspaceFocusTarget =
   | 'terminal'
   | 'logs'
   | 'devtools'
+  | `plugin:${string}`
 
 type FocusRequest = { seq: number; target: WorkspaceFocusTarget }
 

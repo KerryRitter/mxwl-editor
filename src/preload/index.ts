@@ -26,6 +26,7 @@ import type {
   TestResult,
   WorkspaceState
 } from '../shared/types'
+import type { PluginCatalogEntry, PluginHostMethod } from '../shared/plugins'
 
 const api = {
   ping: (): Promise<{ pong: boolean; ts: number }> => ipcRenderer.invoke('app:ping'),
@@ -194,7 +195,21 @@ const api = {
       notifications?: Partial<import('../shared/types').AgentNotificationSettings>
       control?: Partial<import('../shared/types').ControlSettings>
       runtime?: Partial<import('../shared/types').RuntimeSettings>
+      plugins?: Partial<import('../shared/plugins').PluginSettings>
     }): Promise<SettingsSnapshot> => ipcRenderer.invoke('settings:update', input)
+  },
+  plugins: {
+    list: (): Promise<PluginCatalogEntry[]> => ipcRenderer.invoke('plugins:list'),
+    setEnabled: (id: string, enabled: boolean): Promise<PluginCatalogEntry[]> =>
+      ipcRenderer.invoke('plugins:setEnabled', { id, enabled }),
+    reload: (): Promise<PluginCatalogEntry[]> => ipcRenderer.invoke('plugins:reload'),
+    openDirectory: (): Promise<void> => ipcRenderer.invoke('plugins:openDirectory'),
+    call: (
+      pluginId: string,
+      wsId: string,
+      method: PluginHostMethod,
+      params?: Record<string, unknown>
+    ): Promise<unknown> => ipcRenderer.invoke('plugins:call', { pluginId, wsId, method, params })
   },
   control: {
     status: (): Promise<ControlStatus> => ipcRenderer.invoke('control:status'),

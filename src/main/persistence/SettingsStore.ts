@@ -29,6 +29,10 @@ const DEFAULTS: AppSettings = {
     keepAlive: true,
     launchAtLogin: false
   },
+  plugins: {
+    enabled: {},
+    grants: {}
+  },
   jira: null,
   bitbucket: null,
   defaultBrowserUrl: '',
@@ -62,7 +66,13 @@ export class SettingsStore {
           agent: { ...DEFAULT_AGENT_SETTINGS, ...(raw.agent ?? {}) },
           notifications: { ...DEFAULTS.notifications, ...(raw.notifications ?? {}) },
           control: { ...DEFAULTS.control, ...(raw.control ?? {}) },
-          runtime: { ...DEFAULTS.runtime, ...(raw.runtime ?? {}) }
+          runtime: { ...DEFAULTS.runtime, ...(raw.runtime ?? {}) },
+          plugins: {
+            ...DEFAULTS.plugins,
+            ...(raw.plugins ?? {}),
+            enabled: { ...DEFAULTS.plugins.enabled, ...(raw.plugins?.enabled ?? {}) },
+            grants: { ...DEFAULTS.plugins.grants, ...(raw.plugins?.grants ?? {}) }
+          }
         }
       } catch {
         this.settings = structuredClone(DEFAULTS)
@@ -90,7 +100,15 @@ export class SettingsStore {
         ? { ...this.settings.notifications, ...patch.notifications }
         : this.settings.notifications,
       control: patch.control ? { ...this.settings.control, ...patch.control } : this.settings.control,
-      runtime: patch.runtime ? { ...this.settings.runtime, ...patch.runtime } : this.settings.runtime
+      runtime: patch.runtime ? { ...this.settings.runtime, ...patch.runtime } : this.settings.runtime,
+      plugins: patch.plugins
+        ? {
+            ...this.settings.plugins,
+            ...patch.plugins,
+            enabled: { ...this.settings.plugins.enabled, ...(patch.plugins.enabled ?? {}) },
+            grants: { ...this.settings.plugins.grants, ...(patch.plugins.grants ?? {}) }
+          }
+        : this.settings.plugins
     }
     this.persist()
     const snapshot = this.all()

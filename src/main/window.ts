@@ -107,6 +107,35 @@ export function createMainWindow(options: { startHidden?: boolean } = {}): Brows
     return { action: 'deny' }
   })
 
+  // Refuse cross-origin frame navigations that Electron reports for plugin UI.
+  // The renderer bridge separately verifies the origin on every message.
+  const pluginFrameOrigins = new Map<string, string>()
+  win.webContents.on(
+    'did-frame-navigate',
+    (_event, url, _statusCode, _statusText, isMainFrame, processId, routingId) => {
+      if (isMainFrame) return
+      const key = `${processId}:${routingId}`
+      if (!url.startsWith('mxwl-plugin://')) {
+        pluginFrameOrigins.delete(key)
+        return
+      }
+      const parsed = new URL(url)
+      pluginFrameOrigins.set(key, `${parsed.protocol}//${parsed.host}`)
+    }
+  )
+  win.webContents.on('will-frame-navigate', (event) => {
+    const frame = event.frame
+    if (!frame) return
+    const currentOrigin = pluginFrameOrigins.get(`${frame.processId}:${frame.routingId}`)
+    if (!currentOrigin) return
+    try {
+      const to = new URL(event.url)
+      if (`${to.protocol}//${to.host}` !== currentOrigin) event.preventDefault()
+    } catch {
+      event.preventDefault()
+    }
+  })
+
   if (process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL'])
     win.webContents.openDevTools({ mode: 'detach' })

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FC, type ReactNode } from 'react'
 import { Modal } from './Modal'
+import { usePluginsStore } from '../store/plugins'
 import { AI_CLIS, AI_CLI_ORDER, DEFAULT_AI_SETTINGS } from '../../../shared/aiCli'
 import {
   ACP_AGENTS,
@@ -79,6 +80,11 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
     jira: false,
     bb: false
   })
+  const plugins = usePluginsStore((state) => state.catalog)
+  const setPluginEnabled = usePluginsStore((state) => state.setEnabled)
+  const reloadPlugins = usePluginsStore((state) => state.reload)
+  const [pluginBusy, setPluginBusy] = useState<string | null>(null)
+  const [pluginError, setPluginError] = useState<string | null>(null)
 
   useEffect(() => {
     if (hideBrowserWs) void window.api.browser.setVisible(hideBrowserWs, false)
@@ -149,7 +155,7 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
     'w-full rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none'
 
   return (
-    <Modal title="Settings" onClose={onClose} width={520}>
+    <Modal title="Settings" onClose={onClose} width={600}>
       <div className="grid max-h-[70vh] gap-5 overflow-y-auto pr-1">
         <p className="text-[11px] text-neutral-500">
           Folder mapping, browser URL templates, and Dev services are configured per host (Edit
@@ -574,6 +580,129 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
               </button>
             </div>
           </div>
+        </ProviderSection>
+
+        <ProviderSection title="Plugins">
+          <div className="mb-2 flex items-start justify-between gap-3">
+            <p className="max-w-[390px] text-[11px] text-neutral-500">
+              Workspace tools live in the top-right quadrant. Built-ins run as native mxwl code;
+              local plugins run in a sandbox and can only use the permissions you see here.
+            </p>
+            <div className="flex shrink-0 gap-1.5">
+              <button
+                type="button"
+                onClick={() => void window.api.plugins.openDirectory()}
+                className="rounded-md border border-neutral-700 px-2 py-1 text-[10px] text-neutral-400 hover:border-neutral-600 hover:text-neutral-100"
+              >
+                Open folder
+              </button>
+              <button
+                type="button"
+                disabled={pluginBusy === 'reload'}
+                onClick={() => {
+                  setPluginError(null)
+                  setPluginBusy('reload')
+                  void reloadPlugins()
+                    .catch((error: unknown) =>
+                      setPluginError(error instanceof Error ? error.message : String(error))
+                    )
+                    .finally(() => setPluginBusy(null))
+                }}
+                className="rounded-md border border-neutral-700 px-2 py-1 text-[10px] text-neutral-400 hover:border-neutral-600 hover:text-neutral-100 disabled:opacity-40"
+              >
+                {pluginBusy === 'reload' ? 'Reloading…' : 'Reload'}
+              </button>
+            </div>
+          </div>
+
+          {pluginError && (
+            <p className="mb-2 rounded-md border border-red-900/70 bg-red-950/30 px-2.5 py-2 text-[10px] text-red-300">
+              {pluginError}
+            </p>
+          )}
+
+          <div className="grid gap-2">
+            {plugins.map((plugin) => {
+              const invalid = 'error' in plugin
+              const busy = pluginBusy === plugin.id
+              return (
+                <div
+                  key={`${plugin.source}:${plugin.id}`}
+                  className={`rounded-lg border bg-neutral-950/60 px-3 py-2.5 ${
+                    invalid ? 'border-red-900/60' : 'border-neutral-800'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-medium text-neutral-200">{plugin.name}</span>
+                        <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-neutral-500">
+                          {plugin.source === 'builtin' ? 'Built in' : 'Local'}
+                        </span>
+                        <span className="text-[9px] text-neutral-700">v{plugin.version}</span>
+                      </div>
+                      {plugin.description && (
+                        <p className="mt-1 text-[10px] leading-relaxed text-neutral-500">
+                          {plugin.description}
+                        </p>
+                      )}
+                    </div>
+                    <label className="flex shrink-0 items-center gap-2 text-[10px] text-neutral-500">
+                      {plugin.enabled ? 'Enabled' : 'Disabled'}
+                      <input
+                        type="checkbox"
+                        checked={plugin.enabled}
+                        disabled={invalid || busy}
+                        onChange={(event) => {
+                          const enabled = event.target.checked
+                          setPluginError(null)
+                          setPluginBusy(plugin.id)
+                          void setPluginEnabled(plugin.id, enabled)
+                            .catch((error: unknown) =>
+                              setPluginError(
+                                error instanceof Error ? error.message : String(error)
+                              )
+                            )
+                            .finally(() => setPluginBusy(null))
+                        }}
+                        className="accent-violet-500"
+                      />
+                    </label>
+                  </div>
+
+                  {invalid ? (
+                    <p className="mt-2 text-[10px] text-red-300">{plugin.error}</p>
+                  ) : (
+                    <>
+                      {plugin.permissionReviewRequired && (
+                        <p className="mt-2 text-[10px] text-amber-300">
+                          Permissions changed. Review them, then enable this plugin again.
+                        </p>
+                      )}
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {(plugin.permissions ?? []).length === 0 ? (
+                          <span className="text-[9px] text-neutral-700">No host permissions</span>
+                        ) : (
+                          plugin.permissions?.map((permission) => (
+                            <span
+                              key={permission}
+                              className="rounded border border-neutral-800 px-1.5 py-0.5 text-[9px] text-neutral-600"
+                            >
+                              {permission.replace(':', ' · ')}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="mt-2 text-[10px] text-neutral-600">
+            Drop a plugin folder containing <code>mxwl.plugin.json</code> into the local plugins
+            folder, reload, review its permissions, then enable it.
+          </p>
         </ProviderSection>
 
         <ProviderSection title="Task management">

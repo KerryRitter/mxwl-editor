@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Versioned local plugin manifests with enable/disable controls, permission-gated host APIs, scoped storage, and sandboxed workspace-tool UI
+- A complete Task Board example plugin plus an authoring, architecture, lifecycle, and security guide
+
+### Changed
+- Code Explorer and Changes now register as built-in plugins through the same workspace-tool contribution registry
+- Local plugins are disabled on first discovery and automatically require approval again when requested permissions change
+
 ## 0.2.0-alpha.4
 
 ### Added

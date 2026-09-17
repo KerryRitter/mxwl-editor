@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #09090b; color: #e4e4e7; font-size: 12px; }
+      button, input { font: inherit; }
+      .shell { min-height: 100vh; padding: 16px; background: radial-gradient(circle at top right, #2e106522, transparent 42%); }
+      header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+      h1 { margin: 0; font-size: 14px; letter-spacing: -.01em; }
+      .eyebrow { margin-bottom: 4px; color: #8b5cf6; font-size: 9px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+      .context { margin-top: 4px; color: #71717a; font-size: 10px; }
+      .count { border: 1px solid #3f3f46; border-radius: 999px; padding: 4px 8px; color: #a1a1aa; }
+      .composer { display: grid; grid-template-columns: 1fr auto; gap: 7px; margin-bottom: 12px; }
+      input { min-width: 0; border: 1px solid #3f3f46; border-radius: 7px; outline: none; background: #18181b; color: #fafafa; padding: 8px 10px; }
+      input:focus { border-color: #8b5cf6; box-shadow: 0 0 0 2px #8b5cf622; }
+      button { cursor: pointer; border: 1px solid #3f3f46; border-radius: 6px; background: #27272a; color: #d4d4d8; padding: 6px 9px; }
+      button:hover { border-color: #52525b; background: #3f3f46; color: white; }
+      .primary { border-color: #7c3aed; background: #7c3aed; color: white; }
+      .primary:hover { border-color: #8b5cf6; background: #8b5cf6; }
+      .board { display: grid; gap: 7px; }
+      .task { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; border: 1px solid #27272a; border-radius: 8px; background: #101012cc; padding: 9px; }
+      .task.done .title { color: #52525b; text-decoration: line-through; }
+      .check { width: 17px; height: 17px; padding: 0; border-radius: 5px; background: transparent; }
+      .task.done .check { border-color: #10b981; background: #10b981; color: #052e16; }
+      .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .actions { display: flex; gap: 5px; }
+      .actions button { padding: 4px 7px; color: #a1a1aa; font-size: 10px; }
+      .empty { border: 1px dashed #3f3f46; border-radius: 9px; padding: 32px 12px; text-align: center; color: #52525b; }
+      .error { display: none; margin-bottom: 10px; border: 1px solid #7f1d1d; border-radius: 6px; background: #450a0a66; color: #fca5a5; padding: 8px; }
+      .foot { display: flex; justify-content: space-between; margin-top: 12px; color: #3f3f46; font-size: 9px; }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <div>
+          <div class="eyebrow">Local plugin</div>
+          <h1>Task Board</h1>
+          <div class="context" id="context">Waiting for workspace…</div>
+        </div>
+        <div class="count" id="count">0 open</div>
+      </header>
+      <div class="error" id="error"></div>
+      <form class="composer" id="composer">
+        <input id="title" maxlength="180" placeholder="Add something worth shipping…" autocomplete="off" />
+        <button class="primary" id="add" type="button">Add task</button>
+      </form>
+      <section class="board" id="board"></section>
+      <div class="foot"><span>Stored by mxwl per workspace</span><span>API v1</span></div>
+    </main>
+    <script src="./index.js"></script>
+  </body>
+</html>

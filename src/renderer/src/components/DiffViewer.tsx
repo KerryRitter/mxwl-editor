@@ -23,7 +23,7 @@ type Props = {
   wsId: string
   storageKey: string
   visible: boolean
-  onOpenCode: (path: string) => void
+  onOpenCode?: (path: string) => void
   onAskAgent: (prompt: string) => void
   onOpenUrl: (url: string) => void
 }
@@ -321,7 +321,7 @@ export const DiffViewer: FC<Props> = ({
                 file={file}
                 active={selectedPath === file.path}
                 onClick={() => setSelectedPath(file.path)}
-                onOpen={() => onOpenCode(file.path)}
+                onOpen={onOpenCode ? () => onOpenCode(file.path) : undefined}
               />
             ))}
           </div>
@@ -380,7 +380,7 @@ export const DiffViewer: FC<Props> = ({
                   Unstage
                 </ActionButton>
               )}
-              {!fileDiff.binary && fileDiff.kind !== 'deleted' && (
+              {onOpenCode && !fileDiff.binary && fileDiff.kind !== 'deleted' && (
                 <button
                   type="button"
                   onClick={() => onOpenCode(fileDiff.path)}
@@ -448,7 +448,7 @@ const ChangeRow: FC<{
   file: GitChange
   active: boolean
   onClick: () => void
-  onOpen: () => void
+  onOpen?: () => void
 }> = ({ file, active, onClick, onOpen }) => {
   const slash = file.path.lastIndexOf('/')
   const directory = slash >= 0 ? file.path.slice(0, slash) : ''
@@ -457,7 +457,7 @@ const ChangeRow: FC<{
       type="button"
       onClick={onClick}
       onDoubleClick={onOpen}
-      title={`${file.oldPath ? `${file.oldPath} → ` : ''}${file.path}\nDouble-click to open in Code`}
+      title={`${file.oldPath ? `${file.oldPath} → ` : ''}${file.path}${onOpen ? '\nDouble-click to open in Code' : ''}`}
       className={`group flex w-full items-center gap-2 px-2 py-1.5 text-left ${
         active ? 'bg-violet-500/10 text-neutral-100' : 'text-neutral-400 hover:bg-neutral-900'
       }`}

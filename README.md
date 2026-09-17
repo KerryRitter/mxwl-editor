@@ -157,6 +157,7 @@ If the terminal pane fails after an Electron upgrade, rebuild its native module 
 | **Workspace bar** | Several local or SSH folders open at once, with live Git and agent state on each tab. Rename tabs when ticket names are not enough. |
 | **Browser** | Embedded Chromium, multiple tabs, isolated cookie groups, test-user login helpers, native DevTools, zoom, and external-browser handoff. |
 | **Code / Changes** | Monaco editing plus a fast changed-file list and PR-style unified or split diffs. |
+| **Plugin deck** | Enable or disable Code and Changes, then add sandboxed workspace tools for your own task, source-control, or internal workflows. |
 | **Bottom deck** | ACP agents, multiple named terminals, and service logs without leaving the workspace. |
 | **Command bar** | `Ctrl/⌘ K` search across files, workspaces, tabs, agents, and commands. |
 | **Attention bell** | A durable inbox for finished work, approval or authentication requests, and failures across the entire fleet. |
@@ -178,6 +179,17 @@ changed file → inspect diff → select lines → ask agent → stage hunk → 
 ```
 
 It is the review loop of a hosted PR tool, next to the code and agent that can act on the feedback.
+
+## Make the cockpit yours
+
+The top-right tool deck is plugin-driven. **Code Explorer** and **Changes** are built-in plugins and
+can be independently enabled or disabled from Settings. Local plugins use the same workspace-tool
+registry, run in sandboxed iframes, and request narrow capabilities for files, Git, browser tabs,
+agents, scoped storage, or HTTP.
+
+Drop a plugin into the folder opened by **Settings → Plugins**, reload, review its permissions, and
+enable it. Start with the bundled [Task Board example](./examples/plugins/task-board/) or read the
+[plugin architecture and API guide](./docs/plugins.md).
 
 ## Run the fleet, not just one chat
 
@@ -267,6 +279,9 @@ mxwl keeps privileged host operations in Electron's main process and exposes a n
 flowchart TB
     UI[React + Zustand UI] --> PRELOAD[Typed preload bridge]
     PRELOAD --> MAIN[Electron main process]
+    UI --> PLUGINS[Workspace tool registry]
+    PLUGINS --> SANDBOX[Sandboxed local plugins]
+    SANDBOX --> PRELOAD
     MAIN --> LOCAL[Local workspace]
     MAIN --> SSH[SSH + SFTP workspace]
     MAIN --> ACP[ACP agent runtimes]
@@ -311,6 +326,7 @@ npm run docs:screenshots  # regenerate README captures with demo data
 | [AI task runs](./docs/ai.md) | Planning and running work across several workspaces |
 | [Host settings](./docs/presets.md) | Per-host project and service configuration |
 | [Cookie sandboxes](./docs/tab-groups.md) | Browser identity isolation and tab groups |
+| [Plugin architecture](./docs/plugins.md) | Manifests, workspace tools, permissions, bridge API, and examples |
 | [Changelog](./CHANGELOG.md) | Release-by-release changes |
 | [Security](./SECURITY.md) | Secrets, tunnels, tokens, and reporting |
 

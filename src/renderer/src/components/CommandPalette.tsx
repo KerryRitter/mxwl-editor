@@ -6,6 +6,7 @@ import { useHostsStore } from '../store/hosts'
 import { useEditorStore } from '../store/editor'
 import { useAgentStore } from '../store/agent'
 import { useNavigationStore } from '../store/navigation'
+import { usePluginsStore, workspaceTools } from '../store/plugins'
 import { basename } from '../util'
 import { fuzzySort } from '../../../shared/fuzzy'
 import type { AgentId, BrowserTab } from '../../../shared/types'
@@ -61,7 +62,11 @@ export const CommandPalette: FC<SpotlightProps> = ({
   const agentSessions = useAgentStore((state) => state.sessions)
   const openAgent = useAgentStore((state) => state.open)
   const focusPanel = useNavigationStore((state) => state.focus)
+  const pluginCatalog = usePluginsStore((state) => state.catalog)
   const activeWs = workspaces.find((workspace) => workspace.id === activeId)
+  const enabledTools = useMemo(() => new Set(workspaceTools(pluginCatalog).map((tool) => tool.key)), [pluginCatalog])
+  const codeEnabled = enabledTools.has('mxwl.code:code')
+  const changesEnabled = enabledTools.has('mxwl.changes:changes')
 
   const focusWorkspace = useCallback(
     (wsId: string): void => {
@@ -109,6 +114,11 @@ export const CommandPalette: FC<SpotlightProps> = ({
   }, [mode, workspaces])
 
   useEffect(() => {
+    if (!codeEnabled) {
+      setFiles([])
+      setLoadingFiles(false)
+      return
+    }
     const targets =
       mode === 'files'
         ? activeWs?.status === 'connected'
@@ -152,7 +162,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [mode, activeWs, q, workspaces])
+  }, [mode, activeWs, q, workspaces, codeEnabled])
 
   const actions = useMemo<PaletteItem[]>(() => {
     const list: PaletteItem[] = [
@@ -201,18 +211,6 @@ export const CommandPalette: FC<SpotlightProps> = ({
         }
       },
       {
-        id: 'mode-files',
-        label: 'Quick open file…',
-        hint: 'Ctrl+P',
-        group: 'Command',
-        keywords: 'goto file find',
-        run: () => {
-          setMode('files')
-          setQ('')
-          setCursor(0)
-        }
-      },
-      {
         id: 'mode-commands',
         label: 'Show commands only…',
         hint: 'Ctrl+Shift+P',
@@ -224,6 +222,21 @@ export const CommandPalette: FC<SpotlightProps> = ({
         }
       }
     ]
+
+    if (codeEnabled) {
+      list.splice(4, 0, {
+        id: 'mode-files',
+        label: 'Quick open file…',
+        hint: 'Ctrl+P',
+        group: 'Command',
+        keywords: 'goto file find',
+        run: () => {
+          setMode('files')
+          setQ('')
+          setCursor(0)
+        }
+      })
+    }
 
     if (activeId) {
       list.push(
@@ -250,16 +263,6 @@ export const CommandPalette: FC<SpotlightProps> = ({
           }
         },
         {
-          id: 'show-changes',
-          label: 'Show working-tree changes',
-          group: 'Command',
-          keywords: 'git diff review',
-          run: () => {
-            focusPanel(activeId, 'changes')
-            onClose()
-          }
-        },
-        {
           id: 'refresh-git',
           label: 'Refresh Git status',
           group: 'Command',
@@ -279,6 +282,18 @@ export const CommandPalette: FC<SpotlightProps> = ({
           }
         }
       )
+      if (changesEnabled) {
+        list.push({
+          id: 'show-changes',
+          label: 'Show working-tree changes',
+          group: 'Command',
+          keywords: 'git diff review',
+          run: () => {
+            focusPanel(activeId, 'changes')
+            onClose()
+          }
+        })
+      }
     }
 
     for (const host of hosts) {
@@ -297,7 +312,9 @@ export const CommandPalette: FC<SpotlightProps> = ({
     return list
   }, [
     activeId,
+    changesEnabled,
     clearEditorWs,
+    codeEnabled,
     closeWs,
     focusPanel,
     hosts,
@@ -324,7 +341,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
         }
       })
 
-      for (const file of editorByWs[workspace.id]?.files ?? []) {
+      for (const file of codeEnabled ? (editorByWs[workspace.id]?.files ?? []) : []) {
         list.push({
           id: `editor:${workspace.id}:${file.path}`,
           label: basename(file.path),
@@ -386,7 +403,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
       })
     }
 
-    for (const file of files) {
+    for (const file of codeEnabled ? files : []) {
       list.push({
         id: `file:${file.wsId}:${file.path}`,
         label: basename(file.path),
@@ -424,6 +441,7 @@ export const CommandPalette: FC<SpotlightProps> = ({
     agentCatalog,
     agentSessions,
     browserTabs,
+    codeEnabled,
     editorByWs,
     files,
     focusPanel,

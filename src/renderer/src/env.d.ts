@@ -32,6 +32,7 @@ import type {
   TestResult,
   WorkspaceState
 } from '../../shared/types'
+import type { PluginCatalogEntry, PluginHostMethod } from '../../shared/plugins'
 
 declare global {
   interface Window {
@@ -163,7 +164,20 @@ declare global {
           notifications?: Partial<AgentNotificationSettings>
           control?: Partial<ControlSettings>
           runtime?: Partial<RuntimeSettings>
+          plugins?: Partial<import('../../shared/plugins').PluginSettings>
         }) => Promise<SettingsSnapshot>
+      }
+      plugins: {
+        list: () => Promise<PluginCatalogEntry[]>
+        setEnabled: (id: string, enabled: boolean) => Promise<PluginCatalogEntry[]>
+        reload: () => Promise<PluginCatalogEntry[]>
+        openDirectory: () => Promise<void>
+        call: (
+          pluginId: string,
+          wsId: string,
+          method: PluginHostMethod,
+          params?: Record<string, unknown>
+        ) => Promise<unknown>
       }
       control: {
         status: () => Promise<ControlStatus>

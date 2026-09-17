@@ -1,0 +1,21 @@
+{
+  "apiVersion": 1,
+  "id": "dev.mxwl.task-board",
+  "name": "Task Board",
+  "version": "1.0.0",
+  "description": "A tiny workspace task board that can hand work to your active agent.",
+  "author": "mxwl example",
+  "permissions": ["workspace:read", "storage", "agent:prompt", "browser:open"],
+  "contributes": {
+    "workspaceTools": [
+      {
+        "id": "tasks",
+        "title": "Tasks",
+        "icon": "tasks",
+        "order": 300,
+        "entry": "index.html"
+      }
+    ]
+  }
+}
+

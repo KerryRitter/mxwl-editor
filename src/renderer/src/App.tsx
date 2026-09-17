@@ -8,6 +8,7 @@ import { useAiStore } from './store/ai'
 import { useAgentStore } from './store/agent'
 import { useNotificationsStore } from './store/notifications'
 import { useNavigationStore } from './store/navigation'
+import { usePluginsStore } from './store/plugins'
 import { HostManager } from './components/HostManager'
 import { WorkspaceTabs } from './components/WorkspaceTabs'
 import { WorkspaceView } from './components/WorkspaceView'
@@ -55,6 +56,7 @@ const App: FC = () => {
   const liveRuns = useAiStore((s) => s.runs.filter((r) => r.status === 'running').length)
   const initAgents = useAgentStore((s) => s.init)
   const initNotifications = useNotificationsStore((s) => s.init)
+  const initPlugins = usePluginsStore((s) => s.init)
   const focusPanel = useNavigationStore((s) => s.focus)
   const [uiZoom, setUiZoomState] = useState(savedUiZoom)
 
@@ -100,6 +102,7 @@ const App: FC = () => {
   // so the subscription belongs here rather than in the panel.
   useEffect(() => initAgents(), [initAgents])
   useEffect(() => initNotifications(), [initNotifications])
+  useEffect(() => initPlugins(), [initPlugins])
 
   useEffect(() => {
     return window.api.on('control:focusAgent', (...args: unknown[]) => {
