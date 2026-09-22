@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build mxwl Plugin"
+  short_description: "Build external mxwl workspace tools"
+  default_prompt: "Use $build-mxwl-plugin to build a standalone mxwl plugin from this idea."

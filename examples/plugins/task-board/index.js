@@ -1,14 +1,9 @@
-const pending = new Map()
 let workspace = null
 let tasks = []
 
 const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
-function call(method, params = {}) {
-  const id = newId()
-  parent.postMessage({ source: 'mxwl-plugin', type: 'request', id, method, params }, '*')
-  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }))
-}
+const call = (method, params = {}) => window.mxwl.call(method, params)
 
 function fail(error) {
   const box = document.querySelector('#error')
@@ -82,20 +77,7 @@ async function load(nextWorkspace) {
   render()
 }
 
-addEventListener('message', (event) => {
-  const message = event.data
-  if (message?.source !== 'mxwl-host') return
-  if (message.type === 'response') {
-    const request = pending.get(message.id)
-    if (!request) return
-    pending.delete(message.id)
-    message.error ? request.reject(new Error(message.error)) : request.resolve(message.result)
-  } else if (message.type === 'ready' || message.type === 'context') {
-    void load(message.workspace)
-  }
-})
-
-parent.postMessage({ source: 'mxwl-plugin', type: 'ready' }, '*')
+window.mxwl.onContext(({ workspace: nextWorkspace }) => void load(nextWorkspace))
 
 document.querySelector('#add').addEventListener('click', async () => {
   const input = document.querySelector('#title')

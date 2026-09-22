@@ -172,6 +172,9 @@ declare global {
         setEnabled: (id: string, enabled: boolean) => Promise<PluginCatalogEntry[]>
         reload: () => Promise<PluginCatalogEntry[]>
         openDirectory: () => Promise<void>
+        chooseDirectory: () => Promise<string | null>
+        installPath: (path: string) => Promise<PluginCatalogEntry[]>
+        unlink: (path: string) => Promise<PluginCatalogEntry[]>
         call: (
           pluginId: string,
           wsId: string,

@@ -164,6 +164,23 @@ If the terminal pane fails after an Electron upgrade, rebuild its native module 
 
 Maximize any quadrant or switch among **Balanced**, **Code**, **Review**, **Debug**, and **Agent** layouts. Whole-app zoom ranges from 75–200%, so the cockpit works on a dense desktop display or a laptop screen.
 
+### Turn branch artifacts into a living brief
+
+The standalone `mxwl-plugin-zipper` repository shows what the plugin deck is meant for. It detects
+the ticket from the focused worktree, discovers specs and QA evidence under
+`.zipper-agent/local/<TICKET>/`, and turns Markdown, task lists, tables, reviews, and JSON
+checkpoints into a focused reading surface. Search the dossier, jump through headings, switch
+ticket history, and adjust reader type size without mixing company-specific conventions into mxwl.
+
+```text
+focused branch → detect ticket → discover local artifacts → read plan / QA / proof → auto-refresh
+```
+
+It is a separate folder of HTML, CSS, JavaScript, and a manifest—not a private build of the app.
+Paste that folder's location into **Settings → Plugins**, review its permissions, and enable it.
+mxwl loads it in place and can unlink it without touching its source. See the
+[plugin authoring guide](./docs/plugins.md) for the SDK, API, and security model.
+
 ## Review changes like a pull request
 
 The top-right quadrant switches between the file explorer and a dedicated **Changes** surface:
@@ -183,13 +200,18 @@ It is the review loop of a hosted PR tool, next to the code and agent that can a
 ## Make the cockpit yours
 
 The top-right tool deck is plugin-driven. **Code Explorer** and **Changes** are built-in plugins and
-can be independently enabled or disabled from Settings. Local plugins use the same workspace-tool
+can be independently enabled or disabled from Settings. Linked plugins use the same workspace-tool
 registry, run in sandboxed iframes, and request narrow capabilities for files, Git, browser tabs,
 agents, scoped storage, or HTTP.
 
-Drop a plugin into the folder opened by **Settings → Plugins**, reload, review its permissions, and
-enable it. Start with the bundled [Task Board example](./examples/plugins/task-board/) or read the
-[plugin architecture and API guide](./docs/plugins.md).
+Paste any plugin directory or `mxwl.plugin.json` path into **Settings → Plugins**, review its
+permissions, and enable it. mxwl links the external location in place—reloads pick up development
+changes, and unlinking never deletes source. Start with the bundled
+[Task Board example](./examples/plugins/task-board/) or follow the
+[zero-to-running plugin authoring guide](./docs/plugins.md). The companion
+[API reference](./docs/plugin-api.md), [recipe book](./docs/plugin-recipes.md),
+[testing and distribution guide](./docs/plugin-testing.md), and
+[security model](./docs/plugin-security.md) cover the complete v1 contract.
 
 ## Run the fleet, not just one chat
 
@@ -280,7 +302,7 @@ flowchart TB
     UI[React + Zustand UI] --> PRELOAD[Typed preload bridge]
     PRELOAD --> MAIN[Electron main process]
     UI --> PLUGINS[Workspace tool registry]
-    PLUGINS --> SANDBOX[Sandboxed local plugins]
+    PLUGINS --> SANDBOX[Sandboxed linked plugins]
     SANDBOX --> PRELOAD
     MAIN --> LOCAL[Local workspace]
     MAIN --> SSH[SSH + SFTP workspace]
@@ -326,7 +348,12 @@ npm run docs:screenshots  # regenerate README captures with demo data
 | [AI task runs](./docs/ai.md) | Planning and running work across several workspaces |
 | [Host settings](./docs/presets.md) | Per-host project and service configuration |
 | [Cookie sandboxes](./docs/tab-groups.md) | Browser identity isolation and tab groups |
-| [Plugin architecture](./docs/plugins.md) | Manifests, workspace tools, permissions, bridge API, and examples |
+| [Plugin authoring](./docs/plugins.md) | Zero-to-running tutorial, lifecycle, state, UX, and architecture |
+| [Plugin API](./docs/plugin-api.md) | Exact manifests, SDK methods, result shapes, errors, and limits |
+| [Plugin recipes](./docs/plugin-recipes.md) | Hidden files, task APIs, Git views, agent handoffs, and storage patterns |
+| [Plugin testing](./docs/plugin-testing.md) | Development, debugging, tests, releases, distribution, and troubleshooting |
+| [Plugin security](./docs/plugin-security.md) | Sandbox, CSP, permissions, secrets, network, and author checklist |
+| [`build-mxwl-plugin` skill](./skills/build-mxwl-plugin/SKILL.md) | Reusable agent workflow for building standalone plugins from the docs |
 | [Changelog](./CHANGELOG.md) | Release-by-release changes |
 | [Security](./SECURITY.md) | Secrets, tunnels, tokens, and reporting |
 

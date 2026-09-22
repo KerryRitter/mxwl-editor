@@ -1,13 +1,14 @@
-import { app, shell, type BrowserWindow } from 'electron'
+import { app, dialog, shell, type BrowserWindow, type OpenDialogOptions } from 'electron'
 import {
   existsSync,
   mkdirSync,
   readFileSync,
   readdirSync,
   realpathSync,
+  statSync,
   writeFileSync
 } from 'node:fs'
-import { dirname, extname, join, resolve, sep } from 'node:path'
+import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import {
   BUILTIN_PLUGINS,
   MXWL_PLUGIN_API_VERSION,
@@ -17,12 +18,17 @@ import {
   type PluginCatalogEntry,
   type PluginHostMethod,
   type PluginInfo,
+  type PluginInstallation,
   type PluginManifest,
   type PluginPermission
 } from '../../shared/plugins'
 import type { SettingsStore } from '../persistence/SettingsStore'
 import type { WorkspaceManager } from '../workspace/WorkspaceManager'
 import type { AgentController } from '../agent/AgentController'
+import {
+  MXWL_PLUGIN_SDK_PATH,
+  MXWL_PLUGIN_SDK_V1
+} from '../../shared/pluginSdk'
 
 const MAX_RESOURCE_BYTES = 2 * 1024 * 1024
 const MAX_STORAGE_BYTES = 256 * 1024
@@ -40,9 +46,16 @@ type PluginCall = {
   params?: Record<string, unknown>
 }
 
+type PluginCandidate = {
+  root: string
+  installation: PluginInstallation
+  label: string
+}
+
 const METHOD_PERMISSION: Record<PluginHostMethod, PluginPermission> = {
   'workspace.getContext': 'workspace:read',
   'files.list': 'files:read',
+  'files.readDirectory': 'files:read',
   'files.read': 'files:read',
   'files.write': 'files:write',
   'git.status': 'git:read',
@@ -103,6 +116,7 @@ export class PluginManager {
     const user = this.userPlugins.get(id)
     this.settings.update({
       plugins: {
+        locations: current.locations,
         enabled: { ...current.enabled, [id]: enabled },
         grants:
           enabled && user
@@ -120,15 +134,43 @@ export class PluginManager {
     mkdirSync(pluginsDir, { recursive: true })
     const next = new Map<string, LoadedUserPlugin>()
     const invalid: InvalidPluginInfo[] = []
+    const candidates: PluginCandidate[] = []
+
+    for (const location of this.settings.all().plugins.locations) {
+      try {
+        candidates.push({
+          root: resolvePluginRoot(location),
+          installation: 'linked',
+          label: location
+        })
+      } catch (error) {
+        invalid.push(invalidPlugin(location, 'linked', this.revision, error, invalid.length))
+      }
+    }
 
     for (const entry of readdirSync(pluginsDir, { withFileTypes: true })) {
       if (!entry.isDirectory() || entry.name.startsWith('.')) continue
       const root = join(pluginsDir, entry.name)
-      const manifestPath = join(root, 'mxwl.plugin.json')
-      if (!existsSync(manifestPath)) continue
+      if (!existsSync(join(root, 'mxwl.plugin.json'))) continue
+      candidates.push({ root, installation: 'managed', label: root })
+    }
+
+    const seenRoots = new Set<string>()
+    for (const candidate of candidates) {
       try {
-        const manifest = parsePluginManifest(JSON.parse(readFileSync(manifestPath, 'utf8')))
-        if (next.has(manifest.id)) throw new Error(`duplicate plugin id: ${manifest.id}`)
+        const root = realpathSync(candidate.root)
+        if (seenRoots.has(root)) continue
+        seenRoots.add(root)
+        const manifest = readManifest(root)
+        const existing = next.get(manifest.id)
+        if (existing) {
+          // A linked installation is the source of truth during migration from the legacy
+          // app-data folder. Keep the old copy inert until the user removes it.
+          if (candidate.installation === 'managed' && existing.info.installation === 'linked') {
+            continue
+          }
+          throw new Error(`duplicate plugin id: ${manifest.id}`)
+        }
         validateEntries(root, manifest)
         next.set(manifest.id, {
           root,
@@ -137,24 +179,20 @@ export class PluginManager {
             source: 'user',
             enabled: this.isEnabled(manifest.id, 'user', manifest.permissions),
             revision: this.revision,
-            directory: root
+            directory: root,
+            installation: candidate.installation
           }
         })
       } catch (error) {
-        invalid.push({
-          apiVersion: MXWL_PLUGIN_API_VERSION,
-          id: `invalid.${entry.name.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`,
-          name: entry.name,
-          version: '0.0.0',
-          description: 'This plugin could not be loaded.',
-          source: 'user',
-          enabled: false,
-          revision: this.revision,
-          error: errorText(error),
-          permissions: [],
-          contributes: { workspaceTools: [] },
-          directory: root
-        })
+        invalid.push(
+          invalidPlugin(
+            candidate.label,
+            candidate.installation,
+            this.revision,
+            error,
+            invalid.length
+          )
+        )
       }
     }
 
@@ -168,6 +206,71 @@ export class PluginManager {
     mkdirSync(this.directory(), { recursive: true })
     const error = await shell.openPath(this.directory())
     if (error) throw new Error(error)
+  }
+
+  async chooseDirectory(): Promise<string | null> {
+    const options: OpenDialogOptions = {
+      title: 'Select an mxwl plugin folder',
+      buttonLabel: 'Use plugin folder',
+      properties: ['openDirectory']
+    }
+    const sender = this.getSender()
+    const result = sender
+      ? await dialog.showOpenDialog(sender, options)
+      : await dialog.showOpenDialog(options)
+    return result.canceled ? null : result.filePaths[0] ?? null
+  }
+
+  installPath(path: string): PluginCatalogEntry[] {
+    const root = resolvePluginRoot(requiredText(path, 'path', 16_384))
+    const manifest = readManifest(root)
+    validateEntries(root, manifest)
+    const current = this.settings.all().plugins
+    for (const location of current.locations) {
+      if (samePluginRoot(location, root)) continue
+      let linkedManifest: PluginManifest
+      try {
+        linkedManifest = readManifest(resolvePluginRoot(location))
+      } catch {
+        continue
+      }
+      if (linkedManifest.id === manifest.id) {
+        throw new Error(`plugin id ${manifest.id} is already linked from ${location}`)
+      }
+    }
+    const alreadyLinked = current.locations.some((location) => samePluginRoot(location, root))
+    if (!alreadyLinked) {
+      this.settings.update({
+        plugins: {
+          locations: [...current.locations, root],
+          enabled: current.enabled,
+          grants: current.grants
+        }
+      })
+    }
+    return this.reload()
+  }
+
+  unlink(path: string): PluginCatalogEntry[] {
+    const target = requiredText(path, 'path', 16_384)
+    const current = this.settings.all().plugins
+    const linked = current.locations.find((location) => samePluginRoot(location, target))
+    if (!linked) throw new Error('linked plugin location not found')
+    const loaded = [...this.userPlugins.values()].find(({ root }) => samePluginRoot(root, target))
+    const enabled = { ...current.enabled }
+    const grants = { ...current.grants }
+    if (loaded) {
+      delete enabled[loaded.info.id]
+      delete grants[loaded.info.id]
+    }
+    this.settings.update({
+      plugins: {
+        locations: current.locations.filter((location) => location !== linked),
+        enabled,
+        grants
+      }
+    })
+    return this.reload()
   }
 
   resource(rawUrl: string): Response {
@@ -184,11 +287,19 @@ export class PluginManager {
         .map((part) => decodeURIComponent(part))
         .join('/')
       if (!relative) throw new Error('plugin resource not found')
-      const file = safePluginFile(loaded.root, relative)
-      const content = readFileSync(file)
+      let content: Buffer
+      let contentType: string
+      if (relative === MXWL_PLUGIN_SDK_PATH) {
+        content = Buffer.from(MXWL_PLUGIN_SDK_V1, 'utf8')
+        contentType = 'text/javascript; charset=utf-8'
+      } else {
+        const file = safePluginFile(loaded.root, relative)
+        content = readFileSync(file)
+        contentType = resourceContentType(file)
+      }
       if (content.byteLength > MAX_RESOURCE_BYTES) throw new Error('plugin resource exceeds 2 MB')
       const headers: Record<string, string> = {
-        'Content-Type': resourceContentType(file),
+        'Content-Type': contentType,
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'no-store'
       }
@@ -225,6 +336,18 @@ export class PluginManager {
         return this.workspaces
           .listFiles(input.wsId, optionalText(params.query, 200))
           .then((paths) => paths.map((path) => relativeWorkspacePath(workspace.remotePath, path)))
+      case 'files.readDirectory': {
+        const relative = optionalText(params.path, 4_096).trim()
+        const directory = relative
+          ? workspacePath(workspace.remotePath, relative)
+          : workspace.remotePath
+        return this.workspaces.fsReadDir(input.wsId, directory).then((entries) =>
+          entries.map((entry) => ({
+            ...entry,
+            path: relativeWorkspacePath(workspace.remotePath, entry.path)
+          }))
+        )
+      }
       case 'files.read':
         return this.workspaces.fsReadFile(
           input.wsId,
@@ -329,6 +452,73 @@ export class PluginManager {
 
   private emitChanged(): void {
     this.getSender()?.webContents.send('plugins:changed', this.list())
+  }
+}
+
+function normalizePluginLocation(location: string): string {
+  const trimmed = location.trim()
+  if (!trimmed) throw new Error('plugin path is required')
+  const expanded = trimmed === '~'
+    ? app.getPath('home')
+    : trimmed.startsWith('~/')
+      ? join(app.getPath('home'), trimmed.slice(2))
+      : trimmed
+  const absolute = resolve(expanded)
+  return basename(absolute) === 'mxwl.plugin.json' ? dirname(absolute) : absolute
+}
+
+function resolvePluginRoot(location: string): string {
+  const root = normalizePluginLocation(location)
+  if (!existsSync(root)) throw new Error(`plugin path does not exist: ${root}`)
+  if (!statSync(root).isDirectory()) {
+    throw new Error('plugin path must be a directory or mxwl.plugin.json')
+  }
+  if (!existsSync(join(root, 'mxwl.plugin.json'))) {
+    throw new Error(`mxwl.plugin.json not found in ${root}`)
+  }
+  return realpathSync(root)
+}
+
+function samePluginRoot(left: string, right: string): boolean {
+  try {
+    return resolvePluginRoot(left) === resolvePluginRoot(right)
+  } catch {
+    return normalizePluginLocation(left) === normalizePluginLocation(right)
+  }
+}
+
+function readManifest(root: string): PluginManifest {
+  return parsePluginManifest(JSON.parse(readFileSync(join(root, 'mxwl.plugin.json'), 'utf8')))
+}
+
+function invalidPlugin(
+  location: string,
+  installation: PluginInstallation,
+  revision: number,
+  error: unknown,
+  index: number
+): InvalidPluginInfo {
+  let name = 'Invalid plugin'
+  try {
+    name = basename(normalizePluginLocation(location)) || name
+  } catch {
+    // Keep the generic display name for an unparseable path.
+  }
+  const slug = name.toLowerCase().replace(/[^a-z0-9_-]/g, '-') || 'plugin'
+  return {
+    apiVersion: MXWL_PLUGIN_API_VERSION,
+    id: `invalid.${slug}-${index}`,
+    name,
+    version: '0.0.0',
+    description: 'This plugin could not be loaded.',
+    source: 'user',
+    enabled: false,
+    revision,
+    error: errorText(error),
+    permissions: [],
+    contributes: { workspaceTools: [] },
+    directory: location,
+    installation
   }
 }
 

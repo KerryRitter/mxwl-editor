@@ -1,41 +1,100 @@
-# mxwl plugins
+# Build a plugin for mxwl
 
-Plugins turn the top-right workspace quadrant into an extensible tool deck. Code Explorer and
-Changes use the same `workspaceTools` contribution registry as local plugins, so they can be
-enabled, disabled, reordered, and evolved without adding another hard-coded pane.
+An mxwl plugin is a local web application that adds one or more tabs to the top-right workspace
+tool deck. It lives in its own directory, is linked into mxwl by filesystem path, and talks to the
+active workspace through a small permission-gated browser SDK.
 
-This is the first version of the plugin API. It deliberately starts with one strong extension
-point instead of exposing Electron or the renderer internals.
+You do not need Electron, React, a package registry, or an mxwl source checkout. A useful plugin can
+be three files:
 
-## Install a local plugin
+```text
+my-plugin/
+├── mxwl.plugin.json
+├── index.html
+└── index.js
+```
 
-1. Open **Settings → Plugins → Open folder**.
-2. Copy one plugin directory into that folder. A plugin directory must contain
-   `mxwl.plugin.json` and its HTML entry file.
-3. Select **Reload**, review the requested permissions, and enable the plugin.
+This guide takes that directory from zero to a running plugin. The companion references go deeper:
 
-Local plugins are disabled on first discovery. The bundled
-[`Task Board`](../examples/plugins/task-board/) is a complete example you can copy and modify.
-If an enabled plugin changes its requested permissions, mxwl disables it until you review the new
-list and explicitly enable it again.
+| Guide                                                             | Use it for                                                                 |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **This page**                                                     | Mental model, first plugin, lifecycle, design guidance                     |
+| [API reference](./plugin-api.md)                                  | Every manifest field, SDK function, method, result, and limit              |
+| [Recipes](./plugin-recipes.md)                                    | File readers, task tools, Git views, HTTP integrations, and state patterns |
+| [Testing and distribution](./plugin-testing.md)                   | Dev loop, automated tests, packaging, versioning, troubleshooting          |
+| [Security model](./plugin-security.md)                            | Sandbox, CSP, permission review, secrets, and threat model                 |
+| [`build-mxwl-plugin` skill](../skills/build-mxwl-plugin/SKILL.md) | Agent workflow that reads these docs and builds the plugin externally      |
 
-## Manifest
+The API described here is plugin API version 1.
+
+## What plugins can build
+
+Version 1 contributes full workspace tools: tabs beside **Code** and **Changes**. Good fits include:
+
+- a branch brief or local artifact reader;
+- a task board backed by Jira, Linear, GitHub, or an internal API;
+- a source-control or pull-request dashboard;
+- a runbook, deploy, test, or QA evidence surface;
+- a workspace-local notes, checklist, or handoff tool;
+- a company-specific workflow that should not live in mxwl itself.
+
+A workspace tool can read context, inspect or write workspace files, inspect or mutate Git, open a
+workspace browser tab, hand a prompt to the active agent, store JSON state, and make brokered HTTP
+requests. It only receives capabilities declared in its manifest and approved by the user.
+
+Version 1 does not contribute commands, status-bar items, settings forms, terminal providers, task
+providers, or SCM providers. Those are planned extension points, not silently accepted manifest
+fields.
+
+## Runtime in one picture
+
+```mermaid
+flowchart LR
+    D[Plugin directory] -->|link path| C[Plugin catalog]
+    C -->|review and enable| T[Workspace tab]
+    T --> I[Sandboxed iframe]
+    I -->|window.mxwl.call| B[Permission broker]
+    B --> W[Workspace files and Git]
+    B --> A[Active agent]
+    B --> R[Browser, storage, HTTP]
+```
+
+The important boundaries are:
+
+1. **The plugin stays external.** mxwl remembers its canonical directory and serves files from that
+   location. It does not copy the plugin into the application.
+2. **The UI is a browser app.** It runs in a sandboxed iframe at a plugin-specific
+   `mxwl-plugin://<plugin-id>` origin. There is no Node.js or Electron API.
+3. **The bridge is the authority.** JavaScript cannot gain a capability merely by calling a method.
+   The host checks the plugin ID, enabled state, active workspace, method, and approved permission on
+   every request.
+4. **The workspace is contextual.** The same tool is mounted for a workspace and receives fresh
+   context as branch, dirty state, connection state, or other exposed metadata changes.
+
+## Build the smallest plugin
+
+Create a directory anywhere on the machine. Keeping plugins in their own Git repositories works
+well because mxwl links them in place.
+
+### 1. Add the manifest
+
+Create `mxwl.plugin.json`:
 
 ```json
 {
   "apiVersion": 1,
-  "id": "com.example.tasks",
-  "name": "Task Board",
+  "id": "com.example.workspace-note",
+  "name": "Workspace Note",
   "version": "1.0.0",
-  "description": "Workspace-local task tracking.",
-  "author": "Example",
-  "permissions": ["workspace:read", "storage", "agent:prompt"],
+  "description": "Reads a workspace note and can hand it to the active agent.",
+  "author": "Example Team",
+  "permissions": ["workspace:read", "files:read", "agent:prompt"],
   "contributes": {
     "workspaceTools": [
       {
-        "id": "tasks",
-        "title": "Tasks",
-        "icon": "tasks",
+        "id": "note",
+        "title": "Note",
+        "icon": "book",
         "order": 300,
         "entry": "index.html"
       }
@@ -44,150 +103,438 @@ list and explicitly enable it again.
 }
 ```
 
-IDs must be lowercase and globally unique. The `mxwl.*` namespace is reserved. Entries are
-relative HTML documents; their scripts, styles, and images can be relative files in the same plugin
-directory. Paths and symlinks may not escape that directory. Supported icons are `code`, `diff`,
-`tasks`, `git`, `globe`, and `puzzle`.
+The `id` is the durable identity of the plugin. Use a reverse-domain or organization-prefixed name
+you control. Changing it later creates a different plugin, a different origin, and a different
+storage namespace.
 
-## Runtime model
+Only request permissions the current version actually uses. Permission changes intentionally
+disable an already-enabled plugin until the user reviews and enables it again.
 
-There are two plugin tiers:
+### 2. Add the page
 
-| Tier | Intended use | Execution |
-|---|---|---|
-| Built-in | First-party, performance-sensitive tools | Compiled React modules registered through the contribution API |
-| Local | Personal and team-specific tools | Dedicated `mxwl-plugin://` resources in a unique-origin, script-only sandboxed iframe |
+Create `index.html`:
 
-The lifecycle is:
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Workspace Note</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <strong>Workspace Note</strong>
+      <span id="workspace">Waiting for a workspace…</span>
+    </header>
+    <main>
+      <pre id="note">Loading…</pre>
+      <button id="ask" type="button" disabled>Ask agent to act on this</button>
+      <p id="error" role="alert"></p>
+    </main>
 
-```text
-discover manifest → validate files → show disabled → user reviews permissions
-        → enable → mount contributed tab → ready/context messages
-        → permission-gated host calls → disable/unmount
+    <!-- The host serves this file inside every plugin origin. Load it first. -->
+    <script src="/__mxwl/sdk/v1.js"></script>
+    <script src="./index.js"></script>
+  </body>
+</html>
 ```
 
-Only the manifest is read during discovery. Local plugin UI is loaded after enablement. Reloading
-the catalog re-reads manifests and entry validation; switching workspaces sends a fresh context.
+Scripts must be external files. The sandbox's Content Security Policy blocks inline and remote
+JavaScript. Local styles may be linked or inline.
 
-## Browser bridge
+Create `styles.css`:
 
-The host sends `ready`, `context`, and `visibility` messages. A plugin calls host methods with a
-request/response pair:
-
-```js
-const pending = new Map()
-
-function mxwlCall(method, params = {}) {
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  parent.postMessage({ source: 'mxwl-plugin', type: 'request', id, method, params }, '*')
-  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }))
+```css
+:root {
+  color-scheme: dark;
+  font:
+    12px/1.5 Inter,
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+  background: #09090b;
+  color: #e4e4e7;
 }
 
-addEventListener('message', (event) => {
-  const message = event.data
-  if (message?.source === 'mxwl-host' && message.type === 'response') {
-    const request = pending.get(message.id)
-    if (!request) return
-    pending.delete(message.id)
-    message.error ? request.reject(new Error(message.error)) : request.resolve(message.result)
-  }
-  if (message?.source === 'mxwl-host' && ['ready', 'context'].includes(message.type)) {
-    console.log(message.apiVersion, message.workspace)
-  }
-})
-
-// Install the listener first, then ask the host for the initial workspace context.
-parent.postMessage({ source: 'mxwl-plugin', type: 'ready' }, '*')
+body {
+  margin: 0;
+  padding: 16px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: #a78bfa;
+}
+pre {
+  min-height: 160px;
+  white-space: pre-wrap;
+  color: #d4d4d8;
+}
+button {
+  padding: 7px 10px;
+  border: 1px solid #52525b;
+  border-radius: 6px;
+  background: #27272a;
+  color: white;
+}
+#error {
+  color: #fca5a5;
+}
 ```
 
-The host independently checks the plugin identity, enabled state, workspace, method, and declared
-permission on every call. A plugin cannot grant itself access by changing its JavaScript.
+### 3. Use the SDK
 
-## Permissions and methods
-
-| Permission | Methods | Notes |
-|---|---|---|
-| `workspace:read` | `workspace.getContext` | ID, title, host, root, status, issue, branch, dirty state |
-| `files:read` | `files.list`, `files.read` | Paths must remain inside the active workspace |
-| `files:write` | `files.write` | Writes one text file inside the active workspace |
-| `git:read` | `git.status`, `git.changes`, `git.diff`, `git.pullRequestUrl` | Uses the workspace's local/SSH Git adapter |
-| `git:write` | `git.stageFile`, `git.unstageFile`, `git.stageHunk`, `git.commit`, `git.push` | Mutates the working tree or remote repository |
-| `browser:open` | `browser.open` | Opens an HTTP(S) URL in a workspace browser tab |
-| `agent:prompt` | `agent.prompt` | Sends text to the active workspace agent |
-| `storage` | `storage.get`, `storage.set` | JSON values, 256 KB total per plugin |
-| `network:fetch` | `network.fetch` | HTTP(S), 20 second timeout, 2 MB response limit |
-
-Example calls:
+Create `index.js`:
 
 ```js
-await mxwlCall('files.read', { path: 'package.json' })
-await mxwlCall('git.diff', { path: 'src/app.ts' })
-await mxwlCall('storage.set', { key: 'view', value: { filter: 'open' } })
-await mxwlCall('agent.prompt', { text: 'Implement task PROJ-42 and run its tests.' })
-await mxwlCall('network.fetch', {
-  url: 'https://tasks.example.test/api/me',
-  headers: { Authorization: 'Bearer …' }
-})
+let currentWorkspace = null;
+let currentNote = "";
+let loadGeneration = 0;
+
+const workspaceLabel = document.querySelector("#workspace");
+const note = document.querySelector("#note");
+const ask = document.querySelector("#ask");
+const error = document.querySelector("#error");
+
+function showError(reason) {
+  error.textContent = reason instanceof Error ? reason.message : String(reason);
+}
+
+async function load(workspace) {
+  const generation = ++loadGeneration;
+  currentWorkspace = workspace;
+  workspaceLabel.textContent = workspace.title;
+  error.textContent = "";
+  ask.disabled = true;
+
+  try {
+    const result = await window.mxwl.call("files.read", {
+      path: "WORKSPACE.md",
+    });
+    if (generation !== loadGeneration) return;
+    if (result.encoding !== "utf8") throw new Error("WORKSPACE.md is not text");
+    currentNote = result.content;
+    note.textContent = currentNote;
+    ask.disabled = false;
+  } catch (reason) {
+    if (generation !== loadGeneration) return;
+    currentNote = "";
+    note.textContent = "No readable WORKSPACE.md in this workspace.";
+    showError(reason);
+  }
+}
+
+window.mxwl.onContext(({ workspace }) => void load(workspace));
+
+ask.addEventListener("click", () => {
+  if (!currentWorkspace || !currentNote) return;
+  ask.disabled = true;
+  window.mxwl
+    .call("agent.prompt", {
+      text: `Use this workspace note as instructions:\n\n${currentNote}`,
+    })
+    .catch(showError)
+    .finally(() => {
+      ask.disabled = false;
+    });
+});
 ```
 
-`network.fetch` is intentionally broad once granted. A plugin with that permission can talk to
-public or private HTTP services and can transmit data it can read through other permissions. Only
-enable plugins you trust and treat permission changes like code changes.
+The generation check prevents an older asynchronous read from overwriting a newer workspace
+context. Use this pattern whenever a context change starts async work.
 
-## Security boundary
+### 4. Link and enable it
 
-Local plugin frames have no Node.js, Electron, preload, parent-origin, top-navigation, popup, form,
-or direct network privileges. Each plugin ID receives a distinct protocol origin, every bridge
-message is checked against it, and the iframe only receives scripts plus its isolated plugin origin.
-The dedicated protocol also attaches a restrictive Content Security Policy. JavaScript must be a
-relative plugin asset such as `<script src="./index.js"></script>`; inline and remote scripts are
-blocked. Images are limited to plugin assets or data URLs, and all external API traffic requires the
-explicit `network:fetch` bridge permission. The bridge rejects every message after a frame leaves
-its assigned plugin origin.
+1. Open **Settings → Plugins**.
+2. Paste the plugin directory—or its exact `mxwl.plugin.json` path—into **Install path**. `~` and
+   `~/…` are accepted. You can also choose **Browse…**.
+3. Select **Install path**. The plugin appears disabled.
+4. Review its requested permissions and enable it.
+5. Open the new **Note** tab in the top-right tool deck.
 
-This boundary limits accidents and ambient authority; it does not make untrusted code safe after
-you grant it sensitive capabilities. Review a plugin's HTML and manifest before enabling it.
+The path is saved, so future launches reconnect to the same directory. **Unlink** forgets the path
+without deleting source files. Plugin storage is also left intact.
 
-## Backport of Code and Changes
+### 5. Iterate
 
-The original top-right tabs now publish these built-in manifests:
+Edit the files in the external directory, then choose **Settings → Plugins → Reload**. Reloading:
 
-| Plugin | Contribution | Default | Implementation |
-|---|---|---|---|
-| `mxwl.code` | `code` | Enabled | Existing FileTree, SearchPanel, and Monaco editor |
-| `mxwl.changes` | `changes` | Enabled | Existing changed-file inbox, DiffViewer, and Git actions |
+- re-reads every linked manifest;
+- validates each entry again;
+- increments the plugin resource revision;
+- remounts the tool with uncached local assets;
+- detects permission changes and requires reapproval.
 
-The renderer no longer assumes those tabs exist. It asks the registry for enabled workspace tools,
-sorts them by `order`, mounts the corresponding built-in or sandboxed renderer, and remembers the
-last selected contribution. The old `code`/`changes` tab preference migrates automatically.
+You do not need to rebuild or reinstall mxwl. If your plugin has a build step, point mxwl at the
+output directory containing `mxwl.plugin.json`, not at source files the browser cannot execute.
 
-This is a behavioral backport, not a rewrite: the mature native implementations remain compiled
-for performance and type safety, while registration, enablement, selection, persistence, and
-lifecycle use the plugin system.
+## Directory layout and assets
 
-## Architecture and roadmap
+A larger plugin might look like this:
 
-```mermaid
-flowchart LR
-    M[Manifest discovery] --> R[Plugin registry]
-    S[Settings store] --> R
-    R --> H[Workspace tool host]
-    H --> B[Built-in React tool]
-    H --> I[Sandboxed local iframe]
-    I --> P[Permission broker]
-    P --> W[Workspace manager]
-    P --> A[Agent controller]
-    P --> N[Scoped storage / HTTP]
+```text
+mxwl-plugin-acme/
+├── mxwl.plugin.json
+├── dist/
+│   ├── tasks.html
+│   ├── reviews.html
+│   ├── app.js
+│   ├── app.css
+│   ├── logo.svg
+│   └── font.woff2
+├── src/
+├── test/
+├── package.json
+└── README.md
 ```
 
-The next useful contribution points can reuse the same registry and broker:
+The manifest can contribute multiple tools:
 
-- `commands`: command-palette actions with declared placement and keybinding hints.
-- `statusItems`: compact workspace/tab indicators.
-- `settings`: schema-driven plugin configuration without exposing the host settings object.
-- `taskProviders`: ticket search, metadata, and launch hooks.
-- `scmProviders`: pull-request metadata and provider actions above the common Git layer.
+```json
+{
+  "apiVersion": 1,
+  "id": "com.acme.delivery",
+  "name": "Acme Delivery",
+  "version": "2.1.0",
+  "permissions": ["workspace:read", "git:read", "network:fetch", "storage"],
+  "contributes": {
+    "workspaceTools": [
+      {
+        "id": "tasks",
+        "title": "Tasks",
+        "icon": "tasks",
+        "order": 310,
+        "entry": "dist/tasks.html"
+      },
+      {
+        "id": "reviews",
+        "title": "Reviews",
+        "icon": "git",
+        "order": 320,
+        "entry": "dist/reviews.html"
+      }
+    ]
+  }
+}
+```
 
-Those are intentionally not accepted by API version 1 yet. Unknown capabilities fail validation so
-a plugin cannot appear partially functional. Future incompatible contracts should increment
-`apiVersion`; additive host methods can stay on version 1 when they remain permission-gated.
+Each contribution gets its own iframe and `contributionId`, but contributions from one plugin share
+the same origin, permissions, and plugin storage. Namespace storage keys by contribution if their
+state should not overlap.
+
+Runtime assets must stay under the plugin directory. Symlinks that resolve outside it are rejected.
+Supported web asset MIME types are HTML, JavaScript/MJS, CSS, JSON, SVG, PNG, JPEG, WebP, and WOFF2;
+other extensions are served as `application/octet-stream`. Each served plugin asset is limited to
+2 MiB, so bundle thoughtfully and split large files.
+
+## The SDK and lifecycle
+
+The versioned SDK installs a frozen `window.mxwl` object:
+
+```ts
+interface MxwlPluginClient {
+  readonly apiVersion: 1;
+  call<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<T>;
+  getContext(): MxwlPluginContext | null;
+  isVisible(): boolean;
+  onContext(listener: (context: MxwlPluginContext) => void): () => void;
+  onVisibility(listener: (visible: boolean) => void): () => void;
+}
+```
+
+Standalone TypeScript declarations live at
+[`sdk/mxwl-plugin-sdk.d.ts`](../sdk/mxwl-plugin-sdk.d.ts). Copy that file into an external plugin,
+publish your own package containing it, or reference it from a JavaScript project:
+
+```js
+// @ts-check
+/// <reference path="./mxwl-plugin-sdk.d.ts" />
+```
+
+The lifecycle is event-oriented:
+
+```text
+iframe loads
+  → SDK announces ready
+  → host sends plugin + contribution + workspace context
+  → onContext listeners run
+  → host may send updated context many times
+  → host sends visibility changes as tabs/workspaces change
+  → Reload, disable, permission change, or unlink removes/remounts the frame
+```
+
+Important consequences:
+
+- `getContext()` can be `null` until the first host message. `onContext()` is the safest startup
+  hook and replays the latest context to late subscribers.
+- Context is not a one-time initialization event. Make loading idempotent and race-safe.
+- An enabled tool can remain mounted while its tab is hidden. Pause polling, animation, and heavy
+  work when `onVisibility(false)` fires; refresh stale data when it becomes visible again.
+- Do not assume page memory survives reload, disable/enable, application restart, or a future host
+  optimization. Persist durable UI state through `storage.set`.
+- Every `call()` has a 30-second SDK timeout. A rejected client promise does not guarantee that a
+  host-side operation was cancelled.
+
+Always retain and call subscription cleanup functions when a framework mounts and unmounts a
+component repeatedly:
+
+```js
+const stopContext = window.mxwl.onContext(renderContext);
+const stopVisibility = window.mxwl.onVisibility(setVisible);
+
+// During your framework's unmount/dispose hook:
+stopContext();
+stopVisibility();
+```
+
+## Context and workspace identity
+
+An SDK context has two layers:
+
+```js
+{
+  apiVersion: 1,
+  pluginId: 'com.example.workspace-note',
+  contributionId: 'note',
+  workspace: {
+    id: 'runtime-workspace-id',
+    title: 'PROJ-42',
+    remotePath: '/workspaces/PROJ-42',
+    hostId: 'local',
+    status: 'connected',
+    issueKey: 'PROJ-42',
+    branch: 'feature/PROJ-42',
+    dirty: true
+  }
+}
+```
+
+Use `workspace.id` as the runtime identity and storage namespace. `remotePath` may describe a local
+or SSH-backed workspace and should be presented as information, not passed to `files.*`; file API
+paths are always workspace-relative.
+
+Fields such as `issueKey`, `branch`, and `dirty` are optional or nullable. A plugin must still work
+for a non-Git directory and for hosts without issue-key derivation.
+
+## State: memory, plugin storage, and workspace files
+
+Choose state based on ownership:
+
+| State                                     | Best home                              | Why                                               |
+| ----------------------------------------- | -------------------------------------- | ------------------------------------------------- |
+| Selection, expanded sections, last filter | Plugin storage                         | Private UI state; JSON; survives remount/restart  |
+| Project configuration shared through Git  | Workspace file                         | Visible, reviewable, portable with the repository |
+| Derived API/file data                     | Memory plus refresh                    | Rebuildable; avoids stale duplicated state        |
+| Credentials                               | Prefer an existing secure service flow | Plugin storage is not a secret vault              |
+
+Storage is scoped to the plugin ID across the machine, not automatically to a workspace or
+contribution. Create explicit keys:
+
+```js
+const { contributionId, workspace } = window.mxwl.getContext();
+const key = `${contributionId}:filters:${workspace.id}`;
+
+await window.mxwl.call("storage.set", {
+  key,
+  value: { owner: "me", state: "open" },
+});
+```
+
+The total serialized storage budget is 256 KiB per plugin. It is appropriate for settings and
+small caches, not databases, logs, documents, access-token collections, or binary data.
+
+## Permissions as product design
+
+Permissions are part of the install experience. A focused artifact reader that requests
+`workspace:read` and `files:read` is easier to trust than one asking for every capability.
+
+| Permission       | Capability                                                        |
+| ---------------- | ----------------------------------------------------------------- |
+| `workspace:read` | Read current workspace metadata                                   |
+| `files:read`     | List directories/files and read file content inside the workspace |
+| `files:write`    | Write text files inside the workspace                             |
+| `git:read`       | Read status, changed paths, diffs, and pull-request URL           |
+| `git:write`      | Stage, unstage, commit, and push                                  |
+| `browser:open`   | Open an HTTP(S) URL as a workspace browser tab                    |
+| `agent:prompt`   | Send work to the active workspace agent                           |
+| `storage`        | Read and write plugin-scoped JSON state                           |
+| `network:fetch`  | Send HTTP(S) requests through the host                            |
+
+The host treats an exact permission set as the approval grant. Adding, removing, or renaming a
+permission changes that set and disables the plugin until the user reviews it. Version and code
+changes alone do not trigger a new permission review, so plugin distribution still depends on
+trusting the directory and its update process.
+
+See the [API reference](./plugin-api.md) for method-to-permission mapping and the
+[security guide](./plugin-security.md) before combining file access with HTTP or write operations.
+
+## Build for the workspace tool deck
+
+Plugins share a dense quadrant with code review tools. Treat the frame as a responsive panel, not a
+full browser window:
+
+- render well from roughly 320 px wide to a maximized desktop pane;
+- use the entire frame rather than fixed page dimensions;
+- keep the primary action and current workspace obvious;
+- use compact typography, progressive detail, and keyboard-friendly controls;
+- expose loading, empty, disconnected, stale, and error states;
+- never rely on color alone for status;
+- escape untrusted text by assigning `textContent`, not `innerHTML`;
+- debounce search and bound file/API discovery;
+- preserve the user's scroll, selection, and filters when refreshing data;
+- stop background work while hidden.
+
+mxwl supplies no shared component library to external plugins in API v1. Plain HTML works well;
+React, Vue, Svelte, Lit, or another browser framework also works if it is bundled into local files
+that satisfy the sandbox and per-asset limit.
+
+## Learn from the examples
+
+The in-repository [`Task Board`](../examples/plugins/task-board/) is intentionally small. It shows:
+
+- a complete manifest;
+- SDK loading and context subscription;
+- workspace-keyed storage;
+- DOM rendering without a build step;
+- handing a task to the active agent.
+
+The standalone `mxwl-plugin-zipper` repository is a production-shaped example kept outside the
+mxwl codebase. It detects focused-branch artifacts such as `QA_PREP.md` under
+`.zipper-agent/local/<TICKET>/`, renders a rich reading experience, and demonstrates bounded
+hidden-directory discovery.
+
+## Architecture for host contributors
+
+The built-in Code Explorer and Changes tools publish the same workspace-tool registrations as
+linked plugins, but their renderers remain compiled React code for performance and type safety:
+
+| Plugin         | Contribution | Default order | Renderer                                         |
+| -------------- | ------------ | ------------: | ------------------------------------------------ |
+| `mxwl.code`    | `code`       |           100 | Native FileTree, SearchPanel, Monaco editor      |
+| `mxwl.changes` | `changes`    |           200 | Native changed-file inbox and Monaco diff viewer |
+
+The renderer asks the registry for enabled contributions, sorts by `order` and title, remembers the
+selected contribution per workspace, and chooses a native renderer or an external iframe. This
+keeps registration and enablement uniform without forcing performance-sensitive built-ins through
+the iframe bridge.
+
+Potential future contribution points include `commands`, `statusItems`, schema-driven `settings`,
+`taskProviders`, and `scmProviders`. API v1 supports only `workspaceTools`; write against the
+documented contract and feature-detect future SDK additions.
+
+## Next steps
+
+1. Copy the [Task Board example](../examples/plugins/task-board/), use the three-file starter above,
+   or invoke `$build-mxwl-plugin` after installing the repository's
+   [`build-mxwl-plugin` skill](../skills/build-mxwl-plugin/SKILL.md).
+2. Keep the first permission set narrow and implement one excellent workspace workflow.
+3. Use the [API reference](./plugin-api.md) while wiring host calls.
+4. Apply the race, visibility, storage, and network patterns in [Recipes](./plugin-recipes.md).
+5. Add the checks in [Testing and distribution](./plugin-testing.md) before sharing the path or
+   repository with other users.

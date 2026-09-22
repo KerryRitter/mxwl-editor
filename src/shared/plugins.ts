@@ -14,7 +14,8 @@ export const PLUGIN_PERMISSIONS = [
 
 export type PluginPermission = (typeof PLUGIN_PERMISSIONS)[number]
 export type PluginSource = 'builtin' | 'user'
-export type PluginIcon = 'code' | 'diff' | 'tasks' | 'git' | 'globe' | 'puzzle'
+export type PluginInstallation = 'managed' | 'linked'
+export type PluginIcon = 'code' | 'diff' | 'tasks' | 'git' | 'globe' | 'book' | 'puzzle'
 
 export type WorkspaceToolContribution = {
   id: string
@@ -45,6 +46,7 @@ export type PluginInfo = PluginManifest & {
   revision: number
   permissionReviewRequired?: boolean
   directory?: string
+  installation?: PluginInstallation
 }
 
 export type InvalidPluginInfo = {
@@ -60,11 +62,14 @@ export type InvalidPluginInfo = {
   contributes: { workspaceTools: [] }
   apiVersion: typeof MXWL_PLUGIN_API_VERSION
   directory?: string
+  installation?: PluginInstallation
 }
 
 export type PluginCatalogEntry = PluginInfo | InvalidPluginInfo
 
 export type PluginSettings = {
+  /** Absolute plugin directories linked from anywhere on this machine. */
+  locations: string[]
   /** Missing keys mean enabled for built-ins and disabled for user plugins. */
   enabled: Record<string, boolean>
   /** Exact permissions last accepted when a local plugin was enabled. */
@@ -74,6 +79,7 @@ export type PluginSettings = {
 export const PLUGIN_HOST_METHODS = [
   'workspace.getContext',
   'files.list',
+  'files.readDirectory',
   'files.read',
   'files.write',
   'git.status',
@@ -196,7 +202,7 @@ export function parsePluginManifest(value: unknown): PluginManifest {
       throw new Error(`workspaceTools[${index}].entry must be a relative .html file`)
     }
     const icon = optionalString(candidate.icon)
-    if (icon && !['code', 'diff', 'tasks', 'git', 'globe', 'puzzle'].includes(icon)) {
+    if (icon && !['code', 'diff', 'tasks', 'git', 'globe', 'book', 'puzzle'].includes(icon)) {
       throw new Error(`workspaceTools[${index}].icon is not supported`)
     }
     return {

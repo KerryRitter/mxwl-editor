@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FC, type ReactNode } from 'react'
 import {
+  BookOpenText,
   FileCode2,
   GitBranch,
   GitCompare,
@@ -210,6 +211,7 @@ const ToolIcon: FC<{ icon?: PluginIcon }> = ({ icon }) => {
   if (icon === 'tasks') return <ListChecks size={12} />
   if (icon === 'git') return <GitBranch size={12} />
   if (icon === 'globe') return <Globe2 size={12} />
+  if (icon === 'book') return <BookOpenText size={12} />
   return <Puzzle size={12} />
 }
 

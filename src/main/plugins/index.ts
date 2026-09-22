@@ -13,6 +13,15 @@ export function registerPluginIpc(manager: PluginManager): void {
   )
   ipcMain.handle('plugins:reload', () => manager.reload())
   ipcMain.handle('plugins:openDirectory', () => manager.openDirectory())
+  ipcMain.handle('plugins:chooseDirectory', () => manager.chooseDirectory())
+  ipcMain.handle(
+    'plugins:installPath',
+    (_event: IpcMainInvokeEvent, input: { path: string }) => manager.installPath(input.path)
+  )
+  ipcMain.handle(
+    'plugins:unlink',
+    (_event: IpcMainInvokeEvent, input: { path: string }) => manager.unlink(input.path)
+  )
   ipcMain.handle(
     'plugins:call',
     (

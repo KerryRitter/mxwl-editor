@@ -83,8 +83,11 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
   const plugins = usePluginsStore((state) => state.catalog)
   const setPluginEnabled = usePluginsStore((state) => state.setEnabled)
   const reloadPlugins = usePluginsStore((state) => state.reload)
+  const installPluginPath = usePluginsStore((state) => state.installPath)
+  const unlinkPlugin = usePluginsStore((state) => state.unlink)
   const [pluginBusy, setPluginBusy] = useState<string | null>(null)
   const [pluginError, setPluginError] = useState<string | null>(null)
+  const [pluginPath, setPluginPath] = useState('')
 
   useEffect(() => {
     if (hideBrowserWs) void window.api.browser.setVisible(hideBrowserWs, false)
@@ -586,15 +589,20 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
           <div className="mb-2 flex items-start justify-between gap-3">
             <p className="max-w-[390px] text-[11px] text-neutral-500">
               Workspace tools live in the top-right quadrant. Built-ins run as native mxwl code;
-              local plugins run in a sandbox and can only use the permissions you see here.
+              linked plugins stay in their own folders, run in a sandbox, and can only use the
+              permissions you see here.
             </p>
             <div className="flex shrink-0 gap-1.5">
               <button
                 type="button"
-                onClick={() => void window.api.plugins.openDirectory()}
+                onClick={() => {
+                  void window.api.plugins.chooseDirectory().then((path) => {
+                    if (path) setPluginPath(path)
+                  })
+                }}
                 className="rounded-md border border-neutral-700 px-2 py-1 text-[10px] text-neutral-400 hover:border-neutral-600 hover:text-neutral-100"
               >
-                Open folder
+                Browse…
               </button>
               <button
                 type="button"
@@ -614,6 +622,37 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
               </button>
             </div>
           </div>
+
+          <form
+            className="mb-2 flex gap-1.5"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const path = pluginPath.trim()
+              if (!path) return
+              setPluginError(null)
+              setPluginBusy('install')
+              void installPluginPath(path)
+                .then(() => setPluginPath(''))
+                .catch((error: unknown) =>
+                  setPluginError(error instanceof Error ? error.message : String(error))
+                )
+                .finally(() => setPluginBusy(null))
+            }}
+          >
+            <input
+              className={`${inputCls} min-w-0 flex-1 font-mono text-[10px]`}
+              placeholder="/path/to/plugin or /path/to/mxwl.plugin.json"
+              value={pluginPath}
+              onChange={(event) => setPluginPath(event.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={!pluginPath.trim() || pluginBusy === 'install'}
+              className="rounded-md bg-violet-600 px-2.5 py-1 text-[10px] text-white hover:bg-violet-500 disabled:opacity-40"
+            >
+              {pluginBusy === 'install' ? 'Installing…' : 'Install path'}
+            </button>
+          </form>
 
           {pluginError && (
             <p className="mb-2 rounded-md border border-red-900/70 bg-red-950/30 px-2.5 py-2 text-[10px] text-red-300">
@@ -637,7 +676,11 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="text-xs font-medium text-neutral-200">{plugin.name}</span>
                         <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-neutral-500">
-                          {plugin.source === 'builtin' ? 'Built in' : 'Local'}
+                          {plugin.source === 'builtin'
+                            ? 'Built in'
+                            : plugin.installation === 'linked'
+                              ? 'Linked'
+                              : 'Managed'}
                         </span>
                         <span className="text-[9px] text-neutral-700">v{plugin.version}</span>
                       </div>
@@ -695,13 +738,48 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
                       </div>
                     </>
                   )}
+                  {plugin.directory && (
+                    <div className="mt-2 flex items-center gap-2 border-t border-neutral-900 pt-2">
+                      <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-neutral-700" title={plugin.directory}>
+                        {plugin.directory}
+                      </span>
+                      {plugin.installation === 'linked' && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            setPluginError(null)
+                            setPluginBusy(plugin.id)
+                            void unlinkPlugin(plugin.directory!)
+                              .catch((error: unknown) =>
+                                setPluginError(
+                                  error instanceof Error ? error.message : String(error)
+                                )
+                              )
+                              .finally(() => setPluginBusy(null))
+                          }}
+                          className="shrink-0 text-[9px] text-neutral-600 hover:text-red-300 disabled:opacity-40"
+                        >
+                          Unlink
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
           </div>
           <p className="mt-2 text-[10px] text-neutral-600">
-            Drop a plugin folder containing <code>mxwl.plugin.json</code> into the local plugins
-            folder, reload, review its permissions, then enable it.
+            Install a folder containing <code>mxwl.plugin.json</code>. mxwl remembers the location
+            and loads it in place; unlinking never deletes the plugin's files.{' '}
+            <button
+              type="button"
+              onClick={() => void window.api.plugins.openDirectory()}
+              className="text-neutral-500 underline decoration-neutral-800 underline-offset-2 hover:text-neutral-300"
+            >
+              Open legacy managed folder
+            </button>
+            .
           </p>
         </ProviderSection>
 

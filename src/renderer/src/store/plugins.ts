@@ -14,6 +14,8 @@ type PluginState = {
   init: () => () => void
   setEnabled: (id: string, enabled: boolean) => Promise<void>
   reload: () => Promise<void>
+  installPath: (path: string) => Promise<void>
+  unlink: (path: string) => Promise<void>
 }
 
 export const usePluginsStore = create<PluginState>((set) => ({
@@ -35,6 +37,14 @@ export const usePluginsStore = create<PluginState>((set) => ({
   },
   reload: async () => {
     const catalog = await window.api.plugins.reload()
+    set({ catalog, loaded: true })
+  },
+  installPath: async (path) => {
+    const catalog = await window.api.plugins.installPath(path)
+    set({ catalog, loaded: true })
+  },
+  unlink: async (path) => {
+    const catalog = await window.api.plugins.unlink(path)
     set({ catalog, loaded: true })
   }
 }))

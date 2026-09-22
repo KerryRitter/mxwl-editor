@@ -30,6 +30,7 @@ const DEFAULTS: AppSettings = {
     launchAtLogin: false
   },
   plugins: {
+    locations: [],
     enabled: {},
     grants: {}
   },
@@ -70,6 +71,9 @@ export class SettingsStore {
           plugins: {
             ...DEFAULTS.plugins,
             ...(raw.plugins ?? {}),
+            locations: Array.isArray(raw.plugins?.locations)
+              ? raw.plugins.locations.filter((location): location is string => typeof location === 'string')
+              : [],
             enabled: { ...DEFAULTS.plugins.enabled, ...(raw.plugins?.enabled ?? {}) },
             grants: { ...DEFAULTS.plugins.grants, ...(raw.plugins?.grants ?? {}) }
           }

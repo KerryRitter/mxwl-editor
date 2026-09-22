@@ -204,6 +204,11 @@ const api = {
       ipcRenderer.invoke('plugins:setEnabled', { id, enabled }),
     reload: (): Promise<PluginCatalogEntry[]> => ipcRenderer.invoke('plugins:reload'),
     openDirectory: (): Promise<void> => ipcRenderer.invoke('plugins:openDirectory'),
+    chooseDirectory: (): Promise<string | null> => ipcRenderer.invoke('plugins:chooseDirectory'),
+    installPath: (path: string): Promise<PluginCatalogEntry[]> =>
+      ipcRenderer.invoke('plugins:installPath', { path }),
+    unlink: (path: string): Promise<PluginCatalogEntry[]> =>
+      ipcRenderer.invoke('plugins:unlink', { path }),
     call: (
       pluginId: string,
       wsId: string,
