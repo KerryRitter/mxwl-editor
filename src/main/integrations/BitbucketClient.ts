@@ -10,10 +10,10 @@ function apiBase(host: string): string {
 }
 
 export class BitbucketClient {
-  constructor(private settings: AppSettings) {}
+  constructor(private settings: AppSettings, private repository: { workspace: string; repo: string }) {}
 
   isConfigured(): boolean {
-    return Boolean(this.settings.bitbucket?.workspace && this.settings.bitbucket?.repo)
+    return Boolean(this.settings.bitbucket && this.repository.workspace && this.repository.repo)
   }
 
   async prForBranch(branch: string): Promise<PullRequest | null> {
@@ -21,7 +21,7 @@ export class BitbucketClient {
     if (!s || !branch) return null
     const pass = decryptSecret(s.appPasswordEnc)
     const auth = Buffer.from(`${s.username}:${pass}`).toString('base64')
-    const url = `${apiBase(s.host)}/repositories/${s.workspace}/${s.repo}/pullrequests?q=${encodeURIComponent(
+    const url = `${apiBase(s.host)}/repositories/${encodeURIComponent(this.repository.workspace)}/${encodeURIComponent(this.repository.repo)}/pullrequests?q=${encodeURIComponent(
       `source.branch.name="${branch}"`
     )}&pagelen=1`
     const res = await fetch(url, {

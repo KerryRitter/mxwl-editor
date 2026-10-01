@@ -1,3 +1,4 @@
+import { workspacePersistenceKey } from '../../../shared/workspaceIdentity'
 import { useEffect, useMemo, useState, type FC, type ReactNode } from 'react'
 import {
   BookOpenText,
@@ -34,10 +35,10 @@ export const CodePane: FC<{
   maximized?: boolean
   onToggleMaximize?: () => void
 }> = ({ ws, active, searchOpen, onCloseSearch, maximized = false, onToggleMaximize }) => {
-  const storageKey = `mxwl.workspace.${ws.hostId}::${ws.remotePath}`
+  const storageKey = workspacePersistenceKey(ws)
   const catalog = usePluginsStore((state) => state.catalog)
   const loaded = usePluginsStore((state) => state.loaded)
-  const tools = useMemo(() => workspaceTools(catalog), [catalog])
+  const tools = useMemo(() => workspaceTools(catalog).filter(tool => ws.projectSettings.plugins[tool.plugin.id] !== false), [catalog, ws.projectSettings.plugins])
   const [selectedKey, setSelectedKeyState] = useState(() => {
     const saved = localStorage.getItem(`${storageKey}.workspaceTool`)
     if (saved) return saved

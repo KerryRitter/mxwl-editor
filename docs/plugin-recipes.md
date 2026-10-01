@@ -82,11 +82,11 @@ Keep manual refresh available even when automatic refresh exists.
 ## Discover a focused hidden artifact directory
 
 `files.list` follows the workspace's normal hide rules and is capped for code-picker use. For a
-known tool-owned directory such as `.zipper-agent/local`, walk it explicitly with
+known tool-owned directory such as `.agent-artifacts/local`, walk it explicitly with
 `files.readDirectory` and hard limits.
 
 ```js
-const ARTIFACT_ROOT = ".zipper-agent/local";
+const ARTIFACT_ROOT = ".agent-artifacts/local";
 const INTERESTING_FILES = new Set([
   "QA_PREP.md",
   "PLAN.md",
@@ -147,7 +147,7 @@ async function ticketArtifacts(workspace) {
   const ticket = safeSegment(workspace.issueKey || "");
   if (!ticket) return [];
   return window.mxwl.call("files.readDirectory", {
-    path: `.zipper-agent/local/${ticket}`,
+    path: `.agent-artifacts/local/${ticket}`,
   });
 }
 ```

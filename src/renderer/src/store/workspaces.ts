@@ -6,7 +6,9 @@ let discoverSeq = 0
 function unwrapError(err: Error): string {
   const agg = err as Error & { errors?: unknown[] }
   if (Array.isArray(agg.errors) && agg.errors.length > 0) {
-    const parts = agg.errors.map((e) => (e instanceof Error ? e.message : String(e)))
+    const parts = agg.errors.map((e) =>
+      e instanceof Error ? e.message : String(e)
+    )
     return parts.join('; ') || err.message
   }
   return err.message
@@ -14,19 +16,35 @@ function unwrapError(err: Error): string {
 
 type WorkspacesState = {
   workspaces: WorkspaceState[]
+  closedIds: ReadonlySet<string>
   activeId: string | null
   discovering: boolean
   discovered: DirEntry[]
   discoverError: string | null
   newModalOpen: boolean
   newModalHostId: string | null
+  newModalLocationId: string | null
 
   load: () => Promise<void>
   setActive: (id: string | null) => void
-  setNewModalOpen: (open: boolean, hostId?: string | null) => void
-  discover: (hostId: string) => Promise<void>
-  open: (hostId: string, remotePath: string) => Promise<void>
-  openMany: (hostId: string, remotePaths: string[]) => Promise<void>
+  setNewModalOpen: (
+    open: boolean,
+    hostId?: string | null,
+    locationId?: string | null
+  ) => void
+  discover: (hostId: string, locationId?: string) => Promise<void>
+  open: (
+    hostId: string,
+    remotePath: string,
+    locationId?: string,
+    browserProfileId?: string | null
+  ) => Promise<void>
+  openMany: (
+    hostId: string,
+    remotePaths: string[],
+    locationId?: string,
+    browserProfileId?: string | null
+  ) => Promise<void>
   adopt: (workspace: WorkspaceState) => void
   close: (id: string) => Promise<void>
   rename: (id: string, title: string) => Promise<void>
@@ -39,53 +57,62 @@ type WorkspacesState = {
 
 export const useWorkspacesStore = create<WorkspacesState>((set) => ({
   workspaces: [],
+  closedIds: new Set(),
   activeId: null,
   discovering: false,
   discovered: [],
   discoverError: null,
   newModalOpen: false,
   newModalHostId: null,
+  newModalLocationId: null,
 
   load: async () => {
     const workspaces = await window.api.workspace.list()
-    set((s) => ({
-      workspaces,
-      activeId: workspaces.some((w) => w.id === s.activeId)
-        ? s.activeId
-        : (workspaces[0]?.id ?? null)
-    }))
+    set((s) => {
+      const current = workspaces.filter((w) => !s.closedIds.has(w.id))
+      return {
+        workspaces: current,
+        activeId: current.some((w) => w.id === s.activeId)
+          ? s.activeId
+          : (current[0]?.id ?? null)
+      }
+    })
   },
 
   setActive: (id) => set({ activeId: id }),
 
-  setNewModalOpen: (open, hostId) =>
+  setNewModalOpen: (open, hostId, locationId) =>
     set({
       newModalOpen: open,
-      newModalHostId: open ? (hostId ?? null) : null
+      newModalHostId: open ? (hostId ?? null) : null,
+      newModalLocationId: open ? (locationId ?? null) : null
     }),
 
-  discover: async (hostId) => {
+  discover: async (hostId, locationId) => {
     const reqId = ++discoverSeq
     set({ discovering: true, discoverError: null, discovered: [] })
     try {
-      const discovered = await window.api.workspace.discover(hostId)
+      const discovered = await window.api.workspace.discover(hostId, locationId)
       if (reqId !== discoverSeq) return
       set({ discovered, discoverError: null })
     } catch (err) {
       if (reqId !== discoverSeq) return
-      const msg =
-        err instanceof Error
-          ? unwrapError(err)
-          : String(err)
+      const msg = err instanceof Error ? unwrapError(err) : String(err)
       set({ discoverError: msg, discovered: [] })
     } finally {
       if (reqId === discoverSeq) set({ discovering: false })
     }
   },
 
-  open: async (hostId, remotePath) => {
-    const state = await window.api.workspace.open(hostId, remotePath)
+  open: async (hostId, remotePath, locationId, browserProfileId) => {
+    const state = await window.api.workspace.open(
+      hostId,
+      remotePath,
+      locationId,
+      browserProfileId
+    )
     set((s) => ({
+      closedIds: new Set([...s.closedIds].filter((id) => id !== state.id)),
       workspaces: s.workspaces.some((w) => w.id === state.id)
         ? s.workspaces.map((w) => (w.id === state.id ? state : w))
         : [...s.workspaces, state],
@@ -93,24 +120,19 @@ export const useWorkspacesStore = create<WorkspacesState>((set) => ({
     }))
   },
 
-  openMany: async (hostId, remotePaths) => {
+  openMany: async (hostId, remotePaths, locationId, browserProfileId) => {
     if (remotePaths.length === 0) return
     let lastId: string | null = null
     for (const remotePath of remotePaths) {
-      const existing = useWorkspacesStore.getState().workspaces.find(
-        (w) =>
-          w.hostId === hostId &&
-          (w.remotePath === remotePath ||
-            w.remotePath.endsWith(`/${remotePath.split('/').pop()}`) ||
-            w.remotePath.endsWith(`\\${remotePath.split(/[/\\]/).pop()}`))
+      const state = await window.api.workspace.open(
+        hostId,
+        remotePath,
+        locationId,
+        browserProfileId
       )
-      if (existing) {
-        lastId = existing.id
-        continue
-      }
-      const state = await window.api.workspace.open(hostId, remotePath)
       lastId = state.id
       set((s) => ({
+        closedIds: new Set([...s.closedIds].filter((id) => id !== state.id)),
         workspaces: s.workspaces.some((w) => w.id === state.id)
           ? s.workspaces.map((w) => (w.id === state.id ? state : w))
           : [...s.workspaces, state],
@@ -122,8 +144,13 @@ export const useWorkspacesStore = create<WorkspacesState>((set) => ({
 
   adopt: (workspace) =>
     set((state) => ({
+      closedIds: new Set(
+        [...state.closedIds].filter((id) => id !== workspace.id)
+      ),
       workspaces: state.workspaces.some((item) => item.id === workspace.id)
-        ? state.workspaces.map((item) => (item.id === workspace.id ? workspace : item))
+        ? state.workspaces.map((item) =>
+            item.id === workspace.id ? workspace : item
+          )
         : [...state.workspaces, workspace],
       activeId: workspace.id
     })),
@@ -131,11 +158,30 @@ export const useWorkspacesStore = create<WorkspacesState>((set) => ({
   close: async (id) => {
     // Stop and forget the ACP runtime while the workspace mapping still exists,
     // otherwise it would be relaunched by crash recovery on the next start.
-    await window.api.agent.close(id).catch(() => undefined)
-    await window.api.workspace.close(id)
+    // Claim the close before either IPC call. Status broadcasts may arrive
+    // after the close reply; they must not resurrect a disposed workspace.
+    set((s) => ({ closedIds: new Set(s.closedIds).add(id) }))
+    try {
+      await window.api.agent.close(id).catch(() => undefined)
+      await window.api.workspace.close(id)
+    } catch (error) {
+      set((s) => ({
+        closedIds: new Set([...s.closedIds].filter((closed) => closed !== id))
+      }))
+      throw error
+    }
     set((s) => {
       const workspaces = s.workspaces.filter((w) => w.id !== id)
-      const activeId = s.activeId === id ? (workspaces[0]?.id ?? null) : s.activeId
+      const activeId =
+        s.activeId === id
+          ? (workspaces.find((w) => {
+              const closing = s.workspaces.find((item) => item.id === id)
+              return (
+                w.projectId === closing?.projectId &&
+                w.hostId === closing?.hostId
+              )
+            })?.id ?? null)
+          : s.activeId
       return { workspaces, activeId }
     })
   },
@@ -146,13 +192,16 @@ export const useWorkspacesStore = create<WorkspacesState>((set) => ({
     await window.api.workspace.rename(id, next)
     set((s) => ({
       workspaces: s.workspaces.map((workspace) =>
-        workspace.id === id ? { ...workspace, title: next.slice(0, 120) } : workspace
+        workspace.id === id
+          ? { ...workspace, title: next.slice(0, 120) }
+          : workspace
       )
     }))
   },
 
   applyEvent: (id, status, state) => {
     set((s) => {
+      if (s.closedIds.has(id)) return s
       // The AI runner opens workspaces in the main process, so an event can be
       // the first time this side hears about one.
       if (state && !s.workspaces.some((w) => w.id === id)) {

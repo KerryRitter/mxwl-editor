@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState, type FC } from 'react'
-import { Bot, Minus, Plus, Rocket, Server, Settings as SettingsIcon } from 'lucide-react'
+import {
+  Bot,
+  Minus,
+  Plus,
+  Rocket,
+  Server,
+  Settings as SettingsIcon
+} from 'lucide-react'
 import { useAppStore } from './store/app'
 import { useHostsStore } from './store/hosts'
 import { useWorkspacesStore } from './store/workspaces'
@@ -9,11 +16,13 @@ import { useAgentStore } from './store/agent'
 import { useNotificationsStore } from './store/notifications'
 import { useNavigationStore } from './store/navigation'
 import { usePluginsStore } from './store/plugins'
-import { HostManager } from './components/HostManager'
+import { useProjectsStore } from './store/projects'
+import { useProjectNavigation } from './store/projectNavigation'
+import { WorkspaceHome } from './components/ProjectManager'
 import { WorkspaceTabs } from './components/WorkspaceTabs'
 import { WorkspaceView } from './components/WorkspaceView'
 import { SettingsModal } from './components/SettingsModal'
-import { NewWorkspaceModal, NewWorkspaceButton } from './components/NewWorkspaceModal'
+import { NewWorkspaceModal } from './components/NewWorkspaceModal'
 import { CommandPalette, type SpotlightMode } from './components/CommandPalette'
 import { AiTaskModal } from './components/AiTaskModal'
 import { TicketLaunchModal } from './components/TicketLaunchModal'
@@ -29,7 +38,9 @@ const savedUiZoom = (): number => {
   const requested = Number(saved)
   if (!Number.isFinite(requested)) return 1
   return UI_ZOOM_LEVELS.reduce((closest, level) =>
-    Math.abs(level - requested) < Math.abs(closest - requested) ? level : closest
+    Math.abs(level - requested) < Math.abs(closest - requested)
+      ? level
+      : closest
   )
 }
 
@@ -37,6 +48,7 @@ const App: FC = () => {
   const pingResult = useAppStore((s) => s.pingResult)
   const setPingResult = useAppStore((s) => s.setPingResult)
   const loadHosts = useHostsStore((s) => s.load)
+  const loadProjects = useProjectsStore((s) => s.load)
   const workspaces = useWorkspacesStore((s) => s.workspaces)
   const activeId = useWorkspacesStore((s) => s.activeId)
   const loadWorkspaces = useWorkspacesStore((s) => s.load)
@@ -53,7 +65,9 @@ const App: FC = () => {
   const setAiOpen = useAiStore((s) => s.setModalOpen)
   const applyRun = useAiStore((s) => s.applyRun)
   const loadRuns = useAiStore((s) => s.loadRuns)
-  const liveRuns = useAiStore((s) => s.runs.filter((r) => r.status === 'running').length)
+  const liveRuns = useAiStore(
+    (s) => s.runs.filter((r) => r.status === 'running').length
+  )
   const initAgents = useAgentStore((s) => s.init)
   const initNotifications = useNotificationsStore((s) => s.init)
   const initPlugins = usePluginsStore((s) => s.init)
@@ -62,7 +76,9 @@ const App: FC = () => {
 
   const setUiZoom = useCallback((requested: number): void => {
     const next = UI_ZOOM_LEVELS.reduce((closest, level) =>
-      Math.abs(level - requested) < Math.abs(closest - requested) ? level : closest
+      Math.abs(level - requested) < Math.abs(closest - requested)
+        ? level
+        : closest
     )
     localStorage.setItem(UI_ZOOM_STORAGE_KEY, String(next))
     setUiZoomState(next)
@@ -71,7 +87,10 @@ const App: FC = () => {
   const stepUiZoom = useCallback((direction: -1 | 1): void => {
     setUiZoomState((current) => {
       const index = UI_ZOOM_LEVELS.findIndex((level) => level === current)
-      const nextIndex = Math.min(UI_ZOOM_LEVELS.length - 1, Math.max(0, index + direction))
+      const nextIndex = Math.min(
+        UI_ZOOM_LEVELS.length - 1,
+        Math.max(0, index + direction)
+      )
       const next = UI_ZOOM_LEVELS[nextIndex]
       localStorage.setItem(UI_ZOOM_STORAGE_KEY, String(next))
       return next
@@ -85,9 +104,18 @@ const App: FC = () => {
   useEffect(() => {
     window.api.ping().then(setPingResult).catch(console.error)
     loadHosts()
+    void loadProjects()
     loadWorkspaces()
     void loadRuns()
-  }, [setPingResult, loadHosts, loadWorkspaces, loadRuns])
+  }, [setPingResult, loadHosts, loadProjects, loadWorkspaces, loadRuns])
+
+  const activeWorkspace = workspaces.find((w) => w.id === activeId)
+  useEffect(() => {
+    if (activeWorkspace)
+      useProjectNavigation
+        .getState()
+        .select(activeWorkspace.projectId, activeWorkspace.hostId)
+  }, [activeWorkspace?.projectId, activeWorkspace?.hostId, activeId])
 
   // Runs are driven from the main process; workspace/terminal changes arrive
   // separately on `workspace:event`.
@@ -162,7 +190,9 @@ const App: FC = () => {
       openPalette(payload?.mode ?? 'all')
     })
     const offZoom = window.api.on('shortcut:zoom', (...args: unknown[]) => {
-      const action = (args[0] as { action?: 'in' | 'out' | 'reset' } | undefined)?.action
+      const action = (
+        args[0] as { action?: 'in' | 'out' | 'reset' } | undefined
+      )?.action
       if (action === 'in') stepUiZoom(1)
       else if (action === 'out') stepUiZoom(-1)
       else if (action === 'reset') setUiZoom(1)
@@ -172,13 +202,23 @@ const App: FC = () => {
       off()
       offZoom()
     }
-  }, [setNewModalOpen, closeWs, clearEditorWs, activeId, setAiOpen, setUiZoom, stepUiZoom])
+  }, [
+    setNewModalOpen,
+    closeWs,
+    clearEditorWs,
+    activeId,
+    setAiOpen,
+    setUiZoom,
+    stepUiZoom
+  ])
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
       <header className="flex items-center gap-3 border-b border-neutral-800 px-4 py-2">
         <span className="text-sm font-semibold tracking-tight">mxwl</span>
-        <span className="text-xs text-neutral-500">SSH workspace · browser + editor + terminal</span>
+        <span className="text-xs text-neutral-500">
+          Projects across machines · browser + editor + agents
+        </span>
         <div className="ml-auto flex items-center gap-3 text-xs text-neutral-400">
           <Server size={14} className="text-neutral-500" />
           {pingResult ? (
@@ -244,7 +284,9 @@ const App: FC = () => {
             onClick={() => setAiOpen(true)}
             title="Run AI tasks (Ctrl+Shift+A)"
             className={`relative rounded p-1 hover:bg-neutral-800 ${
-              liveRuns > 0 ? 'text-emerald-400' : 'text-neutral-400 hover:text-neutral-100'
+              liveRuns > 0
+                ? 'text-emerald-400'
+                : 'text-neutral-400 hover:text-neutral-100'
             }`}
           >
             <Bot size={15} />
@@ -264,9 +306,10 @@ const App: FC = () => {
           <button
             onClick={() => {
               if (activeId) void window.api.browser.setVisible(activeId, false)
+              useProjectNavigation.getState().select(null)
               setActive(null)
             }}
-            title="Manage hosts"
+            title="Manage projects and hosts"
             className={`rounded p-1 hover:bg-neutral-800 ${
               !activeId && workspaces.length > 0
                 ? 'text-emerald-400'
@@ -285,11 +328,10 @@ const App: FC = () => {
         </div>
       </header>
 
-      {workspaces.length > 0 && <WorkspaceTabs />}
-      {workspaces.length === 0 && <EmptyTabStrip />}
+      <WorkspaceTabs />
 
       <div className="relative min-h-0 flex-1">
-        {!activeId && <HostManager />}
+        {!activeId && <WorkspaceHome />}
         {workspaces.map((w) => (
           <div
             key={w.id}
@@ -303,17 +345,31 @@ const App: FC = () => {
       </div>
 
       {settingsOpen && (
-        <SettingsModal onClose={() => setSettingsOpen(false)} hideBrowserWs={activeId} />
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          hideBrowserWs={activeId}
+        />
       )}
 
       {newModalOpen && (
-        <NewWorkspaceModal onClose={() => setNewModalOpen(false)} hideBrowserWs={activeId} />
+        <NewWorkspaceModal
+          onClose={() => setNewModalOpen(false)}
+          hideBrowserWs={activeId}
+        />
       )}
 
-      {aiOpen && <AiTaskModal onClose={() => setAiOpen(false)} hideBrowserWs={activeId} />}
+      {aiOpen && (
+        <AiTaskModal
+          onClose={() => setAiOpen(false)}
+          hideBrowserWs={activeId}
+        />
+      )}
 
       {ticketLaunchOpen && activeId && (
-        <TicketLaunchModal wsId={activeId} onClose={() => setTicketLaunchOpen(false)} />
+        <TicketLaunchModal
+          wsId={activeId}
+          onClose={() => setTicketLaunchOpen(false)}
+        />
       )}
 
       {paletteOpen && (
@@ -329,14 +385,5 @@ const App: FC = () => {
     </div>
   )
 }
-
-const EmptyTabStrip: FC = () => (
-  <div className="flex items-center gap-1 border-b border-neutral-800 bg-neutral-950 px-2 py-1">
-    <span className="px-1 text-[11px] text-neutral-600">No workspaces open</span>
-    <div className="ml-1">
-      <NewWorkspaceButton />
-    </div>
-  </div>
-)
 
 export default App

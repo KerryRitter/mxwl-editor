@@ -11,7 +11,7 @@ test('the setup card streams the command output and counts elapsed time', async 
   page,
   workRoot
 }) => {
-  const repo = join(workRoot, 'zipper')
+  const repo = join(workRoot, 'myapp')
   mkdirSync(repo, { recursive: true })
   const init = join(repo, 'init.sh')
   writeFileSync(
@@ -20,7 +20,7 @@ test('the setup card streams the command output and counts elapsed time', async 
       '#!/bin/bash',
       // Long enough that the card is observably mid-run, not caught at the end.
       'for i in $(seq 1 15); do echo "cloning step $i of 15"; sleep 1; done',
-      `mkdir -p ${join(workRoot, 'zipper-PLAT-5583')} ${join(workRoot, 'zipper-PLAT-5577')}`,
+      `mkdir -p ${join(workRoot, 'myapp-PLAT-5583')} ${join(workRoot, 'myapp-PLAT-5577')}`,
       'echo init complete',
       ''
     ].join('\n')
@@ -29,7 +29,7 @@ test('the setup card streams the command output and counts elapsed time', async 
 
   await useLocalHost(page, workRoot)
   await setAiSettings(page, {
-    workspaceFolderTemplate: 'zipper-${key}',
+    workspaceFolderTemplate: 'myapp-${key}',
     initTimeoutSec: 60,
     refinePrompts: false,
     commandOverrides: { claude: 'echo' }

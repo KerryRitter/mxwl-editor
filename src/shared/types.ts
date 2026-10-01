@@ -2,6 +2,7 @@ export type HostKind = 'ssh' | 'local'
 
 export type AuthConfig =
   | { kind: 'none' }
+  | { kind: 'tailscale' }
   | { kind: 'agent' }
   | { kind: 'key'; keyPath: string; encryptedPassphrase?: string }
   | { kind: 'password'; encryptedPassword: string }
@@ -32,24 +33,12 @@ export type HostConfig = {
   port: number
   username: string
   auth: AuthConfig
-  workspacesRoot: string
-  /** Regex named-groups → title / browser URL / issue key */
-  derive: DeriveConfig
-  /** Optional glob or /regex/ for folder discovery */
-  folderFilter?: string
-  /** Dev logs panel: start/stop/restart/logs commands */
-  services: PresetService[]
-  /** Extra names to hide in the file tree */
-  hide?: string[]
-  /** Sent to the first terminal after connect (e.g. `claudey`) */
-  terminalStartup?: string
-  /** Browser auto-fill login for test accounts */
-  testLogin?: TestLoginConfig
   addedAt: number
 }
 
 export type HostAuthInput =
   | { kind: 'none' }
+  | { kind: 'tailscale' }
   | { kind: 'agent' }
   | { kind: 'key'; keyPath: string; passphrase?: string }
   | { kind: 'password'; password: string }
@@ -61,14 +50,71 @@ export type HostInput = {
   host: string
   port: number
   username: string
-  workspacesRoot: string
-  derive?: DeriveConfig
-  folderFilter?: string
-  services?: PresetService[]
-  hide?: string[]
-  terminalStartup?: string
-  testLogin?: TestLoginInput | null
   auth: HostAuthInput
+}
+
+/** A reusable application definition, independent of its machines. */
+export type ProjectConfig = {
+  id: string
+  label: string
+  repositoryUrl: string
+  derive: DeriveConfig
+  services: PresetService[]
+  hide: string[]
+  terminalStartup: string
+  browserProfiles: ProjectBrowserProfile[]
+  defaultBrowserProfileId: string | null
+  integrations: {
+    taskProvider: TaskProviderId
+    scmProvider: ScmProviderId
+    taskProject: string
+    repositoryWorkspace: string
+    repositorySlug: string
+  }
+  ai: { workspaceFolderTemplate: string; initBranchCommand: string }
+  /** Overrides global visibility only; never grants plugin permissions. */
+  plugins: Record<string, boolean>
+  addedAt: number
+}
+
+export type ProjectBrowserProfile = {
+  id: string
+  label: string
+  url: string
+  testLogin?: TestLoginConfig
+}
+
+export type ProjectInput = Omit<ProjectConfig, 'id' | 'addedAt' | 'browserProfiles'> & {
+  id?: string
+  browserProfiles: (Omit<ProjectBrowserProfile, 'testLogin'> & { testLogin?: TestLoginInput | null })[]
+}
+
+/** Many projects can live on one host; one project can have many locations. */
+export type ProjectLocation = {
+  id: string
+  /** Managed by mxwl: every project retains its default local checkout slot. */
+  builtinLocal?: true
+  projectId: string
+  hostId: string
+  label: string
+  checkoutPath: string
+  workspacesRoot: string
+  folderFilter: string
+  appSubdirectory: string
+  browserProfileId: string | null
+  overrides: { browserUrl?: string; terminalStartup?: string; services?: PresetService[] }
+}
+export type ProjectLocationInput = Omit<ProjectLocation, 'id' | 'builtinLocal'> & { id?: string }
+
+export type WorkspaceProjectSettings = {
+  derive: DeriveConfig
+  services: PresetService[]
+  hide: string[]
+  terminalStartup: string
+  browserUrl: string
+  browserProfile: ProjectBrowserProfile | null
+  appSubdirectory: string
+  plugins: Record<string, boolean>
 }
 
 export type TaskProviderId = 'jira' | 'linear' | 'github-issues' | 'none'
@@ -130,18 +176,8 @@ export type PresetService = {
   stop: string
   restart: string
   logs: string
-}
-
-export type ProjectPreset = {
-  id: string
-  label: string
-  workspacesRoot: string
-  folderFilter?: string
-  derive: DeriveConfig
-  services: PresetService[]
-  hide: string[]
-  issueTracker?: 'jira' | 'linear' | 'github' | 'none'
-  prProvider?: 'bitbucket' | 'github' | 'none'
+  /** Relative to the app directory; useful for monorepos. */
+  cwd?: string
 }
 
 export type DerivedWorkspace = {
@@ -206,6 +242,13 @@ export type TerminalInfo = {
 export type WorkspaceState = {
   id: string
   hostId: string
+  projectId: string | null
+  locationId: string | null
+  projectLabel: string | null
+  hostLabel: string
+  browserProfileId: string | null
+  /** Resolved per-workspace; no global current project. Contains no credentials. */
+  projectSettings: Omit<WorkspaceProjectSettings, 'browserProfile'> & { testLoginAvailable: boolean }
   remotePath: string
   title: string
   status: WorkspaceStatus
@@ -226,18 +269,10 @@ export type WorkspaceState = {
 export type AiSettings = {
   /** CLI launched in each AI terminal */
   defaultCli: AiCliId
-  /** Host used for AI runs when the modal has no explicit pick */
-  defaultHostId: string | null
   /** Per-CLI binary override (blank → registry default) */
   commandOverrides: Partial<Record<AiCliId, string>>
   /** Per-CLI extra flags, e.g. `--permission-mode acceptEdits` */
   argsOverrides: Partial<Record<AiCliId, string>>
-  /** Folder under host.workspacesRoot for a task. Vars: ${key} ${keyLower} ${keyNum} ${slug} */
-  workspaceFolderTemplate: string
-  /** Folder under host.workspacesRoot holding the base repo used to create branches */
-  baseRepoFolder: string
-  /** Shell command run in baseRepoFolder when the task folder is missing */
-  initBranchCommand: string
   /** How long to wait for initBranchCommand to materialise the folder */
   initTimeoutSec: number
   /** Run the CLI headless first to rewrite each task prompt */
@@ -286,8 +321,6 @@ export type RuntimeSettings = {
 export type { PluginSettings } from './plugins'
 
 export type AppSettings = {
-  taskProvider: TaskProviderId
-  scmProvider: ScmProviderId
   ai: AiSettings
   agent: AgentSettings
   notifications: AgentNotificationSettings
@@ -299,14 +332,11 @@ export type AppSettings = {
     host: string
     username: string
     appPasswordEnc: string
-    workspace: string
-    repo: string
   } | null
-  defaultBrowserUrl: string
   cdpPort: number
   mcpAuthToken: string
   theme: 'dark' | 'light' | 'system'
-  /** @deprecated prefer host.hide */
+  /** @deprecated prefer project.hide */
   hideExtra?: string[]
 }
 
@@ -443,6 +473,7 @@ export type AiPlan = {
   /** Non-list prose from the brief, passed to every task */
   context: string
   hostId: string
+  locationId?: string
   cli: AiCliId
   prep: AiPlanPrep | null
   targets: AiPlanTarget[]
@@ -483,6 +514,7 @@ export type AiRunState = {
   runId: string
   cli: AiCliId
   hostId: string
+  locationId?: string
   startedAt: number
   finishedAt?: number
   status: 'running' | 'done' | 'error' | 'cancelled'
@@ -594,6 +626,10 @@ export type AgentTranscriptMeta = {
   agentId: AgentId
   agentLabel: string
   cwd: string
+  hostId?: string
+  projectId?: string | null
+  locationId?: string | null
+  browserProfileId?: string | null
   startedAt: number
   updatedAt: number
   messageCount: number

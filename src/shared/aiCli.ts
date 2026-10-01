@@ -90,12 +90,8 @@ export const AI_CLI_ORDER: AiCliId[] = [
 
 export const DEFAULT_AI_SETTINGS: AiSettings = {
   defaultCli: 'claude',
-  defaultHostId: null,
   commandOverrides: {},
   argsOverrides: {},
-  workspaceFolderTemplate: '${key}',
-  baseRepoFolder: '',
-  initBranchCommand: '',
   initTimeoutSec: 600,
   refinePrompts: false
 }

@@ -1,3 +1,4 @@
+import { workspacePersistenceKey } from '../../../shared/workspaceIdentity'
 import { useEffect, useState, type FC } from 'react'
 import { Bot, Cookie, GitBranch, Loader2, Rocket } from 'lucide-react'
 import { Modal } from './Modal'
@@ -42,7 +43,7 @@ export const TicketLaunchModal: FC<Props> = ({ wsId, onClose }) => {
     let cancelled = false
     const timer = setTimeout(() => {
       void window.api.jira
-        .get(key)
+        .get(key, wsId)
         .then((issue) => {
           if (!cancelled) setSummary(issue?.summary ?? '')
         })
@@ -63,16 +64,15 @@ export const TicketLaunchModal: FC<Props> = ({ wsId, onClose }) => {
     setError(null)
     try {
       const workspace = await window.api.workspace.createWorktree(wsId, key, branch.trim())
-      const persistenceKey = `mxwl.workspace.${workspace.hostId}::${workspace.remotePath}`
+      const persistenceKey = workspacePersistenceKey(workspace)
       localStorage.setItem(`${persistenceKey}.layoutPreset`, 'agent')
       localStorage.setItem(`${persistenceKey}.bottomTab`, 'agent')
       adopt(workspace)
 
-      const settings = await window.api.settings.get()
       const groupId = await window.api.browser.newGroup(workspace.id, key)
       await window.api.browser.newTab(
         workspace.id,
-        workspace.derived.browserUrl || settings.defaultBrowserUrl || 'about:blank',
+        workspace.derived.browserUrl || 'about:blank',
         groupId
       )
       await openAgent(workspace.id)

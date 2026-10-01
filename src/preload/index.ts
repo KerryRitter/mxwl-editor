@@ -17,6 +17,10 @@ import type {
   FleetAgent,
   HostConfig,
   HostInput,
+  ProjectConfig,
+  ProjectInput,
+  ProjectLocation,
+  ProjectLocationInput,
   JiraIssue,
   McpStatus,
   PresetService,
@@ -27,6 +31,7 @@ import type {
   WorkspaceState
 } from '../shared/types'
 import type { PluginCatalogEntry, PluginHostMethod } from '../shared/plugins'
+import type { TailscaleDiscovery } from '../shared/tailscale'
 
 const api = {
   ping: (): Promise<{ pong: boolean; ts: number }> => ipcRenderer.invoke('app:ping'),
@@ -38,21 +43,30 @@ const api = {
     return () => ipcRenderer.removeListener(channel, wrapped)
   },
   host: {
+    discoverTailscale: (): Promise<TailscaleDiscovery> => ipcRenderer.invoke('host:discoverTailscale'),
     list: (): Promise<HostConfig[]> => ipcRenderer.invoke('host:list'),
     get: (id: string): Promise<HostConfig | undefined> => ipcRenderer.invoke('host:get', id),
     save: (input: HostInput): Promise<HostConfig> => ipcRenderer.invoke('host:save', input),
     clone: (id: string): Promise<HostConfig> => ipcRenderer.invoke('host:clone', id),
     delete: (id: string): Promise<void> => ipcRenderer.invoke('host:delete', id),
     test: (input: HostInput): Promise<TestResult> => ipcRenderer.invoke('host:test', input),
-    ensureLocal: (workspacesRoot?: string): Promise<HostConfig> =>
-      ipcRenderer.invoke('host:ensureLocal', workspacesRoot)
+    ensureLocal: (): Promise<HostConfig> =>
+      ipcRenderer.invoke('host:ensureLocal')
+  },
+  project: {
+    list: (): Promise<ProjectConfig[]> => ipcRenderer.invoke('project:list'),
+    locations: (): Promise<ProjectLocation[]> => ipcRenderer.invoke('project:locations'),
+    save: (input: ProjectInput): Promise<ProjectConfig> => ipcRenderer.invoke('project:save', input),
+    saveLocation: (input: ProjectLocationInput): Promise<ProjectLocation> => ipcRenderer.invoke('project:saveLocation', input),
+    delete: (id: string): Promise<void> => ipcRenderer.invoke('project:delete', id),
+    deleteLocation: (id: string): Promise<void> => ipcRenderer.invoke('project:deleteLocation', id)
   },
   workspace: {
     list: (): Promise<WorkspaceState[]> => ipcRenderer.invoke('workspace:list'),
-    discover: (hostId: string): Promise<DirEntry[]> =>
-      ipcRenderer.invoke('workspace:discover', hostId),
-    open: (hostId: string, remotePath: string): Promise<WorkspaceState> =>
-      ipcRenderer.invoke('workspace:open', { hostId, remotePath }),
+    discover: (hostId: string, locationId?: string): Promise<DirEntry[]> =>
+      ipcRenderer.invoke('workspace:discover', hostId, locationId),
+    open: (hostId: string, remotePath: string, locationId?: string, browserProfileId?: string | null): Promise<WorkspaceState> =>
+      ipcRenderer.invoke('workspace:open', { hostId, remotePath, locationId, browserProfileId }),
     createWorktree: (wsId: string, ticket: string, branch?: string): Promise<WorkspaceState> =>
       ipcRenderer.invoke('workspace:createWorktree', { wsId, ticket, branch }),
     close: (id: string): Promise<void> => ipcRenderer.invoke('workspace:close', id),
@@ -120,6 +134,8 @@ const api = {
       ipcRenderer.invoke('fs:delete', { wsId, path, isDir })
   },
   browser: {
+    ensureTab: (wsId: string, url?: string): Promise<string> =>
+      ipcRenderer.invoke('browser:ensureTab', { wsId, url }),
     newTab: (wsId: string, url?: string, groupId?: string): Promise<string> =>
       ipcRenderer.invoke('browser:newTab', { wsId, url, groupId }),
     newGroup: (wsId: string, label?: string): Promise<string> =>
@@ -184,9 +200,8 @@ const api = {
     update: (input: {
       jira?: { host: string; email: string; apiToken?: string } | null
       bitbucket?:
-        | { host: string; username: string; appPassword?: string; workspace: string; repo: string }
+        | { host: string; username: string; appPassword?: string }
         | null
-      defaultBrowserUrl?: string
       mcpAuthToken?: string
       taskProvider?: import('../shared/types').TaskProviderId
       scmProvider?: import('../shared/types').ScmProviderId
@@ -224,6 +239,7 @@ const api = {
     plan: (req: {
       brief: string
       hostId: string
+      locationId: string
       cli?: AiCliId
       refine?: boolean
     }): Promise<{ plan: AiPlan; refined: boolean; warning?: string }> =>
@@ -252,8 +268,8 @@ const api = {
       ipcRenderer.invoke('agent:respond', { wsId, requestId, optionId }),
     authenticate: (wsId: string, methodId: string): Promise<void> =>
       ipcRenderer.invoke('agent:authenticate', { wsId, methodId }),
-    history: (cwd?: string): Promise<AgentTranscriptMeta[]> =>
-      ipcRenderer.invoke('agent:history', cwd),
+    history: (cwd?: string, wsId?: string): Promise<AgentTranscriptMeta[]> =>
+      ipcRenderer.invoke('agent:history', cwd, wsId),
     transcript: (id: string): Promise<AgentTranscript | null> =>
       ipcRenderer.invoke('agent:transcript', id),
     deleteTranscript: (id: string): Promise<void> =>
@@ -268,7 +284,7 @@ const api = {
     clear: (): Promise<void> => ipcRenderer.invoke('attention:clear')
   },
   jira: {
-    get: (key: string): Promise<JiraIssue | null> => ipcRenderer.invoke('jira:get', key)
+    get: (key: string, wsId?: string): Promise<JiraIssue | null> => ipcRenderer.invoke('jira:get', key, wsId)
   },
   pr: {
     get: (wsId: string): Promise<PullRequest | null> => ipcRenderer.invoke('pr:get', wsId)

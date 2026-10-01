@@ -22,7 +22,7 @@ for eeach of the epics that need worked, please open tabs to:
 5. $agent-playwright to lock down the playwright tests as determinstic tests - make sure all ACs for all bugs/sstories are GREEN with NO SKIPS and no "Needs data" -  seed all data
 necessary to run the tests
 
-if the branch doesn't exist, open a terminal to ~/Workspaces/zipper (in the host) and run $agent-init-branch first to the branch exists.`
+if the branch doesn't exist, open a terminal to ~/Workspaces/myapp (in the host) and run $agent-init-branch first to the branch exists.`
 
 describe('parseBrief', () => {
   const parsed = parseBrief(BRIEF)
@@ -74,7 +74,7 @@ describe('stepLabel', () => {
 describe('folderForTarget', () => {
   it('applies the folder template', () => {
     const target = { key: 'PLAT-5874', title: 'Payments' }
-    expect(folderForTarget(target, 'zipper-${key}')).toBe('zipper-PLAT-5874')
+    expect(folderForTarget(target, 'myapp-${key}')).toBe('myapp-PLAT-5874')
     expect(folderForTarget(target, '${keyLower}')).toBe('plat-5874')
     expect(folderForTarget(target, 'wt/${keyNum}')).toBe('wt/5874')
   })
@@ -88,13 +88,13 @@ describe('compilePlan', () => {
   const plan = compilePlan(BRIEF, {
     hostId: 'host-1',
     cli: 'claude',
-    folderTemplate: 'zipper-${key}'
+    folderTemplate: 'myapp-${key}'
   })
 
   it('produces one task per step per target', () => {
     expect(plan.targets).toHaveLength(4)
     expect(plan.targets[0].tasks).toHaveLength(4)
-    expect(plan.targets[0].folder).toBe('zipper-PLAT-5874')
+    expect(plan.targets[0].folder).toBe('myapp-PLAT-5874')
   })
 
   it('gives every task a unique id', () => {
@@ -105,7 +105,7 @@ describe('compilePlan', () => {
   it('scopes each prompt to its own ticket and step', () => {
     const prompt = plan.targets[1].tasks[2].prompt
     expect(prompt).toContain('PLAT-5687')
-    expect(prompt).toContain('zipper-PLAT-5687')
+    expect(prompt).toContain('myapp-PLAT-5687')
     expect(prompt).toContain('$agent-qa')
     expect(prompt).not.toContain('PLAT-5874')
   })
@@ -163,9 +163,9 @@ describe('prose brief with no lists', () => {
     const plan = compilePlan('run the qa checks on PLAT-5583 and PLAT-5577', {
       hostId: 'h1',
       cli: 'codex',
-      folderTemplate: 'zipper-${key}'
+      folderTemplate: 'myapp-${key}'
     })
-    expect(plan.targets.map((t) => t.folder)).toEqual(['zipper-PLAT-5583', 'zipper-PLAT-5577'])
+    expect(plan.targets.map((t) => t.folder)).toEqual(['myapp-PLAT-5583', 'myapp-PLAT-5577'])
     expect(plan.targets.every((t) => t.tasks.length === 1)).toBe(true)
     expect(plan.targets[0].tasks[0].prompt).toContain('PLAT-5583')
     expect(plan.targets[0].tasks[0].prompt).not.toContain('PLAT-5583 — PLAT-5583')
@@ -174,11 +174,11 @@ describe('prose brief with no lists', () => {
 
 describe('prep clause', () => {
   const BRIEF =
-    'in ~/Workspaces/zipper, run /agent:init-branch for both branches, theb open up tabs for PLAT-5583 and PLAT-5577'
+    'in ~/Workspaces/myapp, run /agent:init-branch for both branches, theb open up tabs for PLAT-5583 and PLAT-5577'
 
   it('reads the directory and the slash-command', () => {
     const prep = parsePrep(BRIEF)!
-    expect(prep.cwd).toBe('~/Workspaces/zipper')
+    expect(prep.cwd).toBe('~/Workspaces/myapp')
     expect(prep.command).toBe('/agent:init-branch for both branches')
     expect(prep.kind).toBe('cli')
     expect(prep.blocking).toBe(true)
@@ -199,7 +199,7 @@ describe('prep clause', () => {
   })
 
   it('treats a non-slash command as a shell command and drops the prose', () => {
-    const prep = parsePrep('open a terminal to ~/Workspaces/zipper and run $agent-init-branch first.')!
+    const prep = parsePrep('open a terminal to ~/Workspaces/myapp and run $agent-init-branch first.')!
     expect(prep.kind).toBe('shell')
     expect(prep.command).toBe('$agent-init-branch')
   })
@@ -219,11 +219,11 @@ describe('prep clause', () => {
     const plan = compilePlan(BRIEF, {
       hostId: 'h1',
       cli: 'codex',
-      folderTemplate: 'zipper-${key}'
+      folderTemplate: 'myapp-${key}'
     })
-    expect(plan.prep?.cwd).toBe('~/Workspaces/zipper')
-    expect(plan.prep?.prompt).toContain('zipper-PLAT-5583')
-    expect(plan.prep?.prompt).toContain('zipper-PLAT-5577')
+    expect(plan.prep?.cwd).toBe('~/Workspaces/myapp')
+    expect(plan.prep?.prompt).toContain('myapp-PLAT-5583')
+    expect(plan.prep?.prompt).toContain('myapp-PLAT-5577')
     expect(plan.targets).toHaveLength(2)
   })
 })
@@ -254,11 +254,11 @@ describe('prep command punctuation', () => {
 
 describe('renderPrepPrompt invocations', () => {
   const targets = [
-    { id: 'plat-5583', key: 'PLAT-5583', title: 'PLAT-5583', folder: 'zipper-PLAT-5583', tasks: [] },
-    { id: 'plat-5577', key: 'PLAT-5577', title: 'PLAT-5577', folder: 'zipper-PLAT-5577', tasks: [] }
+    { id: 'plat-5583', key: 'PLAT-5583', title: 'PLAT-5583', folder: 'myapp-PLAT-5583', tasks: [] },
+    { id: 'plat-5577', key: 'PLAT-5577', title: 'PLAT-5577', folder: 'myapp-PLAT-5577', tasks: [] }
   ]
   const prep = {
-    cwd: '~/Workspaces/zipper',
+    cwd: '~/Workspaces/myapp',
     command: '/agent:init-branch for both branches',
     kind: 'cli' as const,
     blocking: true,
@@ -290,7 +290,7 @@ describe('renderPrepPrompt invocations', () => {
 })
 
 describe('open up tabs is mxwl’s job, not an agent task', () => {
-  const opts = { hostId: 'h', cli: 'claude' as const, folderTemplate: 'zipper-${key}' }
+  const opts = { hostId: 'h', cli: 'claude' as const, folderTemplate: 'myapp-${key}' }
 
   it('opens the workspaces and launches nothing', () => {
     const plan = compilePlan('open up tabs for PLAT-5583 and PLAT-5577', opts)
@@ -300,7 +300,7 @@ describe('open up tabs is mxwl’s job, not an agent task', () => {
 
   it('still runs the setup the brief asked for first', () => {
     const plan = compilePlan(
-      'in ~/Workspaces/zipper, run /agent:init-branch for both branches, then open up tabs for PLAT-5583 and PLAT-5577',
+      'in ~/Workspaces/myapp, run /agent:init-branch for both branches, then open up tabs for PLAT-5583 and PLAT-5577',
       opts
     )
     expect(plan.prep?.blocking).toBe(true)

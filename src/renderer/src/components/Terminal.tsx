@@ -14,6 +14,7 @@ type TerminalPaneProps = {
   activeSessionId?: string | null
   restoring?: boolean
   connected?: boolean
+  visible?: boolean
 }
 
 type TermInstance = {
@@ -33,7 +34,8 @@ export function TerminalPane({
   sessions,
   activeSessionId: restoredActiveId = null,
   restoring = false,
-  connected = true
+  connected = true,
+  visible = true
 }: TerminalPaneProps): JSX.Element {
   const stackRef = useRef<HTMLDivElement>(null)
   const instancesRef = useRef<Map<string, TermInstance>>(new Map())
@@ -63,6 +65,7 @@ export function TerminalPane({
       if (
         !cancelled &&
         connected &&
+        visible &&
         !restoring &&
         sessions.length === 0 &&
         claimedRef.current.size === 0
@@ -74,7 +77,7 @@ export function TerminalPane({
       cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wsId, sessions, connected, restoring])
+  }, [wsId, sessions, connected, restoring, visible])
 
   // Detach on unmount — the shells keep running in the main process.
   useEffect(() => {
@@ -85,7 +88,11 @@ export function TerminalPane({
     }
   }, [wsId])
 
-  function mountXterm(): { term: XTerm; fit: FitAddon; container: HTMLDivElement } | null {
+  function mountXterm(): {
+    term: XTerm
+    fit: FitAddon
+    container: HTMLDivElement
+  } | null {
     const stack = stackRef.current
     if (!stack) return null
 
@@ -133,8 +140,13 @@ export function TerminalPane({
     })
 
     const off = window.api.on('terminal:output', (...args: unknown[]) => {
-      const payload = args[0] as { wsId: string; sessionId: string; data: string }
-      if (payload?.wsId === wsId && payload.sessionId === sessionId) term.write(payload.data)
+      const payload = args[0] as {
+        wsId: string
+        sessionId: string
+        data: string
+      }
+      if (payload?.wsId === wsId && payload.sessionId === sessionId)
+        term.write(payload.data)
     })
 
     const offClosed = window.api.on('terminal:closed', (...args: unknown[]) => {
@@ -197,7 +209,9 @@ export function TerminalPane({
     wire(sessionId, parts, false)
   }
 
-  async function createSession(options: { tmuxName?: string; label?: string } = {}): Promise<void> {
+  async function createSession(
+    options: { tmuxName?: string; label?: string } = {}
+  ): Promise<void> {
     if (!connected || creatingRef.current) return
     creatingRef.current = true
     const parts = mountXterm()
@@ -208,9 +222,17 @@ export function TerminalPane({
 
     let sessionId = ''
     try {
-      sessionId = await openWithRetry(wsId, cwd, parts.term.cols, parts.term.rows, options)
+      sessionId = await openWithRetry(
+        wsId,
+        cwd,
+        parts.term.cols,
+        parts.term.rows,
+        options
+      )
     } catch (err) {
-      parts.term.writeln(`\x1b[31mFailed to open terminal: ${String(err)}\x1b[0m`)
+      parts.term.writeln(
+        `\x1b[31mFailed to open terminal: ${String(err)}\x1b[0m`
+      )
       parts.term.writeln('\x1b[90mClick + to retry when connected.\x1b[0m')
       parts.container.style.display = 'block'
       return
@@ -223,7 +245,8 @@ export function TerminalPane({
 
   function showActive(): void {
     for (const [id, inst] of instancesRef.current) {
-      inst.container.style.display = id === activeIdRef.current ? 'block' : 'none'
+      inst.container.style.display =
+        id === activeIdRef.current ? 'block' : 'none'
     }
   }
 
@@ -270,15 +293,22 @@ export function TerminalPane({
   async function respawn(id: string): Promise<void> {
     const info = sessions.find((session) => session.id === id)
     closeSession(id)
-    if (connected) await createSession({ tmuxName: info?.tmuxName, label: info?.label })
+    if (connected)
+      await createSession({ tmuxName: info?.tmuxName, label: info?.label })
   }
 
   function createTmuxSession(): void {
     const folder = cwd.split('/').filter(Boolean).pop() ?? 'workspace'
     const suggested = `mxwl-${folder}-${crypto.randomUUID().slice(0, 4)}`
-    const requested = window.prompt('Attach or create named tmux session', suggested)
+    const requested = window.prompt(
+      'Attach or create named tmux session',
+      suggested
+    )
     if (requested == null) return
-    const tmuxName = requested.trim().replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80)
+    const tmuxName = requested
+      .trim()
+      .replace(/[^A-Za-z0-9_-]/g, '-')
+      .slice(0, 80)
     if (!tmuxName) return
     void createSession({ tmuxName, label: `tmux:${tmuxName}` })
   }
@@ -291,7 +321,8 @@ export function TerminalPane({
   function finishRename(id: string, current: string): void {
     const next = renameDraft.trim()
     setRenamingId(null)
-    if (next && next !== current) void window.api.terminal.rename(wsId, id, next)
+    if (next && next !== current)
+      void window.api.terminal.rename(wsId, id, next)
   }
 
   const activeDead = activeId ? deadIds.has(activeId) : false
@@ -309,7 +340,9 @@ export function TerminalPane({
                 <input
                   autoFocus
                   value={renameDraft}
-                  onChange={(event) => setRenameDraft(event.currentTarget.value)}
+                  onChange={(event) =>
+                    setRenameDraft(event.currentTarget.value)
+                  }
                   onBlur={() => finishRename(id, label)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') event.currentTarget.blur()
@@ -329,10 +362,15 @@ export function TerminalPane({
                       : 'text-neutral-500 hover:text-neutral-300'
                   }`}
                 >
-                  {info?.aiTaskId && <Bot size={10} className="text-emerald-400" />}
-                  {info?.tmuxName && <Layers3 size={10} className="text-sky-400" />}
+                  {info?.aiTaskId && (
+                    <Bot size={10} className="text-emerald-400" />
+                  )}
+                  {info?.tmuxName && (
+                    <Layers3 size={10} className="text-sky-400" />
+                  )}
                   <span className="max-w-[120px] truncate">
-                    {label}{deadIds.has(id) ? ' ✕' : ''}
+                    {label}
+                    {deadIds.has(id) ? ' ✕' : ''}
                   </span>
                 </button>
               )}
@@ -390,7 +428,9 @@ export function TerminalPane({
           </button>
         )}
         {!connected && (
-          <span className="ml-auto text-[11px] text-amber-400">reconnecting…</span>
+          <span className="ml-auto text-[11px] text-amber-400">
+            reconnecting…
+          </span>
         )}
       </div>
       <div ref={stackRef} className="relative min-h-0 flex-1" />
@@ -408,7 +448,12 @@ async function openWithRetry(
   let lastErr: unknown
   for (let i = 0; i < 8; i++) {
     try {
-      return await window.api.terminal.open(wsId, { cwd, cols, rows, ...options })
+      return await window.api.terminal.open(wsId, {
+        cwd,
+        cols,
+        rows,
+        ...options
+      })
     } catch (err) {
       lastErr = err
       const msg = String(err)

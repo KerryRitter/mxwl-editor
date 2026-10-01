@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
 import type { AgentTranscript, AgentTranscriptMeta } from '../../shared/types'
@@ -44,15 +52,20 @@ export class TranscriptStore {
     const tmp = `${file}.tmp`
     writeFileSync(tmp, JSON.stringify(transcript), 'utf8')
     renameSync(tmp, file)
-    this.prune(transcript.cwd)
+    this.prune(transcript)
   }
 
   remove(id: string): void {
     rmSync(this.fileFor(id), { force: true })
   }
 
-  private prune(cwd: string): void {
-    const mine = this.list(cwd)
+  private prune(transcript: AgentTranscript): void {
+    const mine = this.list(transcript.cwd).filter(
+      (t) =>
+        t.hostId === transcript.hostId &&
+        t.locationId === transcript.locationId &&
+        t.browserProfileId === transcript.browserProfileId
+    )
     for (const old of mine.slice(KEEP_PER_CWD)) this.remove(old.id)
   }
 

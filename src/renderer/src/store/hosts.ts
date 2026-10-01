@@ -10,11 +10,11 @@ type HostsState = {
   testState: TestState
   loading: boolean
   load: () => Promise<void>
-  save: (input: HostInput) => Promise<void>
+  save: (input: HostInput) => Promise<HostConfig>
   remove: (id: string) => Promise<void>
   clone: (id: string) => Promise<void>
   test: (input: HostInput) => Promise<void>
-  ensureLocal: (workspacesRoot?: string) => Promise<void>
+  ensureLocal: () => Promise<void>
 }
 
 export const useHostsStore = create<HostsState>((set, get) => ({
@@ -34,6 +34,7 @@ export const useHostsStore = create<HostsState>((set, get) => ({
         ? get().hosts.map((h) => (h.id === saved.id ? saved : h))
         : [...get().hosts, saved]
     })
+    return saved
   },
   remove: async (id) => {
     await window.api.host.delete(id)
@@ -51,8 +52,8 @@ export const useHostsStore = create<HostsState>((set, get) => ({
       testState: { ...s.testState, [tempId]: { testing: false, result } }
     }))
   },
-  ensureLocal: async (workspacesRoot) => {
-    const saved = await window.api.host.ensureLocal(workspacesRoot)
+  ensureLocal: async () => {
+    const saved = await window.api.host.ensureLocal()
     const existing = get().hosts.some((h) => h.id === saved.id)
     set({
       hosts: existing

@@ -36,7 +36,7 @@ not the sources, so a fix that isn't built is a fix the suite can't see.
 
 ## Rules of the road
 
-- Core stays host-agnostic. Zipper-specific strings belong in `presets/zipper.json` / `src/shared/presets/zipper.ts` only.
+- Core stays host- and app-agnostic. App-specific paths, URL rules, services, and integrations belong in saved project/host configuration or standalone external plugins, never hard-coded presets.
 - Do not frame PRs as “make it more like VS Code.” Prefer features that keep browser + editor + terminal synced to one remote folder.
 - Keep UI dense and keyboard-first (`Ctrl+K` palette).
 

@@ -327,6 +327,7 @@ export class PluginManager {
     }
     const workspace = this.workspaces.get(input.wsId)?.state
     if (!workspace) throw new Error('workspace not found')
+    if (workspace.projectSettings.plugins[input.pluginId] === false) throw new Error('plugin is disabled for this project')
     const params = input.params ?? {}
 
     switch (input.method) {
@@ -572,6 +573,11 @@ function workspaceContext(workspace: ReturnType<WorkspaceManager['list']>[number
     title: workspace.title,
     remotePath: workspace.remotePath,
     hostId: workspace.hostId,
+    hostLabel: workspace.hostLabel,
+    projectId: workspace.projectId,
+    projectLabel: workspace.projectLabel,
+    locationId: workspace.locationId,
+    browserProfileId: workspace.browserProfileId,
     status: workspace.status,
     issueKey: workspace.derived.issueKey,
     branch: workspace.derived.branch,

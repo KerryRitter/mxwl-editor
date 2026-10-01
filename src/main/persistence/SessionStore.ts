@@ -14,6 +14,8 @@ export interface TerminalSessionEntry {
 
 export interface SessionEntry {
   hostId: string
+  locationId?: string | null
+  browserProfileId?: string | null
   remotePath: string
   title?: string
   terminals?: TerminalSessionEntry[]
@@ -51,6 +53,6 @@ export class SessionStore {
   }
 
   static keyFor(entry: SessionEntry): string {
-    return `${entry.hostId}::${entry.remotePath}`
+    return `${entry.hostId}::${entry.locationId ?? ''}::${entry.browserProfileId ?? ''}::${entry.remotePath}`
   }
 }

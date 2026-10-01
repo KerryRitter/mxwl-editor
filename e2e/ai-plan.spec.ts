@@ -1,11 +1,11 @@
 import { expect, test, useLocalHost, setAiSettings } from './fixtures'
 
 const BRIEF =
-  'in ~/Workspaces/zipper, run /agent:init-branch for both branches, theb run the qa checks for PLAT-5583 and PLAT-5577'
+  'in ~/Workspaces/myapp, run /agent:init-branch for both branches, theb run the qa checks for PLAT-5583 and PLAT-5577'
 
 test('the modal plans the operator brief end to end', async ({ page, workRoot }) => {
   await useLocalHost(page, workRoot)
-  await setAiSettings(page, { workspaceFolderTemplate: 'zipper-${key}', refinePrompts: false })
+  await setAiSettings(page, { workspaceFolderTemplate: 'myapp-${key}', refinePrompts: false })
   // The hosts store is filled at startup, so pick the new host up before driving the UI.
   await page.reload()
   await page.waitForLoadState('domcontentloaded')
@@ -19,7 +19,7 @@ test('the modal plans the operator brief end to end', async ({ page, workRoot })
 
   // Setup phase read out of the brief, not out of Settings.
   const prep = page.getByTestId('ai-prep')
-  await expect(prep).toContainText('~/Workspaces/zipper')
+  await expect(prep).toContainText('~/Workspaces/myapp')
   await expect(prep).toContainText('/agent:init-branch for both branches')
   await expect(prep).toContainText('runs once, before the tickets')
 
@@ -27,26 +27,26 @@ test('the modal plans the operator brief end to end', async ({ page, workRoot })
   await expect(page.getByText('2 workspaces · 2 terminals')).toBeVisible()
   const targets = page.getByTestId('ai-target')
   await expect(targets).toHaveCount(2)
-  await expect(targets.nth(0)).toContainText('zipper-PLAT-5583')
-  await expect(targets.nth(1)).toContainText('zipper-PLAT-5577')
+  await expect(targets.nth(0)).toContainText('myapp-PLAT-5583')
+  await expect(targets.nth(1)).toContainText('myapp-PLAT-5577')
   await expect(page.getByRole('button', { name: /Run 2 tasks/ })).toBeEnabled()
 })
 
 test('the compiled plan scopes each prompt to its own ticket', async ({ page, workRoot }) => {
   const hostId = await useLocalHost(page, workRoot)
-  await setAiSettings(page, { workspaceFolderTemplate: 'zipper-${key}' })
+  await setAiSettings(page, { workspaceFolderTemplate: 'myapp-${key}' })
 
   const plan = await page.evaluate(
-    ([brief, host]) => window.api.ai.plan({ brief, hostId: host, cli: 'claude', refine: false }),
+    async ([brief, host]) => window.api.ai.plan({ brief, hostId: host, locationId: (await window.api.project.locations()).find(l => l.hostId === host)!.id, cli: 'claude', refine: false }),
     [BRIEF, hostId] as const
   )
 
-  expect(plan.plan.prep?.cwd).toBe('~/Workspaces/zipper')
+  expect(plan.plan.prep?.cwd).toBe('~/Workspaces/myapp')
   expect(plan.plan.prep?.kind).toBe('cli')
   expect(plan.plan.prep?.blocking).toBe(true)
   expect(plan.plan.targets.map((t) => t.folder)).toEqual([
-    'zipper-PLAT-5583',
-    'zipper-PLAT-5577'
+    'myapp-PLAT-5583',
+    'myapp-PLAT-5577'
   ])
 
   const first = plan.plan.targets[0].tasks[0].prompt

@@ -21,6 +21,10 @@ import type {
   FleetAgent,
   HostConfig,
   HostInput,
+  ProjectConfig,
+  ProjectInput,
+  ProjectLocation,
+  ProjectLocationInput,
   JiraIssue,
   McpStatus,
   PresetService,
@@ -33,6 +37,7 @@ import type {
   WorkspaceState
 } from '../../shared/types'
 import type { PluginCatalogEntry, PluginHostMethod } from '../../shared/plugins'
+import type { TailscaleDiscovery } from '../../shared/tailscale'
 
 declare global {
   interface Window {
@@ -42,18 +47,27 @@ declare global {
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
       on: (channel: string, cb: (...args: unknown[]) => void) => () => void
       host: {
+        discoverTailscale: () => Promise<TailscaleDiscovery>
         list: () => Promise<HostConfig[]>
         get: (id: string) => Promise<HostConfig | undefined>
         save: (input: HostInput) => Promise<HostConfig>
         clone: (id: string) => Promise<HostConfig>
         delete: (id: string) => Promise<void>
         test: (input: HostInput) => Promise<TestResult>
-        ensureLocal: (workspacesRoot?: string) => Promise<HostConfig>
+        ensureLocal: () => Promise<HostConfig>
+      }
+      project: {
+        list: () => Promise<ProjectConfig[]>
+        locations: () => Promise<ProjectLocation[]>
+        save: (input: ProjectInput) => Promise<ProjectConfig>
+        saveLocation: (input: ProjectLocationInput) => Promise<ProjectLocation>
+        delete: (id: string) => Promise<void>
+        deleteLocation: (id: string) => Promise<void>
       }
       workspace: {
         list: () => Promise<WorkspaceState[]>
-        discover: (hostId: string) => Promise<DirEntry[]>
-        open: (hostId: string, remotePath: string) => Promise<WorkspaceState>
+        discover: (hostId: string, locationId?: string) => Promise<DirEntry[]>
+        open: (hostId: string, remotePath: string, locationId?: string, browserProfileId?: string | null) => Promise<WorkspaceState>
         createWorktree: (wsId: string, ticket: string, branch?: string) => Promise<WorkspaceState>
         close: (id: string) => Promise<void>
         rename: (wsId: string, title: string) => Promise<void>
@@ -97,6 +111,7 @@ declare global {
         delete: (wsId: string, path: string, isDir: boolean) => Promise<void>
       }
       browser: {
+        ensureTab: (wsId: string, url?: string) => Promise<string>
         newTab: (wsId: string, url?: string, groupId?: string) => Promise<string>
         newGroup: (wsId: string, label?: string) => Promise<string>
         updateGroup: (
@@ -151,14 +166,9 @@ declare global {
                 host: string
                 username: string
                 appPassword?: string
-                workspace: string
-                repo: string
               }
             | null
-          defaultBrowserUrl?: string
           mcpAuthToken?: string
-          taskProvider?: import('../../shared/types').TaskProviderId
-          scmProvider?: import('../../shared/types').ScmProviderId
           ai?: Partial<AiSettings>
           agent?: Partial<AgentSettings>
           notifications?: Partial<AgentNotificationSettings>
@@ -190,6 +200,7 @@ declare global {
         plan: (req: {
           brief: string
           hostId: string
+          locationId: string
           cli?: AiCliId
           refine?: boolean
         }) => Promise<{ plan: AiPlan; refined: boolean; warning?: string }>
@@ -212,7 +223,7 @@ declare global {
         setMode: (wsId: string, modeId: string) => Promise<void>
         respond: (wsId: string, requestId: string, optionId: string | null) => Promise<void>
         authenticate: (wsId: string, methodId: string) => Promise<void>
-        history: (cwd?: string) => Promise<AgentTranscriptMeta[]>
+        history: (cwd?: string, wsId?: string) => Promise<AgentTranscriptMeta[]>
         transcript: (id: string) => Promise<AgentTranscript | null>
         deleteTranscript: (id: string) => Promise<void>
       }
@@ -222,7 +233,7 @@ declare global {
         markAllRead: () => Promise<AgentNotificationRecord[]>
         clear: () => Promise<void>
       }
-      jira: { get: (key: string) => Promise<JiraIssue | null> }
+      jira: { get: (key: string, wsId?: string) => Promise<JiraIssue | null> }
       pr: { get: (wsId: string) => Promise<PullRequest | null> }
       mcp: {
         status: () => Promise<McpStatus>

@@ -16,9 +16,7 @@ import type {
   AiSettings,
   ControlSettings,
   ControlStatus,
-  RuntimeSettings,
-  ScmProviderId,
-  TaskProviderId
+  RuntimeSettings
 } from '../../../shared/types'
 
 type SettingsModalProps = {
@@ -26,32 +24,13 @@ type SettingsModalProps = {
   hideBrowserWs?: string | null
 }
 
-const TASK_OPTIONS: { id: TaskProviderId; label: string; ready: boolean }[] = [
-  { id: 'jira', label: 'Jira', ready: true },
-  { id: 'linear', label: 'Linear', ready: false },
-  { id: 'github-issues', label: 'GitHub Issues', ready: false },
-  { id: 'none', label: 'None', ready: true }
-]
-
-const SCM_OPTIONS: { id: ScmProviderId; label: string; ready: boolean }[] = [
-  { id: 'bitbucket', label: 'Bitbucket', ready: true },
-  { id: 'github', label: 'GitHub', ready: false },
-  { id: 'gitlab', label: 'GitLab', ready: false },
-  { id: 'none', label: 'None', ready: true }
-]
-
 export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }) => {
-  const [taskProvider, setTaskProvider] = useState<TaskProviderId>('none')
-  const [scmProvider, setScmProvider] = useState<ScmProviderId>('none')
   const [jiraHost, setJiraHost] = useState('')
   const [jiraEmail, setJiraEmail] = useState('')
   const [jiraToken, setJiraToken] = useState('')
   const [bbHost, setBbHost] = useState('https://api.bitbucket.org')
   const [bbUser, setBbUser] = useState('')
   const [bbPass, setBbPass] = useState('')
-  const [bbWorkspace, setBbWorkspace] = useState('')
-  const [bbRepo, setBbRepo] = useState('')
-  const [defaultUrl, setDefaultUrl] = useState('')
   const [mcpToken, setMcpToken] = useState('')
   const [ai, setAi] = useState<AiSettings>({ ...DEFAULT_AI_SETTINGS })
   const [agent, setAgent] = useState<AgentSettings>({ ...DEFAULT_AGENT_SETTINGS })
@@ -98,15 +77,10 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
 
   useEffect(() => {
     void window.api.settings.get().then((s) => {
-      setTaskProvider(s.taskProvider || 'none')
-      setScmProvider(s.scmProvider || 'none')
       setJiraHost(s.jira?.host ?? '')
       setJiraEmail(s.jira?.email ?? '')
       setBbHost(s.bitbucket?.host || 'https://api.bitbucket.org')
       setBbUser(s.bitbucket?.username ?? '')
-      setBbWorkspace(s.bitbucket?.workspace ?? '')
-      setBbRepo(s.bitbucket?.repo ?? '')
-      setDefaultUrl(s.defaultBrowserUrl ?? '')
       setMcpToken(s.mcpAuthToken ?? '')
       setAi({ ...DEFAULT_AI_SETTINGS, ...(s.ai ?? {}) })
       setAgent({ ...DEFAULT_AGENT_SETTINGS, ...(s.agent ?? {}) })
@@ -114,7 +88,7 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
       setControl(s.control)
       setRuntime(s.runtime)
       setEncryptionOk(s.encryptionAvailable !== false)
-      setConfigured({ jira: Boolean(s.jira?.host), bb: Boolean(s.bitbucket?.workspace) })
+      setConfigured({ jira: Boolean(s.jira?.host), bb: Boolean(s.bitbucket?.username) })
     })
     void window.api.control.status().then(setControlStatus)
   }, [])
@@ -122,33 +96,14 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
   async function save(): Promise<void> {
     setSaving(true)
     await window.api.settings.update({
-      taskProvider,
-      scmProvider,
       ai,
       agent,
       notifications,
       control,
       runtime,
-      defaultBrowserUrl: defaultUrl,
       mcpAuthToken: mcpToken,
-      jira:
-        taskProvider === 'jira' && (jiraHost || jiraEmail)
-          ? { host: jiraHost, email: jiraEmail, apiToken: jiraToken || undefined }
-          : taskProvider === 'jira'
-            ? null
-            : undefined,
-      bitbucket:
-        scmProvider === 'bitbucket' && (bbWorkspace || bbRepo)
-          ? {
-              host: bbHost,
-              username: bbUser,
-              appPassword: bbPass || undefined,
-              workspace: bbWorkspace,
-              repo: bbRepo
-            }
-          : scmProvider === 'bitbucket'
-            ? null
-            : undefined
+      jira: (jiraHost || jiraEmail) ? { host: jiraHost, email: jiraEmail, apiToken: jiraToken || undefined } : null,
+      bitbucket: bbUser ? { host: bbHost, username: bbUser, appPassword: bbPass || undefined } : null
     })
     setSaving(false)
     onClose()
@@ -161,8 +116,8 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
     <Modal title="Settings" onClose={onClose} width={600}>
       <div className="grid max-h-[70vh] gap-5 overflow-y-auto pr-1">
         <p className="text-[11px] text-neutral-500">
-          Folder mapping, browser URL templates, and Dev services are configured per host (Edit
-          Host). Settings here are global credentials and fallbacks.
+          Project behavior belongs in Projects. Host authentication belongs in Hosts.
+          Settings here control mxwl, agent defaults, installed plugins, and reusable account credentials.
         </p>
 
         {!encryptionOk && (
@@ -172,17 +127,6 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
           </div>
         )}
 
-        <section>
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
-            Fallback browser URL
-          </h3>
-          <input
-            className={inputCls}
-            placeholder="Used when a host’s URL template has no match"
-            value={defaultUrl}
-            onChange={(e) => setDefaultUrl(e.target.value)}
-          />
-        </section>
 
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-400">
@@ -242,38 +186,7 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
                 }
               />
             </Field>
-            <Field
-              label="Workspace folder"
-              hint="Under the host workspaces root. Vars: ${key} ${keyLower} ${keyNum} ${slug}"
-            >
-              <input
-                className={inputCls}
-                placeholder="${key}"
-                value={ai.workspaceFolderTemplate}
-                onChange={(e) =>
-                  setAi((s) => ({ ...s, workspaceFolderTemplate: e.target.value }))
-                }
-              />
-            </Field>
-            <Field label="Base repo folder" hint="Where branch init runs when a folder is missing">
-              <input
-                className={inputCls}
-                placeholder="e.g. myrepo (blank = never provision)"
-                value={ai.baseRepoFolder}
-                onChange={(e) => setAi((s) => ({ ...s, baseRepoFolder: e.target.value }))}
-              />
-            </Field>
-            <Field
-              label="Branch init command"
-              hint="Run in the base repo. Without ${…} vars the ticket key is appended."
-            >
-              <input
-                className={inputCls}
-                placeholder="$agent-init-branch"
-                value={ai.initBranchCommand}
-                onChange={(e) => setAi((s) => ({ ...s, initBranchCommand: e.target.value }))}
-              />
-            </Field>
+            <p className="text-[11px] text-neutral-500">Workspace naming and branch initialization are configured per project; checkout paths live on project locations.</p>
             <Field label="Init timeout" hint="Seconds to wait for the folder to appear">
               <input
                 className={inputCls}
@@ -783,96 +696,18 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
           </p>
         </ProviderSection>
 
-        <ProviderSection title="Task management">
-          <ProviderPicker
-            options={TASK_OPTIONS}
-            value={taskProvider}
-            onChange={(id) => setTaskProvider(id as TaskProviderId)}
-          />
-          {taskProvider === 'jira' && (
-            <div className="mt-3 grid gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-neutral-500">Jira credentials</span>
-                {configured.jira && (
-                  <span className="text-[10px] text-emerald-400">configured</span>
-                )}
-              </div>
-              <input
-                className={inputCls}
-                placeholder="Host"
-                value={jiraHost}
-                onChange={(e) => setJiraHost(e.target.value)}
-              />
-              <input
-                className={inputCls}
-                placeholder="Email"
-                value={jiraEmail}
-                onChange={(e) => setJiraEmail(e.target.value)}
-              />
-              <input
-                className={inputCls}
-                type="password"
-                placeholder="API token (leave blank to keep)"
-                value={jiraToken}
-                onChange={(e) => setJiraToken(e.target.value)}
-              />
-            </div>
-          )}
-          {taskProvider !== 'jira' && taskProvider !== 'none' && <ComingSoon name={taskProvider} />}
-        </ProviderSection>
-
-        <ProviderSection title="Source control">
-          <ProviderPicker
-            options={SCM_OPTIONS}
-            value={scmProvider}
-            onChange={(id) => setScmProvider(id as ScmProviderId)}
-          />
-          {scmProvider === 'bitbucket' && (
-            <div className="mt-3 grid gap-2">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-neutral-500">Bitbucket credentials</span>
-                {configured.bb && (
-                  <span className="text-[10px] text-emerald-400">configured</span>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  className={inputCls}
-                  placeholder="Workspace"
-                  value={bbWorkspace}
-                  onChange={(e) => setBbWorkspace(e.target.value)}
-                />
-                <input
-                  className={inputCls}
-                  placeholder="Repo slug"
-                  value={bbRepo}
-                  onChange={(e) => setBbRepo(e.target.value)}
-                />
-                <input
-                  className={inputCls}
-                  placeholder="Username"
-                  value={bbUser}
-                  onChange={(e) => setBbUser(e.target.value)}
-                />
-                <input
-                  className={inputCls}
-                  type="password"
-                  placeholder="App password (blank to keep)"
-                  value={bbPass}
-                  onChange={(e) => setBbPass(e.target.value)}
-                />
-                <input
-                  className={`${inputCls} col-span-2`}
-                  placeholder="API host"
-                  value={bbHost}
-                  onChange={(e) => setBbHost(e.target.value)}
-                />
-              </div>
-            </div>
-          )}
-          {scmProvider !== 'bitbucket' && scmProvider !== 'none' && (
-            <ComingSoon name={scmProvider} />
-          )}
+        <ProviderSection title="Accounts">
+          <p className="mb-3 text-xs text-neutral-500">Reusable credentials. Projects choose their own task provider and source-control repository.</p>
+          <div className="grid gap-2">
+            <span className="text-xs text-neutral-400">Jira {configured.jira ? '· configured' : ''}</span>
+            <Field label="Jira host"><input className={inputCls} value={jiraHost} onChange={e => setJiraHost(e.target.value)} /></Field>
+            <Field label="Jira email"><input className={inputCls} value={jiraEmail} onChange={e => setJiraEmail(e.target.value)} /></Field>
+            <Field label="Jira API token (blank keeps existing)"><input type="password" className={inputCls} value={jiraToken} onChange={e => setJiraToken(e.target.value)} /></Field>
+            <span className="mt-3 text-xs text-neutral-400">Bitbucket {configured.bb ? '· configured' : ''}</span>
+            <Field label="Bitbucket API host"><input className={inputCls} value={bbHost} onChange={e => setBbHost(e.target.value)} /></Field>
+            <Field label="Bitbucket username"><input className={inputCls} value={bbUser} onChange={e => setBbUser(e.target.value)} /></Field>
+            <Field label="Bitbucket app password (blank keeps existing)"><input type="password" className={inputCls} value={bbPass} onChange={e => setBbPass(e.target.value)} /></Field>
+          </div>
         </ProviderSection>
       </div>
 
@@ -941,12 +776,5 @@ const ProviderPicker: FC<{
         )}
       </button>
     ))}
-  </div>
-)
-
-const ComingSoon: FC<{ name: string }> = ({ name }) => (
-  <div className="mt-3 rounded-lg border border-dashed border-neutral-700 bg-neutral-950/60 px-3 py-4 text-center">
-    <p className="text-sm capitalize text-neutral-300">{name.replace(/-/g, ' ')}</p>
-    <p className="mt-1 text-[11px] text-neutral-500">More coming soon — credentials UI not wired yet.</p>
   </div>
 )

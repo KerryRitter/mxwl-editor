@@ -31,7 +31,7 @@ const KEY_ANYWHERE = /\b([A-Z][A-Z0-9]{1,9})-(\d+)\b/g
 /** Standards that look like ticket keys but aren't */
 const NOT_A_KEY = new Set(['UTF', 'ISO', 'RFC', 'SHA', 'CVE'])
 
-/** `in ~/Workspaces/zipper` / `open a terminal to /srv/repo` — needs a real path */
+/** `in ~/Workspaces/myapp` / `open a terminal to /srv/repo` — needs a real path */
 const PREP_DIR = /\b(?:in|at|cd(?:\s+to)?|open\s+(?:a\s+)?terminal\s+(?:to|in))\s+(~[\w./@-]*|\/[\w./@-]+)/i
 const PREP_RUN = /\brun\s+(\S+)/i
 /** Where the prep clause stops and the mxwl work begins ("theb" is a common typo) */
@@ -232,11 +232,13 @@ export type CompileOptions = {
   cli: AiCliId
   /** Vars: ${key} ${keyLower} ${keyNum} ${slug} ${title} */
   folderTemplate: string
+  projectName?: string
 }
 
-export function folderForTarget(target: ParsedTarget, template: string): string {
+export function folderForTarget(target: ParsedTarget, template: string, projectName = ''): string {
   const key = target.key ?? ''
   const vars = {
+    project: slugify(projectName),
     key,
     keyLower: key.toLowerCase(),
     keyNum: /\d+/.exec(key)?.[0] ?? '',
@@ -336,7 +338,7 @@ export function renderPrepPrompt(prep: ParsedPrep, targets: AiPlanTarget[]): str
 export function compilePlan(brief: string, opts: CompileOptions): AiPlan {
   const parsed = parseBrief(brief)
   const targets: AiPlanTarget[] = parsed.targets.map((t, ti) => {
-    const folder = folderForTarget(t, opts.folderTemplate)
+    const folder = folderForTarget(t, opts.folderTemplate, opts.projectName)
     const targetId = t.key ? t.key.toLowerCase() : `target-${ti + 1}`
     const tasks: AiPlanTask[] = parsed.steps.map((s, si) => ({
       id: `${targetId}--${s.label}-${si + 1}`,

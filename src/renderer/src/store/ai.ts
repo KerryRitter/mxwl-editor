@@ -16,7 +16,7 @@ type AiState = {
   setPrompt: (targetId: string, taskId: string, prompt: string) => void
   dropTarget: (targetId: string) => void
   dropTask: (targetId: string, taskId: string) => void
-  plan_: (req: { hostId: string; cli: AiCliId; refine: boolean }) => Promise<void>
+  plan_: (req: { hostId: string; locationId: string; cli: AiCliId; refine: boolean }) => Promise<void>
   run: () => Promise<AiRunState | null>
   loadRuns: () => Promise<void>
   applyRun: (run: AiRunState) => void
@@ -63,7 +63,7 @@ export const useAiStore = create<AiState>((set, get) => ({
       }
     })),
 
-  plan_: async ({ hostId, cli, refine }) => {
+  plan_: async ({ hostId, locationId, cli, refine }) => {
     const brief = get().brief.trim()
     if (!brief) {
       set({ error: 'Paste a brief first.' })
@@ -71,7 +71,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     }
     set({ planning: true, error: null, warning: null })
     try {
-      const res = await window.api.ai.plan({ brief, hostId, cli, refine })
+      const res = await window.api.ai.plan({ brief, hostId, locationId, cli, refine })
       set({ plan: res.plan, refined: res.refined, warning: res.warning ?? null })
     } catch (err) {
       set({ error: err instanceof Error ? err.message : String(err), plan: null })

@@ -1,6 +1,6 @@
-# mxwl — Genericize without losing Zipper
+# mxwl — Genericize without losing Example App
 
-> **Status (2026-07-17):** Phase A–C implemented. Core is preset-driven; Zipper lives only in `presets/zipper.*`. Typecheck + build green. Default install preset remains `zipper` so existing dogfood is unchanged.
+> **Status (2026-07-17):** Phase A–C implemented. Core is preset-driven; Example App lives only in `presets/myapp.*`. Typecheck + build green. Default install preset remains `myapp` so existing dogfood is unchanged.
 
 ## Product frame
 
@@ -18,7 +18,7 @@ One workspace tab = one remote folder, with three panes locked together:
 
 Special sauce: **MCP + CDP reverse tunnel** so an agent *on the box* can drive the *desktop* browser and workspace.
 
-Everything Zipper-specific becomes a **preset**. Core stays host-agnostic.
+Everything Example App-specific becomes a **preset**. Core stays host-agnostic.
 
 ---
 
@@ -27,7 +27,7 @@ Everything Zipper-specific becomes a **preset**. Core stays host-agnostic.
 ```
 Core (generic)              Preset (opinionated)
 ─────────────────────       ──────────────────────────────
-SSH host + auth             Zipper host defaults
+SSH host + auth             Example App host defaults
 Workspace = remote folder   ~/Workspaces discovery root
 Browser pane                URL derived from folder name
 Terminal pane               cwd = folder
@@ -37,7 +37,7 @@ Dev controls                command map per project
 Ticket / PR panel           Jira key pattern + issue tracker
 ```
 
-**Rule:** if a stranger cloning a random GitHub monorepo on a VPS can use it without reading Zipper docs, the core is generic enough. Zipper remains a first-class preset, not a fork.
+**Rule:** if a stranger cloning a random GitHub monorepo on a VPS can use it without reading Example App docs, the core is generic enough. Example App remains a first-class preset, not a fork.
 
 ---
 
@@ -46,27 +46,27 @@ Ticket / PR panel           Jira key pattern + issue tracker
 Three layers, most-specific wins:
 
 1. **App defaults** — empty/generic
-2. **Active preset** — e.g. `zipper` (shipped + user-selectable)
+2. **Active preset** — e.g. `myapp` (shipped + user-selectable)
 3. **Per-host / per-workspace overrides** — optional
 
 ### Preset schema (`ProjectPreset`)
 
 ```ts
 type ProjectPreset = {
-  id: string                    // 'zipper' | 'generic' | custom
+  id: string                    // 'myapp' | 'generic' | custom
   label: string
 
   // Discovery
   workspacesRoot: string        // default '~/Workspaces'
-  folderFilter?: string         // glob or regex, e.g. 'zipper*'
+  folderFilter?: string         // glob or regex, e.g. 'myapp*'
 
   // Derive workspace chrome from folder name
   derive: {
     // Named capture groups become template vars
-    // e.g. 'zipper-(?<ticket>PLAT-\\d+)' or '(?<name>.+)'
+    // e.g. 'myapp-(?<ticket>PLAT-\\d+)' or '(?<name>.+)'
     folderPattern: string
     titleTemplate: string       // '${ticket}' | '${name}'
-    browserUrlTemplate: string  // 'https://plat-${ticketNum}__app.joinzipper.dev'
+    browserUrlTemplate: string  // 'https://plat-${ticketNum}__app.joinmyapp.dev'
                                 // or 'http://localhost:${port}' or ''
     issueKeyTemplate?: string   // '${ticket}' → Jira/Linear key
   }
@@ -119,17 +119,17 @@ Templates use `${var}` from regex named groups, plus helpers:
 
 Browser starts blank (or settings `defaultBrowserUrl`). Dev panel hidden until services are defined. Ticket/PR panel hidden.
 
-**`zipper` (your daily driver)**
+**`myapp` (your daily driver)**
 ```json
 {
-  "id": "zipper",
-  "label": "Zipper",
+  "id": "myapp",
+  "label": "Example App",
   "workspacesRoot": "~/Workspaces",
-  "folderFilter": "zipper*",
+  "folderFilter": "myapp*",
   "derive": {
-    "folderPattern": "zipper-(?<ticket>PLAT-\\d+)|(?<name>zipper)",
+    "folderPattern": "myapp-(?<ticket>PLAT-\\d+)|(?<name>myapp)",
     "titleTemplate": "${ticket}${name}",
-    "browserUrlTemplate": "https://plat-${ticketNum}__app.joinzipper.dev",
+    "browserUrlTemplate": "https://plat-${ticketNum}__app.joinmyapp.dev",
     "issueKeyTemplate": "${ticket}"
   },
   "services": [
@@ -150,7 +150,7 @@ Browser starts blank (or settings `defaultBrowserUrl`). Dev panel hidden until s
 }
 ```
 
-First-run: if no preset chosen, offer **Zipper / Generic / Import JSON**. Your machine picks Zipper; public docs lead with Generic + “add a preset for your monorepo.”
+First-run: if no preset chosen, offer **Example App / Generic / Import JSON**. Your machine picks Example App; public docs lead with Generic + “add a preset for your monorepo.”
 
 ---
 
@@ -158,13 +158,13 @@ First-run: if no preset chosen, offer **Zipper / Generic / Import JSON**. Your m
 
 | Today (hardcoded) | After |
 |---|---|
-| `derive.ts` `PLAT-(\\d+)` + `joinzipper.dev` | `deriveFromFolder(name, preset.derive)` |
+| `derive.ts` `PLAT-(\\d+)` + `joinmyapp.dev` | `deriveFromFolder(name, preset.derive)` |
 | `DevController` `DevApp = 'web'\|'api'\|'multisite'` + `DEFAULT_DEV_COMMANDS` | `services[]` from preset; UI maps over list |
 | `HostConfig.workspacesRoot` default `~/Workspaces` | preset default; host can override |
 | FileTree `HIDDEN` set | `preset.hide` (+ optional user addons in settings) |
 | Settings Jira/Bitbucket always shown | show only if preset `issueTracker` / `prProvider` set |
-| README “for building Zipper” | README: SSH workspace tool; Zipper as example preset |
-| package description Zipper-only | “SSH-native workspace for remote building” |
+| README “for building Example App” | README: SSH workspace tool; Example App as example preset |
+| package description Example App-only | “SSH-native workspace for remote building” |
 
 Core that stays **unchanged in spirit**:
 - Host manager + safeStorage
@@ -182,9 +182,9 @@ Later (not blocking genericization): if workspace root contains `.mxwl.json`, me
 
 ```json
 {
-  "extends": "zipper",
+  "extends": "myapp",
   "derive": {
-    "browserUrlTemplate": "https://plat-${ticketNum}__app.joinzipper.localhost"
+    "browserUrlTemplate": "https://plat-${ticketNum}__app.joinmyapp.localhost"
   }
 }
 ```
@@ -193,17 +193,17 @@ Useful when local Caddy / preview URLs differ from production-style hostnames.
 
 ---
 
-## UX that stays Zipper-excellent
+## UX that stays Example App-excellent
 
-| Moment | Behavior with Zipper preset |
+| Moment | Behavior with Example App preset |
 |---|---|
-| New workspace | Lists `~/Workspaces/zipper*` |
-| Open `zipper-PLAT-5682` | Tab title `PLAT-5682`, browser → `.dev` URL, Jira key ready |
+| New workspace | Lists `~/Workspaces/myapp*` |
+| Open `myapp-PLAT-5682` | Tab title `PLAT-5682`, browser → `.dev` URL, Jira key ready |
 | Dev panel | Web / API / Multisite with your `z` commands |
 | Ticket & PR | Same modal as today |
 | MCP toggle | Same CDP `9222` + workspace MCP |
 
-You should not feel a regression. Generic users just don’t see Zipper chrome.
+You should not feel a regression. Generic users just don’t see Example App chrome.
 
 ---
 
@@ -211,21 +211,21 @@ You should not feel a regression. Generic users just don’t see Zipper chrome.
 
 ### Phase A — Preset engine (core abstraction)
 1. Add `ProjectPreset` to `shared/types.ts`
-2. Ship `presets/generic.json` + `presets/zipper.json`
+2. Ship `presets/generic.json` + `presets/myapp.json`
 3. Settings: `activePresetId` (+ “Import preset…” later)
 4. Rewrite `deriveFromFolder` to use templates + named groups
 5. Generalize `DevController` / Dev panel to `services[]`
 6. FileTree reads `hide` from preset
 7. Gate Ticket/PR UI on preset integration flags
-8. Migration: existing installs default `activePresetId = 'zipper'` so nothing breaks for you
+8. Migration: existing installs default `activePresetId = 'myapp'` so nothing breaks for you
 
-**Done when:** flipping preset to `generic` removes Zipper URLs/commands; flipping back restores them. No Zipper strings left in derive/dev core paths.
+**Done when:** flipping preset to `generic` removes Example App URLs/commands; flipping back restores them. No Example App strings left in derive/dev core paths.
 
 ### Phase B — Product shell for strangers
 1. Rewrite README around “SSH + browser + editor + terminal + MCP”
 2. 30s GIF of open-host → open-folder → three panes sync
 3. LICENSE file, SECURITY.md (SSH secrets, CDP/MCP localhost-only)
-4. CONTRIBUTING + “write a preset” doc with Zipper as the worked example
+4. CONTRIBUTING + “write a preset” doc with Example App as the worked example
 5. macOS target (even unsigned) — most curious outsiders are on Mac
 
 ### Phase C — Dogfood quality (keep winning vs tmux+Chrome)
@@ -259,10 +259,10 @@ If a feature doesn’t help “one remote folder, three synced panes, agent-reac
 
 | Audience | Win condition |
 |---|---|
-| **You** | Zipper preset = today’s workflow, fewer bugs, same shortcuts |
+| **You** | Example App preset = today’s workflow, fewer bugs, same shortcuts |
 | **Stranger** | Connect to any SSH box, open a folder, get browser+editor+terminal synced in <2 min with Generic preset |
 | **Positioning** | Described as “remote workspace for builders/agents,” never “IDE” |
-| **Code** | `rg joinzipper\\|PLAT-\\|npm run z` returns hits only under `presets/zipper.json` (and docs/examples) |
+| **Code** | `rg joinmyapp\\|PLAT-\\|npm run z` returns hits only under `presets/myapp.json` (and docs/examples) |
 
 ---
 
@@ -271,15 +271,15 @@ If a feature doesn’t help “one remote folder, three synced panes, agent-reac
 | Decision | Choice |
 |---|---|
 | Abstraction unit | **Preset JSON**, not plugins |
-| Default for Kerry | `zipper` (migrate existing) |
+| Default for Kerry | `myapp` (migrate existing) |
 | Default for public | `generic` |
 | Dev apps | Open `services[]`, not enum |
 | URL/ticket derivation | Regex named groups + string templates |
-| Zipper coupling allowed in | `presets/zipper.json` + docs only |
+| Example App coupling allowed in | `presets/myapp.json` + docs only |
 | Competitor frame | SSH + tmux + Chrome + editor tabs |
 
 ---
 
 ## Next action
 
-Start **Phase A**: introduce preset types + ship `generic`/`zipper`, wire derive + dev + hide-list, migrate your install to `zipper` so behavior is unchanged while the core goes generic.
+Start **Phase A**: introduce preset types + ship `generic`/`myapp`, wire derive + dev + hide-list, migrate your install to `myapp` so behavior is unchanged while the core goes generic.

@@ -407,6 +407,11 @@ An SDK context has two layers:
     title: 'PROJ-42',
     remotePath: '/workspaces/PROJ-42',
     hostId: 'local',
+    hostLabel: 'This machine',
+    projectId: 'project-id',
+    projectLabel: 'My app',
+    locationId: 'project-location-id',
+    browserProfileId: 'qa',
     status: 'connected',
     issueKey: 'PROJ-42',
     branch: 'feature/PROJ-42',
@@ -415,7 +420,13 @@ An SDK context has two layers:
 }
 ```
 
-Use `workspace.id` as the runtime identity and storage namespace. `remotePath` may describe a local
+Context also includes project/location/profile IDs and display labels. These fields are
+additive in API v1; unassigned folders have null project/location/profile IDs. Plugins
+never receive project secrets. Project-level tool disabling is enforced both in the deck
+and on every bridge call; it cannot override global permissions.
+
+Use `workspace.id` as the runtime identity. For storage that survives closing/reopening a
+workspace, namespace by project/location/profile and path rather than the ephemeral runtime ID. `remotePath` may describe a local
 or SSH-backed workspace and should be presented as information, not passed to `files.*`; file API
 paths are always workspace-relative.
 
@@ -504,10 +515,10 @@ The in-repository [`Task Board`](../examples/plugins/task-board/) is intentional
 - DOM rendering without a build step;
 - handing a task to the active agent.
 
-The standalone `mxwl-plugin-zipper` repository is a production-shaped example kept outside the
-mxwl codebase. It detects focused-branch artifacts such as `QA_PREP.md` under
-`.zipper-agent/local/<TICKET>/`, renders a rich reading experience, and demonstrates bounded
-hidden-directory discovery.
+A standalone artifact-reader plugin can detect focused-branch artifacts such as `QA_PREP.md`
+under a tool-owned directory (for example `.agent-artifacts/local/<TICKET>/`), render a rich
+reading experience, and use bounded hidden-directory discovery. See the generic
+[artifact-reader recipe](plugin-recipes.md) to build one outside the mxwl codebase.
 
 ## Architecture for host contributors
 

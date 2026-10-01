@@ -215,7 +215,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   setNote: (wsId, note) => set((s) => ({ notes: { ...s.notes, [wsId]: note } })),
 
   loadHistory: async (wsId, cwd) => {
-    const list = await window.api.agent.history(cwd)
+    const list = await window.api.agent.history(cwd, wsId)
     set((s) => ({ history: { ...s.history, [wsId]: list } }))
   },
 

@@ -9,14 +9,14 @@ export function registerWorkspaceIpc(manager: WorkspaceManager): void {
   ipcMain.handle('workspace:list', (): WorkspaceState[] => manager.list())
   ipcMain.handle(
     'workspace:discover',
-    (_e: IpcMainInvokeEvent, hostId: string): Promise<DirEntry[]> => manager.discover(hostId)
+    (_e: IpcMainInvokeEvent, hostId: string, locationId?: string): Promise<DirEntry[]> => manager.discover(hostId, locationId)
   )
   ipcMain.handle(
     'workspace:open',
     (
       _e: IpcMainInvokeEvent,
-      payload: { hostId: string; remotePath: string }
-    ): Promise<WorkspaceState> => manager.open(payload.hostId, payload.remotePath)
+      payload: { hostId: string; remotePath: string; locationId?: string; browserProfileId?: string | null }
+    ): Promise<WorkspaceState> => manager.open(payload.hostId, payload.remotePath, payload)
   )
   ipcMain.handle(
     'workspace:createWorktree',
@@ -167,6 +167,11 @@ export function registerWorkspaceIpc(manager: WorkspaceManager): void {
       manager.fsDelete(payload.wsId, payload.path, payload.isDir)
   )
 
+  ipcMain.handle(
+    'browser:ensureTab',
+    (_e: IpcMainInvokeEvent, payload: { wsId: string; url?: string }): string =>
+      manager.browserEnsureTab(payload.wsId, payload.url)
+  )
   ipcMain.handle(
     'browser:newTab',
     (_e: IpcMainInvokeEvent, payload: { wsId: string; url?: string; groupId?: string }): string =>

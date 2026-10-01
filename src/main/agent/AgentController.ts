@@ -1,5 +1,11 @@
 import { app, type BrowserWindow } from 'electron'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import type {
   AgentId,
@@ -22,6 +28,8 @@ import { TranscriptStore } from './TranscriptStore'
 const SAVE_DEBOUNCE_MS = 1500
 
 type RestorableAgent = {
+  locationId?: string
+  browserProfileId?: string | null
   hostId: string
   cwd: string
   agentId: AgentId
@@ -60,8 +68,31 @@ export class AgentController {
   ) {}
 
   /** Saved conversations for a folder, newest first. */
-  history(cwd?: string): AgentTranscriptMeta[] {
-    return this.transcripts.list(cwd)
+  history(cwd?: string, wsId?: string): AgentTranscriptMeta[] {
+    const workspace = wsId ? this.workspaces.get(wsId)?.state : undefined
+    const history = this.transcripts.list(cwd)
+    return wsId
+      ? history.filter(
+          (t) =>
+            workspace &&
+            t.hostId === workspace.hostId &&
+            t.locationId === workspace.locationId &&
+            t.browserProfileId === workspace.browserProfileId
+        )
+      : history
+  }
+
+  private saveTranscript(wsId: string): void {
+    const transcript = this.sessions.get(wsId)?.transcript()
+    const ws = this.workspaces.get(wsId)?.state
+    if (transcript && ws)
+      this.transcripts.save({
+        ...transcript,
+        hostId: ws.hostId,
+        projectId: ws.projectId,
+        locationId: ws.locationId,
+        browserProfileId: ws.browserProfileId
+      })
   }
 
   transcript(id: string): AgentTranscript | null {
@@ -116,7 +147,7 @@ export class AgentController {
     const session = new AcpSession({
       wsId,
       agentId: want,
-      cwd: ws.remotePath,
+      cwd: this.workspaces.workingDirectory(wsId),
       workspaces: this.workspaces,
       settings: () => this.agentSettings(),
       onChange: (state) => this.emit(state)
@@ -187,7 +218,15 @@ export class AgentController {
    */
   async restoreSessions(): Promise<void> {
     for (const entry of this.restorable) {
-      const workspace = this.workspaces.findByPath(entry.hostId, entry.cwd)
+      const workspace = this.workspaces
+        .list()
+        .find(
+          (w) =>
+            w.hostId === entry.hostId &&
+            w.remotePath === entry.cwd &&
+            w.locationId === (entry.locationId ?? null) &&
+            w.browserProfileId === (entry.browserProfileId ?? null)
+        )
       if (!workspace || this.sessions.has(workspace.id)) continue
       try {
         await this.workspaces.waitForConnected(workspace.id, 30_000)
@@ -209,16 +248,14 @@ export class AgentController {
     const timer = this.saveTimers.get(wsId)
     if (timer) clearTimeout(timer)
     this.saveTimers.delete(wsId)
-    const transcript = this.sessions.get(wsId)?.transcript()
-    if (transcript) this.transcripts.save(transcript)
+    this.saveTranscript(wsId)
   }
 
   private scheduleSave(wsId: string): void {
     if (this.saveTimers.has(wsId)) return
     const timer = setTimeout(() => {
       this.saveTimers.delete(wsId)
-      const transcript = this.sessions.get(wsId)?.transcript()
-      if (transcript) this.transcripts.save(transcript)
+      this.saveTranscript(wsId)
     }, SAVE_DEBOUNCE_MS)
     // A pending save must never hold the app open at quit — `disposeAll` flushes.
     timer.unref?.()
@@ -235,27 +272,46 @@ export class AgentController {
 
   private send(channel: string, payload: unknown): void {
     const window = this.getSender()
-    if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return
+    if (!window || window.isDestroyed() || window.webContents.isDestroyed())
+      return
     window.webContents.send(channel, payload)
   }
 
   private remember(wsId: string, agentId: AgentId): void {
-    const workspace = this.workspaces.list().find((candidate) => candidate.id === wsId)
+    const workspace = this.workspaces
+      .list()
+      .find((candidate) => candidate.id === wsId)
     if (!workspace) return
     this.restorable = [
       ...this.restorable.filter(
-        (entry) => entry.hostId !== workspace.hostId || entry.cwd !== workspace.remotePath
+        (entry) =>
+          entry.hostId !== workspace.hostId ||
+          entry.cwd !== workspace.remotePath ||
+          (entry.locationId ?? null) !== workspace.locationId ||
+          (entry.browserProfileId ?? null) !== workspace.browserProfileId
       ),
-      { hostId: workspace.hostId, cwd: workspace.remotePath, agentId }
+      {
+        hostId: workspace.hostId,
+        cwd: workspace.remotePath,
+        locationId: workspace.locationId ?? undefined,
+        browserProfileId: workspace.browserProfileId,
+        agentId
+      }
     ]
     this.persistRestorable()
   }
 
   private forget(wsId: string): void {
-    const workspace = this.workspaces.list().find((candidate) => candidate.id === wsId)
+    const workspace = this.workspaces
+      .list()
+      .find((candidate) => candidate.id === wsId)
     if (!workspace) return
     this.restorable = this.restorable.filter(
-      (entry) => entry.hostId !== workspace.hostId || entry.cwd !== workspace.remotePath
+      (entry) =>
+        entry.hostId !== workspace.hostId ||
+        entry.cwd !== workspace.remotePath ||
+        (entry.locationId ?? null) !== workspace.locationId ||
+        (entry.browserProfileId ?? null) !== workspace.browserProfileId
     )
     this.persistRestorable()
   }
@@ -263,7 +319,9 @@ export class AgentController {
   private loadRestorable(): RestorableAgent[] {
     if (!existsSync(this.runtimeFile)) return []
     try {
-      const value = JSON.parse(readFileSync(this.runtimeFile, 'utf8')) as unknown
+      const value = JSON.parse(
+        readFileSync(this.runtimeFile, 'utf8')
+      ) as unknown
       if (!Array.isArray(value)) return []
       return value.filter(isRestorableAgent)
     } catch {

@@ -3,7 +3,11 @@ import type { AddressInfo } from 'node:net'
 import { expect, test, useLocalHost } from './fixtures'
 
 /** Sets a cookie on /set, echoes whatever cookie it receives on /read. */
-async function cookieServer(): Promise<{ url: string; close: () => Promise<void>; server: Server }> {
+async function cookieServer(): Promise<{
+  url: string
+  close: () => Promise<void>
+  server: Server
+}> {
   const server = createServer((req, res) => {
     if (req.url?.startsWith('/set')) {
       res.setHeader('Set-Cookie', 'sid=group-one; Path=/')
@@ -35,39 +39,62 @@ test('a tab in a second group does not see the first group’s cookies', async (
     )
 
     // Default group: log in. The load is async, so wait for the jar to fill.
+    const initialIds = await page.evaluate(
+      (id) =>
+        Promise.all([
+          window.api.browser.ensureTab(id),
+          window.api.browser.ensureTab(id)
+        ]),
+      wsId
+    )
+    expect(initialIds[0]).toBe(initialIds[1])
     await page.evaluate(
-      ([id, url]) => window.api.browser.newTab(id, `${url}/set`),
-      [wsId, site.url] as const
+      ([id, tabId, url]) =>
+        window.api.browser.navigate(id, tabId, `${url}/set`),
+      [wsId, initialIds[0], site.url] as const
     )
     await expect
       .poll(
         () =>
-          app.evaluate(async ({ session }) =>
-            (await session.defaultSession.cookies.get({ name: 'sid' })).length
+          app.evaluate(
+            async ({ session }) =>
+              (await session.defaultSession.cookies.get({ name: 'sid' })).length
           ),
         { timeout: 20_000 }
       )
       .toBe(1)
 
     // Second sandbox with its own tab.
-    const groupId = await page.evaluate((id) => window.api.browser.newGroup(id), wsId)
+    const groupId = await page.evaluate(
+      (id) => window.api.browser.newGroup(id),
+      wsId
+    )
     await page.evaluate(
-      ([id, url, g]) => window.api.browser.newTab(id, `${url}/read`, g as string),
+      ([id, url, g]) =>
+        window.api.browser.newTab(id, `${url}/read`, g as string),
       [wsId, site.url, groupId] as const
     )
 
-    const snap = await page.evaluate((id) => window.api.browser.snapshot(id), wsId)
+    const snap = await page.evaluate(
+      (id) => window.api.browser.snapshot(id),
+      wsId
+    )
     expect(snap!.groups).toHaveLength(2)
     const [defaultGroup, second] = snap!.groups
     expect(defaultGroup.partition).toBe('')
     expect(second.partition).toBe(`persist:mxwl-${wsId}-${groupId}`)
     expect(second.color).not.toBe(defaultGroup.color)
-    expect(snap!.tabs.map((t) => t.groupId)).toEqual([defaultGroup.id, second.id])
+    expect(snap!.tabs.map((t) => t.groupId)).toEqual([
+      defaultGroup.id,
+      second.id
+    ])
 
     // The cookie landed in the default jar and nowhere else.
     const jars = await app.evaluate(async ({ session }, partition) => {
       const mine = await session.defaultSession.cookies.get({ name: 'sid' })
-      const theirs = await session.fromPartition(partition).cookies.get({ name: 'sid' })
+      const theirs = await session
+        .fromPartition(partition)
+        .cookies.get({ name: 'sid' })
       return { mine: mine.length, theirs: theirs.length }
     }, second.partition)
 
@@ -75,12 +102,13 @@ test('a tab in a second group does not see the first group’s cookies', async (
     expect(jars.theirs).toBe(0)
 
     // Clearing one group leaves the other alone.
-    await page.evaluate(
-      ([id, g]) => window.api.browser.clearGroup(id, g),
-      [wsId, defaultGroup.id] as const
-    )
-    const after = await app.evaluate(async ({ session }) =>
-      (await session.defaultSession.cookies.get({ name: 'sid' })).length
+    await page.evaluate(([id, g]) => window.api.browser.clearGroup(id, g), [
+      wsId,
+      defaultGroup.id
+    ] as const)
+    const after = await app.evaluate(
+      async ({ session }) =>
+        (await session.defaultSession.cookies.get({ name: 'sid' })).length
     )
     expect(after).toBe(0)
   } finally {

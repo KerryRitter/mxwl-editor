@@ -7,7 +7,6 @@ import type { HostConfig, WorkspaceStatus } from '../../shared/types'
 import type { ExecOptions, ExecResult, ShellOptions } from './SshConnection'
 import { expandHome } from '../hosts/HostManager'
 import { shellQuote } from './util'
-import { DEFAULT_DERIVE, DEFAULT_HIDE } from '../../shared/hostDefaults'
 
 /** Duck-typed stream compatible with ssh2 ClientChannel for DevController / TerminalSession */
 export type ChannelLike = {
@@ -19,7 +18,7 @@ export type ChannelLike = {
   stderr: { on(event: string, listener: (...args: unknown[]) => void): unknown }
 }
 
-export function createLocalHostConfig(workspacesRoot = '~/Workspaces'): HostConfig {
+export function createLocalHostConfig(): HostConfig {
   const user = userInfo().username
   return {
     id: 'local-this-machine',
@@ -29,10 +28,6 @@ export function createLocalHostConfig(workspacesRoot = '~/Workspaces'): HostConf
     port: 0,
     username: user,
     auth: { kind: 'none' },
-    workspacesRoot,
-    derive: { ...DEFAULT_DERIVE },
-    services: [],
-    hide: [...DEFAULT_HIDE],
     addedAt: Date.now()
   }
 }
@@ -57,13 +52,11 @@ export class LocalConnection extends EventEmitter {
   async connect(): Promise<void> {
     this.intentional = false
     this.setStatus('connecting')
-    const root = expandHome(this.host.workspacesRoot || '~/Workspaces')
     // workspaces root need not exist yet — home must
     if (!existsSync(homedir())) {
       this.setStatus('error')
       throw new Error('local home directory not found')
     }
-    void root
     this.setStatus('connected')
   }
 
@@ -83,7 +76,7 @@ export class LocalConnection extends EventEmitter {
     return new Promise((resolve, reject) => {
       const child = spawn('/bin/bash', ['-lc', cmd], {
         env: process.env,
-        cwd: expandHome(this.host.workspacesRoot || homedir())
+        cwd: homedir()
       })
       let stdout = ''
       let stderr = ''
@@ -120,14 +113,14 @@ export class LocalConnection extends EventEmitter {
     this.requireConnected()
     const child = spawn('/bin/bash', ['-lc', cmd], {
       env: process.env,
-      cwd: expandHome(this.host.workspacesRoot || homedir())
+      cwd: homedir()
     })
     return Promise.resolve(wrapChildProcess(child))
   }
 
   async shell(opts: ShellOptions): Promise<ChannelLike> {
     this.requireConnected()
-    const cwd = opts.cwd ? expandHome(opts.cwd) : expandHome(this.host.workspacesRoot || homedir())
+    const cwd = opts.cwd ? expandHome(opts.cwd) : homedir()
     const shellPath = process.env.SHELL || '/bin/bash'
     const term = pty.spawn(shellPath, ['-l'], {
       name: opts.term ?? 'xterm-256color',

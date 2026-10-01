@@ -1,12 +1,29 @@
-import { useCallback, useEffect, useRef, useState, type FC, type ReactNode } from 'react'
-import { ExternalLink, GitBranch, GitPullRequest, Globe, Loader2, Server, Ticket, XCircle } from 'lucide-react'
+import { workspacePersistenceKey } from '../../../shared/workspaceIdentity'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FC,
+  type ReactNode
+} from 'react'
+import {
+  ExternalLink,
+  GitBranch,
+  GitPullRequest,
+  Globe,
+  Loader2,
+  Server,
+  Ticket,
+  XCircle
+} from 'lucide-react'
 import {
   Panel,
   PanelGroup,
   PanelResizeHandle,
   type ImperativePanelGroupHandle
 } from 'react-resizable-panels'
-import type { HostConfig, WorkspaceState } from '../../../shared/types'
+import type { WorkspaceState } from '../../../shared/types'
 import { BottomTabs } from './BottomTabs'
 import { BrowserPane } from './BrowserPane'
 import { CodePane } from './CodePane'
@@ -17,7 +34,10 @@ import { useNavigationStore } from '../store/navigation'
 type LayoutPreset = 'balanced' | 'code' | 'review' | 'debug' | 'agent'
 export type MaximizedPane = 'browser' | 'code' | 'bottom' | null
 
-const PRESET_SIZES: Record<LayoutPreset, { main: [number, number]; right: [number, number] }> = {
+const PRESET_SIZES: Record<
+  LayoutPreset,
+  { main: [number, number]; right: [number, number] }
+> = {
   balanced: { main: [48, 52], right: [58, 42] },
   code: { main: [24, 76], right: [78, 22] },
   review: { main: [18, 82], right: [84, 16] },
@@ -30,17 +50,19 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   active = true
 }) => {
   const [showTicket, setShowTicket] = useState(false)
-  const [host, setHost] = useState<HostConfig | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [showIntegrations, setShowIntegrations] = useState(false)
   const [jiraHost, setJiraHost] = useState<string | null>(null)
   const [bbWebBase, setBbWebBase] = useState<string | null>(null)
   const [prUrl, setPrUrl] = useState<string | null>(null)
   const [everReady, setEverReady] = useState(ws.status === 'connected')
-  const layoutKey = `mxwl.workspace.${ws.hostId}::${ws.remotePath}`
+  const layoutKey = workspacePersistenceKey(ws)
   const [layoutPreset, setLayoutPresetState] = useState<LayoutPreset>(() => {
     const saved = localStorage.getItem(`${layoutKey}.layoutPreset`)
-    return saved === 'code' || saved === 'review' || saved === 'debug' || saved === 'agent'
+    return saved === 'code' ||
+      saved === 'review' ||
+      saved === 'debug' ||
+      saved === 'agent'
       ? saved
       : 'balanced'
   })
@@ -62,16 +84,23 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
     [focusPanel, layoutKey, ws.id]
   )
 
-  const toggleMaximized = useCallback((pane: Exclude<MaximizedPane, null>): void => {
-    setMaximized((current) => (current === pane ? null : pane))
-  }, [])
+  const toggleMaximized = useCallback(
+    (pane: Exclude<MaximizedPane, null>): void => {
+      setMaximized((current) => (current === pane ? null : pane))
+    },
+    []
+  )
 
   useEffect(() => {
     const sizes = PRESET_SIZES[layoutPreset]
     const main: [number, number] =
       maximized === 'browser' ? [100, 0] : maximized ? [0, 100] : sizes.main
     const right: [number, number] =
-      maximized === 'code' ? [100, 0] : maximized === 'bottom' ? [0, 100] : sizes.right
+      maximized === 'code'
+        ? [100, 0]
+        : maximized === 'bottom'
+          ? [0, 100]
+          : sizes.right
     mainPanels.current?.setLayout(main)
     rightPanels.current?.setLayout(right)
   }, [layoutPreset, maximized])
@@ -80,9 +109,12 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
     if (!active) return
     const onKey = (event: KeyboardEvent): void => {
       const cmd = event.metaKey || event.ctrlKey
-      if (cmd && event.shiftKey && ['1', '2', '3'].includes(event.key)) {
+      const paneKey = /^Digit[123]$/.test(event.code) ? event.code.slice(-1) : event.key
+      if (cmd && event.shiftKey && ['1', '2', '3'].includes(paneKey)) {
         event.preventDefault()
-        toggleMaximized(event.key === '1' ? 'browser' : event.key === '2' ? 'code' : 'bottom')
+        toggleMaximized(
+          paneKey === '1' ? 'browser' : paneKey === '2' ? 'code' : 'bottom'
+        )
       } else if (event.key === 'Escape' && maximized) {
         event.preventDefault()
         setMaximized(null)
@@ -97,25 +129,41 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   }, [ws.status])
 
   useEffect(() => {
-    void Promise.all([window.api.host.get(ws.hostId), window.api.settings.get()]).then(([h, s]) => {
-      setHost(h ?? null)
-      setJiraHost(s.jira?.host?.replace(/\/+$/, '') || null)
-      const bb = s.bitbucket
+    void Promise.all([
+      window.api.project.list(),
+      window.api.settings.get()
+    ]).then(([projects, s]) => {
+      const project = projects.find((p) => p.id === ws.projectId)
+      setJiraHost(
+        project?.integrations.taskProvider === 'jira'
+          ? s.jira?.host?.replace(/\/+$/, '') || null
+          : null
+      )
+      const bb = project?.integrations
       setBbWebBase(
-        bb?.workspace && bb?.repo
-          ? `https://bitbucket.org/${bb.workspace}/${bb.repo}`
+        bb?.scmProvider === 'bitbucket' &&
+          bb.repositoryWorkspace &&
+          bb.repositorySlug
+          ? `https://bitbucket.org/${bb.repositoryWorkspace}/${bb.repositorySlug}`
           : null
       )
       setShowIntegrations(
-        (s.taskProvider && s.taskProvider !== 'none') ||
-          (s.scmProvider && s.scmProvider !== 'none')
+        Boolean(
+          project &&
+            (project.integrations.taskProvider !== 'none' ||
+              project.integrations.scmProvider !== 'none')
+        )
       )
     })
-  }, [ws.hostId])
+  }, [ws.projectId, ws.projectSettings])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === 'f'
+      ) {
         e.preventDefault()
         setSearchOpen(true)
       }
@@ -156,15 +204,22 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
         <Centered icon={<XCircle size={36} className="text-red-400" />}>
           <p className="text-sm font-medium text-red-400">Connection failed</p>
           <p className="text-xs text-neutral-500">
-            mxwl will keep retrying. Check host credentials / network, then reopen the workspace.
+            mxwl will keep retrying. Check host credentials / network, then
+            reopen the workspace.
           </p>
         </Centered>
       )
     }
     return (
-      <Centered icon={<Loader2 size={36} className="animate-spin text-amber-400" />}>
-        <p className="text-sm font-medium capitalize text-neutral-300">{ws.status}…</p>
-        <p className="text-xs text-neutral-500">Connecting to {ws.remotePath}</p>
+      <Centered
+        icon={<Loader2 size={36} className="animate-spin text-amber-400" />}
+      >
+        <p className="text-sm font-medium capitalize text-neutral-300">
+          {ws.status}…
+        </p>
+        <p className="text-xs text-neutral-500">
+          Connecting to {ws.remotePath}
+        </p>
       </Centered>
     )
   }
@@ -175,7 +230,9 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   }
 
   const jiraUrl =
-    jiraHost && ws.derived.issueKey ? `${jiraHost}/browse/${ws.derived.issueKey}` : null
+    jiraHost && ws.derived.issueKey
+      ? `${jiraHost}/browse/${ws.derived.issueKey}`
+      : null
   const branch = ws.derived.branch
   const bbUrl =
     prUrl ||
@@ -195,7 +252,13 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
           )}
           {connected ? 'connected' : ws.status}
         </span>
-        <span className="max-w-[40%] truncate font-mono text-neutral-500">{ws.remotePath}</span>
+        <span className="text-emerald-400">
+          {ws.projectLabel || 'Unassigned'}{' '}
+          <span className="text-neutral-500">· {ws.hostLabel}</span>
+        </span>
+        <span className="max-w-[40%] truncate font-mono text-neutral-500">
+          {ws.remotePath}
+        </span>
         {branch && (
           <span className="flex items-center gap-1">
             <GitBranch size={12} /> {branch}
@@ -220,10 +283,20 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
             </button>
           ))}
         {bbUrl && (
-          <BarLink href={bbUrl} icon={<GitPullRequest size={11} />} label="PR" onOpen={openTab} />
+          <BarLink
+            href={bbUrl}
+            icon={<GitPullRequest size={11} />}
+            label="PR"
+            onOpen={openTab}
+          />
         )}
         {devUrl && (
-          <BarLink href={devUrl} icon={<Globe size={11} />} label="Dev" onOpen={openTab} />
+          <BarLink
+            href={devUrl}
+            icon={<Globe size={11} />}
+            label="Dev"
+            onOpen={openTab}
+          />
         )}
         {showTicketBtn && (
           <button
@@ -245,7 +318,9 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
           <select
             aria-label="Workspace layout preset"
             value={layoutPreset}
-            onChange={(event) => choosePreset(event.currentTarget.value as LayoutPreset)}
+            onChange={(event) =>
+              choosePreset(event.currentTarget.value as LayoutPreset)
+            }
             className="rounded border border-neutral-800 bg-neutral-900 px-1.5 py-0.5 text-[10px] text-neutral-300 outline-none"
           >
             <option value="balanced">Balanced</option>
@@ -272,13 +347,7 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
               wsId={ws.id}
               defaultUrl={ws.derived.browserUrl}
               active={active && (maximized === null || maximized === 'browser')}
-              canTestLogin={Boolean(
-                host?.testLogin?.username &&
-                  host.testLogin.usernameSelector &&
-                  host.testLogin.passwordSelector &&
-                  host.testLogin.submitSelector &&
-                  host.testLogin.passwordEnc
-              )}
+              canTestLogin={ws.projectSettings.testLoginAvailable}
               maximized={maximized === 'browser'}
               onToggleMaximize={() => toggleMaximized('browser')}
             />
@@ -291,10 +360,17 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
               autoSaveId={`${layoutKey}.rightSplit`}
               className="h-full"
             >
-              <Panel defaultSize={58} minSize={15} collapsible collapsedSize={0}>
+              <Panel
+                defaultSize={58}
+                minSize={15}
+                collapsible
+                collapsedSize={0}
+              >
                 <CodePane
                   ws={ws}
-                  active={active && (maximized === null || maximized === 'code')}
+                  active={
+                    active && (maximized === null || maximized === 'code')
+                  }
                   searchOpen={searchOpen}
                   onCloseSearch={() => setSearchOpen(false)}
                   maximized={maximized === 'code'}
@@ -302,16 +378,27 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
                 />
               </Panel>
               <PanelResizeHandle className="h-1 bg-neutral-800 hover:bg-neutral-700" />
-              <Panel defaultSize={42} minSize={15} collapsible collapsedSize={0}>
+              <Panel
+                defaultSize={42}
+                minSize={15}
+                collapsible
+                collapsedSize={0}
+              >
                 <BottomTabs
                   wsId={ws.id}
-                  cwd={ws.remotePath}
+                  cwd={
+                    ws.projectSettings.appSubdirectory
+                      ? `${ws.remotePath.replace(/\/$/, '')}/${ws.projectSettings.appSubdirectory}`
+                      : ws.remotePath
+                  }
                   persistenceKey={layoutKey}
                   sessions={ws.terminal.sessions}
                   activeSessionId={ws.terminal.activeSessionId}
                   restoringTerminals={ws.terminal.restoring}
-                  hasServices={(host?.services.length ?? 0) > 0}
-                  workspaceActive={active && (maximized === null || maximized === 'bottom')}
+                  hasServices={ws.projectSettings.services.length > 0}
+                  workspaceActive={
+                    active && (maximized === null || maximized === 'bottom')
+                  }
                   connected={connected}
                   maximized={maximized === 'bottom'}
                   onToggleMaximize={() => toggleMaximized('bottom')}
@@ -334,7 +421,10 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   )
 }
 
-const Centered: FC<{ icon: ReactNode; children: ReactNode }> = ({ icon, children }) => (
+const Centered: FC<{ icon: ReactNode; children: ReactNode }> = ({
+  icon,
+  children
+}) => (
   <div className="flex h-full flex-col items-center justify-center gap-2">
     {icon}
     {children}

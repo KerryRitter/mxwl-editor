@@ -53,7 +53,7 @@ export class TerminalSession {
     this.getSender = opts.getSender
     this.onClosed = opts.onClosed
     this.onOutput = opts.onOutput
-    if (opts.initialReplay) {
+    if (opts.initialReplay !== undefined) {
       const marker = this.tmuxName
         ? `[restored after restart — reattaching tmux:${this.tmuxName}]`
         : '[restored after restart — new shell process]'

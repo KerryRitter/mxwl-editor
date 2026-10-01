@@ -159,7 +159,7 @@ try {
     window.center()
   })
 
-  const host = await page.evaluate(async ({ root, agentPath }) => {
+  const host = await page.evaluate(async ({ root, agentPath, checkouts }) => {
     await window.api.settings.update({
       agent: {
         defaultAgent: 'claude',
@@ -175,23 +175,24 @@ try {
         mutedAgents: []
       }
     })
-    const local = await window.api.host.ensureLocal(root)
-    return window.api.host.save({
-      ...local,
-      label: 'Studio workstation',
-      derive: {
-        folderPattern: '(?<name>.+)-(?<issue>[A-Z]+-\\d+)$',
-        titleTemplate: '${name}',
-        issueKeyTemplate: '${issue}',
-        browserUrlTemplate: ''
-      },
-      auth: { kind: 'none' }
-    })
-  }, { root: workRoot, agentPath: fakeAgent })
+    const local = await window.api.host.ensureLocal()
+    const host = await window.api.host.save({ ...local, label: 'Studio workstation', auth: { kind: 'none' } })
+    const locations = {}
+    for (const [label, path] of Object.entries(checkouts)) {
+      const project = await window.api.project.save({ label, repositoryUrl: '',
+        derive: { folderPattern: '(?<name>.+)-(?<issue>[A-Z]+-\\d+)$', titleTemplate: '${name}', issueKeyTemplate: '${issue}', browserUrlTemplate: '' },
+        services: [], hide: ['node_modules','.git','dist','out'], terminalStartup: '', browserProfiles: [], defaultBrowserProfileId: null,
+        integrations: { taskProvider: 'none', scmProvider: 'github', taskProject: '', repositoryWorkspace: 'acme', repositorySlug: label.toLowerCase() },
+        ai: { workspaceFolderTemplate: '${project}-${keyLower}', initBranchCommand: '' }, plugins: {} })
+      const location = await window.api.project.saveLocation({ projectId: project.id, hostId: host.id, label: 'Local development', checkoutPath: path, workspacesRoot: root, folderFilter: '', appSubdirectory: '', browserProfileId: null, overrides: {} })
+      locations[path] = location.id
+    }
+    return { ...host, locations }
+  }, { root: workRoot, agentPath: fakeAgent, checkouts: { Checkout: checkoutRoot, Billing: apiRoot, Catalog: catalogRoot } })
 
   const checkout = await page.evaluate(
-    ([hostId, path]) => window.api.workspace.open(hostId, path),
-    [host.id, checkoutRoot]
+    ([hostId, path, locationId]) => window.api.workspace.open(hostId, path, locationId),
+    [host.id, checkoutRoot, host.locations[checkoutRoot]]
   )
   await waitForWorkspace(page, checkout.id)
   await page.evaluate((id) => window.api.workspace.rename(id, 'Checkout release'), checkout.id)
@@ -214,9 +215,9 @@ try {
 
   await page.keyboard.press('Escape')
   const [billing, catalog] = await page.evaluate(
-    async ({ hostId, paths }) =>
-      Promise.all(paths.map((path) => window.api.workspace.open(hostId, path))),
-    { hostId: host.id, paths: [apiRoot, catalogRoot] }
+    async ({ hostId, paths, locations }) =>
+      Promise.all(paths.map((path) => window.api.workspace.open(hostId, path, locations[path]))),
+    { hostId: host.id, paths: [apiRoot, catalogRoot], locations: host.locations }
   )
   await Promise.all([
     waitForWorkspace(page, billing.id),
@@ -257,7 +258,14 @@ try {
   await waitForAgent(page, billing.id, (state) => Boolean(state?.permission))
   await waitForAgent(page, catalog.id, (state) => state?.turn === 'idle')
 
-  await page.getByText('Catalog search', { exact: true }).click()
+  await page.getByRole('button', { name: 'Projects', exact: true }).click()
+  await page.locator('section').filter({ has: page.getByRole('heading', { name: 'Checkout', exact: true }) }).getByRole('button', { name: /Hosts ·/ }).click()
+  await page.getByRole('heading', { name: 'Studio workstation', exact: true }).waitFor({ state: 'visible' })
+  await page.screenshot({ path: join(outputDir, 'mxwl-project-hosts.png'), animations: 'disabled', clip: { x: 0, y: 0, width: await page.evaluate(() => window.innerWidth), height: 320 } })
+  await page.getByRole('button', { name: 'Projects', exact: true }).click()
+  await page.locator('section').filter({ has: page.getByRole('heading', { name: 'Catalog', exact: true }) }).getByRole('button', { name: /Hosts ·/ }).click()
+  await page.getByRole('button', { name: 'Workspaces', exact: true }).click()
+  await page.getByRole('button', { name: 'Catalog search', exact: true }).click()
   await page.getByRole('button', { name: 'Agent', exact: true }).click()
   await page.keyboard.press('Control+Shift+3')
   await page.getByRole('button', { name: 'Agent notifications' }).click()

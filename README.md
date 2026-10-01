@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>mxwl</h1>
+<img src="./resources/logo.png" alt="mxwl" width="360" />
 
 **The agent command center for local and remote workspaces.**
 
@@ -8,7 +8,7 @@ Browser, code review, terminals, services, and coding agents—locked to the sam
 
 [![Release](https://img.shields.io/github/v/release/KerryRitter/mxwl-editor?include_prereleases&sort=semver&style=flat-square&color=8b5cf6)](https://github.com/KerryRitter/mxwl-editor/releases) [![CI](https://img.shields.io/github/actions/workflow/status/KerryRitter/mxwl-editor/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/KerryRitter/mxwl-editor/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/KerryRitter/mxwl-editor?style=flat-square)](./LICENSE) [![Linux](https://img.shields.io/badge/Linux-AppImage%20%7C%20deb-0ea5e9?style=flat-square&logo=linux&logoColor=white)](#install) [![macOS](https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-64748b?style=flat-square&logo=apple&logoColor=white)](#install)
 
-[Install](#install) · [See what it does](#one-folder-one-command-center) · [Control your agents](#run-the-fleet-not-just-one-chat) · [Docs](#docs) · [Latest release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.4)
+[Install](#install) · [See what it does](#one-folder-one-command-center) · [Control your agents](#run-the-fleet-not-just-one-chat) · [Docs](#docs) · [Latest release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.5)
 
 </div>
 
@@ -81,18 +81,18 @@ Comparison reviewed September 2026 using first-party documentation for [Herdr ag
 curl -fsSL https://raw.githubusercontent.com/KerryRitter/mxwl-editor/main/scripts/install.sh | bash
 ```
 
-The installer downloads and verifies the **x86_64 AppImage**, places `mxwl` in `~/.local/bin`, and registers a desktop launcher. Re-run the command to update. It requires `curl` and `sha256sum`.
+The installer downloads and verifies the **x86_64 AppImage**, places `mxwl` in `~/.local/bin`, and registers a branded desktop launcher and icon set. Re-run the command to update. It requires `curl` and `sha256sum`. The launcher uses the same application ID as the `.deb`, so user installs take precedence over an older system install.
 
 ### Download a release
 
 | Platform | Artifact | Status |
 |---|---|---|
-| Linux x86_64 | [AppImage](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/mxwl-0.2.0-alpha.4.AppImage) · [deb](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/mxwl-editor_0.2.0-alpha.4_amd64.deb) · [checksums](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/SHA256SUMS) | Primary / best tested |
-| macOS Apple Silicon | [arm64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/mxwl-0.2.0-alpha.4-arm64-mac.zip) | Ad-hoc signed, not notarized |
-| macOS Intel | [x64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.4/mxwl-0.2.0-alpha.4-mac.zip) | Ad-hoc signed, not notarized |
+| Linux x86_64 | [AppImage](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/mxwl-0.2.0-alpha.5.AppImage) · [deb](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/mxwl-editor_0.2.0-alpha.5_amd64.deb) · [checksums](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/SHA256SUMS) | Primary / best tested |
+| macOS Apple Silicon | [arm64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/mxwl-0.2.0-alpha.5-arm64-mac.zip) | Ad-hoc signed, not notarized |
+| macOS Intel | [x64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/mxwl-0.2.0-alpha.5-mac.zip) | Ad-hoc signed, not notarized |
 | Windows | Build from source | Portable build, lightly tested |
 
-All current binaries are on the [`v0.2.0-alpha.4` release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.4).
+All current binaries are on the [`v0.2.0-alpha.5` release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.5).
 
 <details>
 <summary><strong>Build from source</strong></summary>
@@ -127,16 +127,47 @@ npm run package:mac     # Intel + Apple Silicon zip
 npm run package:win     # portable exe
 ```
 
+Linux source builds can install the AppImage, desktop entry, and icons together:
+
+```bash
+MXWL_APPIMAGE_PATH="$PWD/dist/mxwl-0.2.0-alpha.5.AppImage" bash scripts/install.sh
+```
+
+The checked-in `resources/icon.png` is the shared brand mark. `npm run icons` exports the
+Linux PNG sizes, macOS `.icns`, and Windows `.ico` used by the packages; regenerate these when
+changing the mark. The application window and tray use that same artwork.
+
 If the terminal pane fails after an Electron upgrade, rebuild its native module with `npx electron-rebuild -f -w node-pty`.
 
 </details>
 
 ### First launch
 
-1. Add **This machine** or an **SSH host**, then choose its workspace root and browser URL.
-2. Test the connection and open a folder—or press `Ctrl/⌘ T`.
-3. mxwl binds the browser, code, terminals, services, and agents to that folder.
-4. Clone the host configuration when another machine or environment uses the same project shape.
+1. In **Projects**, create your app and configure its browser profiles, services, and integrations. The project is saved in mxwl's local app database; no checkout is required yet.
+2. Every project includes a permanent **This machine** host. Choose **Configure checkout** to set its paths, or **Add host** to attach another checkout or SSH/Tailscale machine. The small **New** buttons beside the machine and browser-profile selectors create those without losing your form.
+3. Select the host and **Open workspaces**—each folder becomes a tab containing its browser, code, terminals, and agents.
+4. Use the **Projects → project → host** breadcrumbs to switch. Other projects' workspaces keep running; their tabs appear when you return to that host.
+
+### Discover your Tailscale machines
+
+Open **Projects → your project → Add host → New** (beside Machine connection) **→ Tailscale** to list machines visible from your local Tailscale connection.
+The connection options are **SSH**, **Tailscale**, and **This Machine**. **Manage connections** also has a
+**Discover Tailscale** shortcut.
+No API token is required. Search by name, mesh address, or tag; online machines appear first.
+By default, the picker shows peers advertising Tailscale SSH host keys. Enable **Show all devices**
+to include ordinary SSH servers, whose SSH access must be configured separately.
+
+Select a machine, confirm its remote **Username** and **Workspaces root**, then save and test the
+connection. mxwl uses the mesh IP so MagicDNS is optional. Tailscale SSH uses your mesh identity
+without storing an SSH key or password; ordinary SSH uses your existing agent, key, or password.
+Already configured addresses are marked in the picker, and offline machines can be saved for later.
+
+Discovery reflects the current machine's view of the tailnet, not an administrator's full device
+inventory. Advertised SSH host keys indicate policy-permitted SSH discovery; authorization still
+depends on the remote username. If your policy uses **check mode**, first run
+`tailscale ssh USER@MESH_IP` in a terminal and complete browser approval, then connect in mxwl.
+Install and sign in to Tailscale locally before discovery. See [Tailscale SSH](https://tailscale.com/docs/features/tailscale-ssh)
+for server setup and access policies.
 
 ## One folder, one command center
 
@@ -166,11 +197,11 @@ Maximize any quadrant or switch among **Balanced**, **Code**, **Review**, **Debu
 
 ### Turn branch artifacts into a living brief
 
-The standalone `mxwl-plugin-zipper` repository shows what the plugin deck is meant for. It detects
-the ticket from the focused worktree, discovers specs and QA evidence under
-`.zipper-agent/local/<TICKET>/`, and turns Markdown, task lists, tables, reviews, and JSON
-checkpoints into a focused reading surface. Search the dossier, jump through headings, switch
-ticket history, and adjust reader type size without mixing company-specific conventions into mxwl.
+A standalone artifact-reader plugin is one example of what the plugin deck enables: detect
+the ticket from the focused worktree, discover specs and QA evidence in a tool-owned directory
+such as `.agent-artifacts/local/<TICKET>/`, and turn Markdown, task lists, tables, reviews, and JSON
+checkpoints into a focused reading surface. Plugins can offer search, heading navigation,
+ticket history, and reader type sizing without mixing company-specific conventions into mxwl.
 
 ```text
 focused branch → detect ticket → discover local artifacts → read plan / QA / proof → auto-refresh
@@ -270,10 +301,23 @@ Ordinary PTYs reopen as fresh shells after a process restart, and ACP cannot res
 - Browse and edit local files or SFTP files on an SSH host.
 - Run terminals, services, and agents where the workspace actually lives.
 - Reconnect SSH workspaces after network interruptions.
-- Configure roots, folder filters, naming rules, hidden files, terminal startup commands, browser templates, issue templates, and service commands per host.
-- Clone a host configuration when several machines share the same project shape.
+- Configure reusable projects independently of machine connections.
+- Attach each project to multiple hosts with checkout/worktree paths, app subdirectories, and machine-specific overrides.
+- Keep app-specific browser profiles, login credentials, service commands, task/repository integrations, and plugin visibility separate—even when apps share a host.
 - Create browser cookie groups for several identities against the same application.
 - Expose loopback-only MCP/CDP bridges so a remote agent can operate the desktop browser.
+
+## One app, many machines. One machine, many apps.
+
+The app follows **Projects → Hosts → Workspaces**. Projects live in mxwl's local app database and own shared app behavior. Hosts are configured beneath a project with their checkout/worktree paths. Workspaces are open folders or branches, displayed as tabs within that project and host.
+
+Create the project first, configure its permanent **This machine** checkout or add other hosts, then open workspace tabs. The automatic local host cannot be removed; it does not guess paths or start services. Breadcrumbs switch the visible project/host without closing any workspace. Closing the last tab keeps you on the same host. Browser cookies and saved runtime state remain isolated per project, host checkout, folder, and browser profile.
+
+Shared settings include services, URL/ticket naming, file exclusions, AI task setup, and per-project plugin visibility. Global **Settings → Accounts** holds reusable integration credentials. **Manage connections** is a reusable connection library, not an alternate workspace hierarchy: one machine can serve several projects, and one project can use several machines. No legacy host-app settings are automatically migrated.
+
+![Projects contain hosts; workspaces open as tabs within a host](./docs/assets/mxwl-project-hosts.png)
+
+See [Projects → Hosts → Workspaces](./docs/presets.md) for setup, inheritance, secrets, and monorepos.
 
 ## Keybindings
 
@@ -346,7 +390,7 @@ npm run docs:screenshots  # regenerate README captures with demo data
 | [Agent runtime](./docs/agent.md) | ACP agents, conversations, permissions, and modes |
 | [Agent control](./docs/agent-control.md) | Notifications, fleet view, CLI, dashboard, and API |
 | [AI task runs](./docs/ai.md) | Planning and running work across several workspaces |
-| [Host settings](./docs/presets.md) | Per-host project and service configuration |
+| [Projects → Hosts → Workspaces](./docs/presets.md) | Project-first setup, host-scoped workspace tabs, browser profiles, services, and overrides |
 | [Cookie sandboxes](./docs/tab-groups.md) | Browser identity isolation and tab groups |
 | [Plugin authoring](./docs/plugins.md) | Zero-to-running tutorial, lifecycle, state, UX, and architecture |
 | [Plugin API](./docs/plugin-api.md) | Exact manifests, SDK methods, result shapes, errors, and limits |
@@ -359,7 +403,7 @@ npm run docs:screenshots  # regenerate README captures with demo data
 
 ## Release status
 
-Current release: **[`v0.2.0-alpha.4`](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.4)**
+Current release: **[`v0.2.0-alpha.5`](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.5)**
 
 Linux is the primary platform. macOS artifacts are ad-hoc signed but not notarized. Windows is buildable as a portable executable and is still lightly tested. There is no auto-updater yet.
 

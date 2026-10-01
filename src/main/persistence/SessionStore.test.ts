@@ -18,6 +18,11 @@ const makeStore = (): { store: SessionStore; file: string } => {
 }
 
 describe('SessionStore', () => {
+  it('distinguishes the same path across project locations and browser profiles', () => {
+    const base = { hostId: 'local', remotePath: '/work/repo', locationId: 'app-a', browserProfileId: 'qa' }
+    expect(SessionStore.keyFor(base)).not.toBe(SessionStore.keyFor({ ...base, locationId: 'app-b' }))
+    expect(SessionStore.keyFor(base)).not.toBe(SessionStore.keyFor({ ...base, browserProfileId: 'admin' }))
+  })
   it('round-trips renamed workspaces and terminal recovery checkpoints', () => {
     const { store, file } = makeStore()
     const state = {

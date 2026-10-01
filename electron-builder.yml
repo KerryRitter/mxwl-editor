@@ -1,5 +1,11 @@
 appId: com.mxwl.editor
 productName: mxwl
+icon: resources/icon.png
+extraResources:
+  - from: resources/icon.png
+    to: branding/icon.png
+  - from: resources/icons
+    to: branding/icons
 directories:
   buildResources: resources
   output: dist
@@ -9,12 +15,18 @@ files:
 asar: true
 afterPack: scripts/after-pack.js
 linux:
+  icon: resources/icons
+  # Keep the executable/desktop-entry identity stable across deb and user installs.
+  desktop:
+    Name: mxwl
+    StartupWMClass: mxwl-editor
   target:
     - AppImage
     - deb
   category: Development
-  maintainer: "kerry <kerry@joinzipper.com>"
+  maintainer: "kerry <kerryritter@users.noreply.github.com>"
 mac:
+  icon: resources/icon.icns
   target:
     - zip
   category: public.app-category.developer-tools
@@ -32,6 +44,7 @@ mac:
     - "!node_modules/cpu-features/**"
     - "!node_modules/ssh2/lib/protocol/crypto/build/**"
 win:
+  icon: resources/icon.ico
   target:
     - portable
   signAndEditExecutable: false

@@ -1,3 +1,4 @@
+import { workspacePersistenceKey } from '../src/shared/workspaceIdentity'
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -104,9 +105,8 @@ test('searches everything, applies layouts, maximizes panes, and creates a tmux 
   await expect
     .poll(() =>
       page.evaluate(
-        ([hostId, root]) =>
-          localStorage.getItem(`mxwl.workspace.${hostId}::${root}.layoutPreset`),
-        [workspace.hostId, workspace.remotePath] as const
+        key => localStorage.getItem(`${key}.layoutPreset`),
+        workspacePersistenceKey(workspace)
       )
     )
     .toBe('review')

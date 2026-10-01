@@ -312,7 +312,7 @@ hide list are filtered. Recurse deliberately and bound the work yourself.
 
 ```js
 const entries = await window.mxwl.call("files.readDirectory", {
-  path: ".zipper-agent/local/PROJ-42",
+  path: ".agent-artifacts/local/PROJ-42",
 });
 ```
 

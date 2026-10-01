@@ -29,17 +29,30 @@ export class HostStore {
     this.ensureLoaded()
     const dir = join(this.filePath, '..')
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    writeFileSync(this.filePath, JSON.stringify([...this.hosts.values()], null, 2), 'utf8')
+    writeFileSync(
+      this.filePath,
+      JSON.stringify([...this.hosts.values()], null, 2),
+      'utf8'
+    )
   }
 
   all(): HostConfig[] {
     this.ensureLoaded()
-    return [...this.hosts.values()].sort((a, b) => a.label.localeCompare(b.label))
+    return [...this.hosts.values()].sort((a, b) =>
+      a.label.localeCompare(b.label)
+    )
   }
 
   get(id: string): HostConfig | undefined {
     this.ensureLoaded()
     return this.hosts.get(id)
+  }
+
+  firstLocal(): HostConfig | undefined {
+    this.ensureLoaded()
+    // Persisted insertion order is stable; labels are user-editable and cannot
+    // decide which connection backs every project's permanent local host.
+    return [...this.hosts.values()].find((h) => h.kind === 'local')
   }
 
   upsert(host: HostConfig): HostConfig {

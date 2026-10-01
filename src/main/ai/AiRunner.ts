@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import type { BrowserWindow } from 'electron'
-import type { AiPlan, AiRunState, AiTargetRun, AiTaskRun } from '../../shared/types'
+import type {
+  AiPlan,
+  AiRunState,
+  AiTargetRun,
+  AiTaskRun
+} from '../../shared/types'
 import { buildHeadlessCommand, buildLaunchCommand } from '../../shared/aiCli'
 import { humanDuration } from '../../shared/duration'
 import type { SettingsStore } from '../persistence/SettingsStore'
@@ -17,7 +22,8 @@ const PREP_EMIT_MS = 700
 /** How often the log says the setup is still alive */
 const PREP_HEARTBEAT_MS = 30_000
 // CSI / OSC / two-char escapes — the modal shows text, not a terminal.
-const ANSI = /\u001b(?:\[[0-?]*[ -\/]*[@-~]|\][^\u0007]*(?:\u0007|\u001b\\)|[@-Z\\-_])/g
+const ANSI =
+  /\u001b(?:\[[0-?]*[ -\/]*[@-~]|\][^\u0007]*(?:\u0007|\u001b\\)|[@-Z\\-_])/g
 const TERM_COLS = 160
 const TERM_ROWS = 44
 
@@ -52,11 +58,15 @@ export class AiRunner {
 
   /** Kicks the run off and returns immediately; progress arrives on `ai:event`. */
   start(plan: AiPlan): AiRunState {
+    if (!plan.locationId)
+      throw new Error('Choose a project location for this AI run')
+    this.workspaces.projects?.resolve(plan.locationId, plan.hostId)
     const runId = randomUUID()
     const run: AiRunState = {
       runId,
       cli: plan.cli,
       hostId: plan.hostId,
+      locationId: plan.locationId,
       startedAt: Date.now(),
       status: 'running',
       targets: plan.targets.map<AiTargetRun>((t) => ({
@@ -88,7 +98,16 @@ export class AiRunner {
     let shell: HostShell | null = null
     try {
       shell = await this.workspaces.openHostShell(plan.hostId)
-      const root = await shell.resolve(shell.host.workspacesRoot || '~/Workspaces')
+      const context = this.workspaces.projects?.resolve(
+        plan.locationId!,
+        plan.hostId
+      )
+      if (!context) throw new Error('Project location not found')
+      const root = await shell.resolve(context.location.workspacesRoot)
+      // Prep checks targets before runTarget opens them. Resolve here rather
+      // than relying on a host connection's implicit shell working directory.
+      for (const target of run.targets)
+        target.path = joinRemote(root, target.folder)
       this.log(run, `Host ${shell.host.label} — workspaces root ${root}`)
 
       if (plan.prep) await this.runPrep(run, plan, plan.prep, shell, root)
@@ -98,7 +117,10 @@ export class AiRunner {
       // is worse than starting them early, so the run stops here.
       if (run.prep?.blocking && run.prep.status === 'error') {
         this.skipRemaining(run, 'setup failed')
-        this.log(run, 'run stopped: setup failed, so no ticket agents were started')
+        this.log(
+          run,
+          'run stopped: setup failed, so no ticket agents were started'
+        )
         run.status = 'error'
         run.finishedAt = Date.now()
         return
@@ -119,13 +141,18 @@ export class AiRunner {
             task.status = 'skipped'
             task.message = 'target failed'
           }
-          this.log(run, `${targetRun.key ?? targetRun.title}: ${targetRun.message}`)
+          this.log(
+            run,
+            `${targetRun.key ?? targetRun.title}: ${targetRun.message}`
+          )
           this.emit(run)
         }
       }
 
       if (!this.cancelled.has(runId)) {
-        run.status = run.targets.some((t) => t.status === 'error') ? 'error' : 'done'
+        run.status = run.targets.some((t) => t.status === 'error')
+          ? 'error'
+          : 'done'
         run.finishedAt = Date.now()
       }
     } catch (err) {
@@ -173,7 +200,7 @@ export class AiRunner {
 
     targetRun.status = 'opening'
     this.emit(run)
-    const wsId = await this.ensureWorkspace(plan.hostId, path)
+    const wsId = await this.ensureWorkspace(plan.hostId, path, plan.locationId)
     targetRun.wsId = wsId
     this.log(run, `${label}: workspace ready`)
 
@@ -184,7 +211,12 @@ export class AiRunner {
       taskRun.status = 'launching'
       this.emit(run)
       try {
-        const promptFile = await this.writePromptFile(shell, run.runId, task.id, task.prompt)
+        const promptFile = await this.writePromptFile(
+          shell,
+          run.runId,
+          task.id,
+          task.prompt
+        )
         const sessionId = await this.workspaces.openTerminal(wsId, {
           cwd: path,
           cols: TERM_COLS,
@@ -227,11 +259,17 @@ export class AiRunner {
     shell: HostShell,
     root: string
   ): Promise<void> {
-    const path = prep.cwd.startsWith('/') || prep.cwd.startsWith('~')
-      ? await shell.resolve(prep.cwd)
-      : joinRemote(root, prep.cwd)
+    const path =
+      prep.cwd.startsWith('/') || prep.cwd.startsWith('~')
+        ? await shell.resolve(prep.cwd)
+        : joinRemote(root, prep.cwd)
 
-    run.prep = { command: prep.command, path, status: 'provisioning', blocking: prep.blocking }
+    run.prep = {
+      command: prep.command,
+      path,
+      status: 'provisioning',
+      blocking: prep.blocking
+    }
     this.emit(run)
 
     let stopWatch: (() => void) | null = null
@@ -240,7 +278,11 @@ export class AiRunner {
         throw new Error(`${path} does not exist on ${shell.host.label}`)
       }
 
-      const wsId = await this.ensureWorkspace(plan.hostId, path)
+      const wsId = await this.ensureWorkspace(
+        plan.hostId,
+        path,
+        plan.locationId
+      )
       run.prep.wsId = wsId
       const sessionId = await this.workspaces.openTerminal(wsId, {
         cwd: path,
@@ -253,7 +295,12 @@ export class AiRunner {
       const ai = this.settings.all().ai
       let line: string
       if (prep.kind === 'cli') {
-        const file = await this.writePromptFile(shell, run.runId, 'prep', prep.prompt)
+        const file = await this.writePromptFile(
+          shell,
+          run.runId,
+          'prep',
+          prep.prompt
+        )
         // An interactive CLI sits at its REPL once the turn ends, so it would never
         // hand the shell back. A blocking setup runs headless instead: same output
         // in the same terminal, but the process exits when the work is done.
@@ -290,7 +337,9 @@ export class AiRunner {
       // command and the folder template, not something more waiting would fix.
       await this.waitForTargets(run, shell, PREP_FOLDER_GRACE_SEC)
       run.prep.status = 'done'
-      const took = run.prep.startedAt ? ` in ${humanDuration(Date.now() - run.prep.startedAt)}` : ''
+      const took = run.prep.startedAt
+        ? ` in ${humanDuration(Date.now() - run.prep.startedAt)}`
+        : ''
       this.log(run, `setup: finished${took}, all ticket folders present`)
     } catch (err) {
       run.prep.status = 'error'
@@ -308,7 +357,11 @@ export class AiRunner {
    * `/agent/init-branch` runs for minutes, and the modal is the only thing the
    * operator is looking at — a blank card gives no way to tell work from a hang.
    */
-  private tailPrep(run: AiRunState, wsId: string, sessionId: string): () => void {
+  private tailPrep(
+    run: AiRunState,
+    wsId: string,
+    sessionId: string
+  ): () => void {
     let buffer = ''
     let last = 0
     let timer: NodeJS.Timeout | null = null
@@ -359,13 +412,19 @@ export class AiRunner {
     const deadline = startedAt + timeoutSec * 1000
     let beat = startedAt
     for (;;) {
-      if (this.cancelled.has(run.runId)) throw new Error('cancelled during setup')
+      if (this.cancelled.has(run.runId))
+        throw new Error('cancelled during setup')
       if (Date.now() - beat >= PREP_HEARTBEAT_MS) {
         beat = Date.now()
-        this.log(run, `setup: still running (${humanDuration(beat - startedAt)})`)
+        this.log(
+          run,
+          `setup: still running (${humanDuration(beat - startedAt)})`
+        )
         this.emit(run)
       }
-      const { code, stdout } = await shell.exec(`cat ${shellQuote(doneFile)} 2>/dev/null`)
+      const { code, stdout } = await shell.exec(
+        `cat ${shellQuote(doneFile)} 2>/dev/null`
+      )
       if (code === 0 && stdout.trim()) {
         const exit = Number(stdout.trim())
         return Number.isFinite(exit) ? exit : 0
@@ -380,21 +439,33 @@ export class AiRunner {
   }
 
   /** Absolute path inside this run's host cache dir, with the dir created. */
-  private async cachePath(shell: HostShell, runId: string, name: string): Promise<string> {
+  private async cachePath(
+    shell: HostShell,
+    runId: string,
+    name: string
+  ): Promise<string> {
     const dir = `$HOME/.cache/mxwl/ai/${runId}`
     const { code, stderr } = await shell.exec(`mkdir -p ${dir}`)
-    if (code !== 0) throw new Error(`could not create ${dir}: ${stderr.trim() || `exit ${code}`}`)
+    if (code !== 0)
+      throw new Error(
+        `could not create ${dir}: ${stderr.trim() || `exit ${code}`}`
+      )
     const { stdout } = await shell.exec(`printf %s ${dir}/${name}`)
     return stdout.trim() || `${dir}/${name}`
   }
 
   /** Polls until every target folder exists, so the ticket agents open on real checkouts. */
-  private async waitForTargets(run: AiRunState, shell: HostShell, timeoutSec?: number): Promise<void> {
+  private async waitForTargets(
+    run: AiRunState,
+    shell: HostShell,
+    timeoutSec?: number
+  ): Promise<void> {
     const timeout = timeoutSec ?? this.settings.all().ai.initTimeoutSec
     const deadline = Date.now() + timeout * 1000
     const pending = new Set(run.targets.map((t) => t.targetId))
     for (;;) {
-      if (this.cancelled.has(run.runId)) throw new Error('cancelled during setup')
+      if (this.cancelled.has(run.runId))
+        throw new Error('cancelled during setup')
       for (const targetId of [...pending]) {
         const target = run.targets.find((t) => t.targetId === targetId)!
         if (await dirExists(shell, target.path)) {
@@ -425,7 +496,17 @@ export class AiRunner {
     shell: HostShell,
     root: string
   ): Promise<void> {
-    const ai = this.settings.all().ai
+    const defaults = this.settings.all().ai
+    const context = this.workspaces.projects?.resolve(
+      plan.locationId!,
+      plan.hostId
+    )
+    if (!context) throw new Error('Project location not found')
+    const ai = {
+      ...defaults,
+      initBranchCommand: context.project.ai.initBranchCommand,
+      baseRepoFolder: context.location.checkoutPath
+    }
     // The brief's own setup command already had its chance; don't silently run a
     // second, different init command behind the user's back.
     if (run.prep) {
@@ -439,15 +520,19 @@ export class AiRunner {
     ].filter(Boolean)
     if (missing.length > 0) {
       throw new Error(
-        `${targetRun.folder} does not exist — either name the setup command in the brief ("in ~/repo, run …, then …") or set Settings → AI → ${missing.join(' and ')}`
+        `${targetRun.folder} does not exist — either name the setup command in the brief ("in ~/repo, run …, then …") or set Project settings → General → ${missing.join(' and ')}`
       )
     }
-    const basePath = joinRemote(root, ai.baseRepoFolder)
+    const basePath = await shell.resolve(ai.baseRepoFolder)
     if (!(await dirExists(shell, basePath))) {
       throw new Error(`base repo ${basePath} not found`)
     }
 
-    const baseWsId = await this.ensureWorkspace(plan.hostId, basePath)
+    const baseWsId = await this.ensureWorkspace(
+      plan.hostId,
+      basePath,
+      plan.locationId
+    )
     const command = renderInit(ai.initBranchCommand, targetRun)
     const sessionId = await this.workspaces.openTerminal(baseWsId, {
       cwd: basePath,
@@ -459,10 +544,14 @@ export class AiRunner {
 
     const deadline = Date.now() + ai.initTimeoutSec * 1000
     for (;;) {
-      if (this.cancelled.has(run.runId)) throw new Error('cancelled during branch init')
+      if (this.cancelled.has(run.runId))
+        throw new Error('cancelled during branch init')
       await new Promise((r) => setTimeout(r, POLL_MS))
       if (await dirExists(shell, targetRun.path)) {
-        this.log(run, `${targetRun.key ?? targetRun.folder}: branch folder created`)
+        this.log(
+          run,
+          `${targetRun.key ?? targetRun.folder}: branch folder created`
+        )
         return
       }
       if (Date.now() > deadline) {
@@ -473,11 +562,16 @@ export class AiRunner {
     }
   }
 
-  private async ensureWorkspace(hostId: string, path: string): Promise<string> {
-    const existing = this.workspaces.findByPath(hostId, path)
+  private async ensureWorkspace(
+    hostId: string,
+    path: string,
+    locationId?: string
+  ): Promise<string> {
+    const existing = this.workspaces.findByPath(hostId, path, locationId)
     const id = existing
       ? existing.id
-      : (await this.workspaces.open(hostId, path, { focus: false })).id
+      : (await this.workspaces.open(hostId, path, { focus: false, locationId }))
+          .id
     await this.workspaces.waitForConnected(id)
     return id
   }
@@ -503,7 +597,10 @@ export class AiRunner {
     const { code, stderr } = await shell.exec(
       `mkdir -p ${dir} && cat > ${file} <<'${delimiter}'\n${body}\n${delimiter}\n`
     )
-    if (code !== 0) throw new Error(`could not stage prompt file: ${stderr.trim() || `exit ${code}`}`)
+    if (code !== 0)
+      throw new Error(
+        `could not stage prompt file: ${stderr.trim() || `exit ${code}`}`
+      )
     const { stdout } = await shell.exec(`printf %s ${file}`)
     return stdout.trim() || file
   }
@@ -519,7 +616,9 @@ export class AiRunner {
 }
 
 async function dirExists(shell: HostShell, path: string): Promise<boolean> {
-  const { stdout } = await shell.exec(`test -d ${shellQuote(path)} && echo yes || echo no`)
+  const { stdout } = await shell.exec(
+    `test -d ${shellQuote(path)} && echo yes || echo no`
+  )
   return stdout.trim().endsWith('yes')
 }
 
@@ -534,7 +633,10 @@ function renderInit(template: string, target: AiTargetRun): string {
     title: target.title
   }
   if (/\$\{/.test(template)) {
-    return template.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (_m, name: string) => vars[name] ?? '')
+    return template.replace(
+      /\$\{([a-zA-Z0-9_]+)\}/g,
+      (_m, name: string) => vars[name] ?? ''
+    )
   }
   // No placeholders — pass the ticket as an argument, e.g. `$agent-init-branch PLAT-1`
   return key ? `${template.trim()} ${key}` : template.trim()

@@ -101,8 +101,8 @@ test('serves the browser SDK to a linked plugin with scoped hidden-directory rea
   page,
   workRoot
 }) => {
-  const projectRoot = join(workRoot, 'zipper-ZPR-42')
-  const dossier = join(projectRoot, '.zipper-agent', 'local', 'ZPR-42')
+  const projectRoot = join(workRoot, 'myapp-ZPR-42')
+  const dossier = join(projectRoot, '.agent-artifacts', 'local', 'ZPR-42')
   mkdirSync(dossier, { recursive: true })
   writeFileSync(join(dossier, 'QA_PREP.md'), '# QA Prep\n', 'utf8')
 
@@ -134,7 +134,7 @@ test('serves the browser SDK to a linked plugin with scoped hidden-directory rea
     `window.mxwl.onContext(async ({ workspace }) => {
       document.querySelector('#context').textContent = workspace.title
       const entries = await window.mxwl.call('files.readDirectory', {
-        path: '.zipper-agent/local/ZPR-42'
+        path: '.agent-artifacts/local/ZPR-42'
       })
       document.querySelector('#result').textContent = entries.map((entry) => entry.name).join(', ')
     })`,
@@ -155,7 +155,7 @@ test('serves the browser SDK to a linked plugin with scoped hidden-directory rea
 
   await page.getByRole('button', { name: 'Probe', exact: true }).click()
   const plugin = page.frameLocator('iframe[title="Hidden Reader: Probe"]')
-  await expect(plugin.locator('#context')).toContainText('zipper-ZPR-42')
+  await expect(plugin.locator('#context')).toContainText('myapp-ZPR-42')
   await expect(plugin.locator('#result')).toHaveText('QA_PREP.md')
 
   const escapedDirectory = await page.evaluate(async ({ pluginId, wsId }) => {

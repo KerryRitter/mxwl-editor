@@ -34,11 +34,11 @@ export function IntegrationsModal({
     if (!issueKey) return
     setLoadingJira(true)
     window.api.jira
-      .get(issueKey)
+      .get(issueKey, wsId)
       .then((i) => setIssue(i))
       .catch((e) => setJiraErr(String(e)))
       .finally(() => setLoadingJira(false))
-  }, [issueKey])
+  }, [issueKey, wsId])
 
   useEffect(() => {
     if (!branch) return

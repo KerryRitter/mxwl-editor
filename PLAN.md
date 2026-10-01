@@ -2,7 +2,7 @@
 
 ## 1. Vision
 
-A desktop app for building Zipper. Open a workspace = pick a host + a remote folder (`~/Workspaces/zipper-PLAT-1234`). One SSH connection fans out into a browser, an editor, and a terminal, all locked to that folder. The entire workspace is controllable from MCP clients via CDP + a workspace-MCP server.
+A desktop app for building Example App. Open a workspace = pick a host + a remote folder (`~/Workspaces/myapp-PLAT-1234`). One SSH connection fans out into a browser, an editor, and a terminal, all locked to that folder. The entire workspace is controllable from MCP clients via CDP + a workspace-MCP server.
 
 ## 2. Scope (v1)
 
@@ -84,7 +84,7 @@ Owns N `WebContentsView`s per workspace (one per browser tab). Positioned to ove
 `exec`-based: `start(app)`, `stop(app)`, `restart(app)`, `status()`. `tail(app)` opens a long-running `exec` and streams lines to `dev:logs`. Maps `app ∈ {web, api, multisite}` to `z` invocations run inside the workspace path.
 
 ### 4.6 derive (`main/workspace/derive.ts`)
-`folder → {jiraKey, browserUrl, branch}`. Matches `zipper-PLAT-(\d+)` → `PLAT-XXXX`, `https://plat-XXXX__app.joinzipper.dev`. Branch via `git rev-parse --abbrev-ref HEAD`. Non-ticket folders get the configured default URL.
+`folder → {jiraKey, browserUrl, branch}`. Matches `myapp-PLAT-(\d+)` → `PLAT-XXXX`, `https://plat-XXXX__app.joinmyapp.dev`. Branch via `git rev-parse --abbrev-ref HEAD`. Non-ticket folders get the configured default URL.
 
 ### 4.7 Integrations (`main/integrations/`)
 `JiraClient.get(key)`, `BitbucketClient.prForBranch(repo, branch)` — REST + Basic auth (token/app password in safeStorage).

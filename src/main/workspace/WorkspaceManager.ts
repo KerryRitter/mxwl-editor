@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { BrowserWindow } from 'electron'
 import type {
@@ -31,6 +31,9 @@ import {
 } from '../persistence/SessionStore'
 import { DEFAULT_HIDE } from '../../shared/hostDefaults'
 import { fuzzySort } from '../../shared/fuzzy'
+import { resolveProjectSettings } from '../../shared/projects'
+import { folderForTarget, slugify } from '../../shared/aiPrompt'
+import type { ProjectManager } from '../projects/ProjectManager'
 import {
   countLines,
   mergeGitStats,
@@ -46,7 +49,9 @@ type FsBackend = SftpFs | LocalFs
 
 export type HostShell = {
   host: HostConfig
-  exec(cmd: string): Promise<{ stdout: string; stderr: string; code: number | null }>
+  exec(
+    cmd: string
+  ): Promise<{ stdout: string; stderr: string; code: number | null }>
   resolve(path: string): Promise<string>
   close(): Promise<void>
 }
@@ -76,7 +81,8 @@ export class WorkspaceManager {
     private hosts: HostManager,
     private getSender: () => BrowserWindow | null,
     private session: SessionStore | undefined,
-    private settings: SettingsStore
+    private settings: SettingsStore,
+    readonly projects?: ProjectManager
   ) {}
 
   private isLocal(host: HostConfig): boolean {
@@ -84,7 +90,9 @@ export class WorkspaceManager {
   }
 
   private createConn(host: HostConfig): Conn {
-    return this.isLocal(host) ? new LocalConnection(host) : new SshConnection(host)
+    return this.isLocal(host)
+      ? new LocalConnection(host)
+      : new SshConnection(host)
   }
 
   private createFs(conn: Conn): FsBackend {
@@ -94,7 +102,9 @@ export class WorkspaceManager {
   list(): WorkspaceState[] {
     const states = [...this.workspaces.values()].map((w) => w.state)
     if (!this.frontWsId) return states
-    return states.sort((a, b) => (a.id === this.frontWsId ? -1 : b.id === this.frontWsId ? 1 : 0))
+    return states.sort((a, b) =>
+      a.id === this.frontWsId ? -1 : b.id === this.frontWsId ? 1 : 0
+    )
   }
 
   get(id: string): Workspace | undefined {
@@ -105,17 +115,138 @@ export class WorkspaceManager {
     return this.workspaces.get(id)?.conn
   }
 
-  async discover(hostId: string): Promise<DirEntry[]> {
+  private publicProjectSettings(
+    config: ReturnType<typeof resolveProjectSettings>
+  ): WorkspaceState['projectSettings'] {
+    const { browserProfile, ...safe } = config
+    const login = browserProfile?.testLogin
+    return {
+      ...safe,
+      testLoginAvailable: Boolean(
+        login?.username &&
+          login.passwordEnc &&
+          login.usernameSelector &&
+          login.passwordSelector &&
+          login.submitSelector
+      )
+    }
+  }
+
+  /** Update only workspaces attached to this project; never run startup commands again. */
+  refreshProject(projectId: string): void {
+    for (const ws of this.workspaces.values()) {
+      if (ws.state.projectId !== projectId || !ws.state.locationId) continue
+      const context = this.projects?.resolve(ws.state.locationId)
+      if (!context) continue
+      const config = resolveProjectSettings(
+        context.project,
+        context.location,
+        ws.state.browserProfileId
+      )
+      ws.state.projectLabel = context.project.label
+      ws.state.projectSettings = this.publicProjectSettings(config)
+      ws.dev.setCwd(
+        config.appSubdirectory
+          ? joinRemote(ws.state.remotePath, config.appSubdirectory)
+          : ws.state.remotePath
+      )
+      ws.dev.setServices(config.services)
+      const previousServers = ws.state.dev.servers
+      ws.state.dev.servers = Object.fromEntries(
+        config.services.map((s) => [
+          s.id,
+          previousServers[s.id] ?? { status: 'unknown' as const }
+        ])
+      )
+      const derived = deriveFromFolder(basenameRemote(ws.state.remotePath), {
+        derive: config.derive,
+        defaultBrowserUrl: config.browserUrl
+      })
+      ws.state.derived = {
+        ...derived,
+        branch: ws.state.derived.branch,
+        dirty: ws.state.derived.dirty
+      }
+      ws.fileListCache = undefined
+      this.broadcast(ws.state.id)
+    }
+  }
+
+  workingDirectory(id: string): string {
+    const ws = this.require(id)
+    return ws.state.projectSettings.appSubdirectory
+      ? joinRemote(
+          ws.state.remotePath,
+          ws.state.projectSettings.appSubdirectory
+        )
+      : ws.state.remotePath
+  }
+
+  async discover(hostId: string, locationId?: string): Promise<DirEntry[]> {
     const host = this.hosts.get(hostId)
     if (!host) throw new Error('host not found')
+    const context = locationId
+      ? this.projects?.resolve(locationId, hostId)
+      : undefined
+    const location = context?.location
+    if (locationId && !location) throw new Error('Project location not found')
     const conn = this.createConn(host)
     try {
       await conn.connect()
-      const root = await this.resolvePath(conn, host, host.workspacesRoot || '~/Workspaces')
-      const entries = await this.createFs(conn).readDir(root)
+      const root = await this.resolvePath(
+        conn,
+        host,
+        location?.workspacesRoot || '~/Workspaces'
+      )
+      const fs = this.createFs(conn)
+      const entries = await fs.readDir(root).catch((error) => {
+        if (location && !location.folderFilter) return [] as DirEntry[]
+        throw error
+      })
+      const checkout = location
+        ? await this.resolvePath(conn, host, location.checkoutPath)
+        : null
+      const knownWorktrees = new Set<string>()
+      if (checkout) {
+        const result = await conn
+          .exec(`git -C ${shellQuote(checkout)} worktree list --porcelain`, {
+            timeoutMs: 10_000
+          })
+          .catch(() => null)
+        if (result?.code === 0)
+          for (const line of result.stdout.split('\n')) {
+            if (!line.startsWith('worktree ')) continue
+            const path = line.slice(9)
+            knownWorktrees.add(path)
+            if (!entries.some((e) => e.path === path))
+              entries.push({
+                name: basenameRemote(path),
+                path,
+                isDirectory: true
+              })
+          }
+      }
+      if (checkout && !entries.some((e) => e.path === checkout)) {
+        const stat = await fs.stat(checkout)
+        if (stat.isDirectory)
+          entries.unshift({
+            name: basenameRemote(checkout),
+            path: checkout,
+            isDirectory: true
+          })
+      }
       return entries
         .filter((e) => e.isDirectory && !e.name.startsWith('.'))
-        .filter((e) => matchFolderFilter(e.name, host.folderFilter))
+        .filter((e) => {
+          if (!location || e.path === checkout) return true
+          if (location.folderFilter)
+            return matchFolderFilter(e.name, location.folderFilter)
+          return (
+            knownWorktrees.has(e.path) ||
+            e.name.startsWith(`${basenameRemote(checkout!)}-`) ||
+            e.name.startsWith(`${slugify(context!.project.label)}-`)
+          )
+        })
         .sort((a, b) => a.name.localeCompare(b.name))
     } finally {
       await conn.close()
@@ -146,9 +277,25 @@ export class WorkspaceManager {
     }
   }
 
-  findByPath(hostId: string, path: string): WorkspaceState | undefined {
+  findByPath(
+    hostId: string,
+    path: string,
+    locationId?: string,
+    profileId?: string | null
+  ): WorkspaceState | undefined {
+    const context = locationId
+      ? this.projects?.resolve(locationId, hostId)
+      : undefined
+    const wantedProfile =
+      profileId === undefined
+        ? (context?.settings.browserProfile?.id ?? null)
+        : profileId
     return [...this.workspaces.values()].find(
-      (w) => w.state.hostId === hostId && w.state.remotePath === path
+      (w) =>
+        w.state.hostId === hostId &&
+        w.state.remotePath === path &&
+        w.state.locationId === (locationId ?? null) &&
+        w.state.browserProfileId === wantedProfile
     )?.state
   }
 
@@ -159,13 +306,19 @@ export class WorkspaceManager {
       const ws = this.workspaces.get(id)
       if (!ws) throw new Error('workspace closed')
       if (ws.state.status === 'connected') return
-      if (ws.state.status === 'error') throw new Error('workspace failed to connect')
-      if (Date.now() > deadline) throw new Error('timed out waiting for workspace connection')
+      if (ws.state.status === 'error')
+        throw new Error('workspace failed to connect')
+      if (Date.now() > deadline)
+        throw new Error('timed out waiting for workspace connection')
       await new Promise((r) => setTimeout(r, 250))
     }
   }
 
-  private async resolvePath(conn: Conn, host: HostConfig, path: string): Promise<string> {
+  private async resolvePath(
+    conn: Conn,
+    host: HostConfig,
+    path: string
+  ): Promise<string> {
     if (this.isLocal(host) || conn instanceof LocalConnection) {
       return expandHome(path)
     }
@@ -184,34 +337,75 @@ export class WorkspaceManager {
   async open(
     hostId: string,
     remotePath: string,
-    opts: { focus?: boolean; restore?: SessionEntry } = {}
+    opts: {
+      focus?: boolean
+      restore?: SessionEntry
+      locationId?: string
+      browserProfileId?: string | null
+    } = {}
   ): Promise<WorkspaceState> {
     const host = this.hosts.get(hostId)
     if (!host) throw new Error('host not found')
+    const locationId = opts.locationId ?? opts.restore?.locationId
+    const context = locationId
+      ? this.projects?.resolve(locationId, hostId)
+      : undefined
+    if (locationId && !context) throw new Error('Project location not found')
+    const requestedProfile =
+      opts.browserProfileId !== undefined
+        ? opts.browserProfileId
+        : opts.restore?.browserProfileId
+    if (
+      requestedProfile &&
+      !context?.project.browserProfiles.some((p) => p.id === requestedProfile)
+    )
+      throw new Error('Browser profile not found')
+    const config = resolveProjectSettings(
+      context?.project,
+      context?.location,
+      requestedProfile
+    )
 
     const folderName = basenameRemote(remotePath)
     const derived = deriveFromFolder(folderName, {
-      derive: host.derive,
-      defaultBrowserUrl: this.settings.all().defaultBrowserUrl
+      derive: config.derive,
+      defaultBrowserUrl: config.browserUrl
     })
     const id = randomUUID()
     const conn = this.createConn(host)
-    const services = host.services ?? []
+    const services = config.services
     const servers: WorkspaceState['dev']['servers'] = {}
     for (const s of services) servers[s.id] = { status: 'unknown' }
 
     const resolvedPath =
-      this.isLocal(host) && (remotePath.startsWith('~') || !remotePath.startsWith('/'))
+      this.isLocal(host) &&
+      (remotePath.startsWith('~') || !remotePath.startsWith('/'))
         ? expandHome(remotePath)
         : remotePath
 
     if (this.isLocal(host) && !existsSync(resolvedPath)) {
       throw new Error(`Local path does not exist: ${resolvedPath}`)
     }
+    const existing = this.findByPath(
+      hostId,
+      resolvedPath,
+      locationId ?? undefined,
+      config.browserProfile?.id ?? null
+    )
+    if (existing) {
+      if (opts.focus !== false) this.bringToFront(existing.id)
+      return existing
+    }
 
     const state: WorkspaceState = {
       id,
       hostId,
+      projectId: context?.project.id ?? null,
+      locationId: locationId ?? null,
+      projectLabel: context?.project.label ?? null,
+      hostLabel: host.label,
+      browserProfileId: config.browserProfile?.id ?? null,
+      projectSettings: this.publicProjectSettings(config),
       remotePath: resolvedPath,
       title: opts.restore?.title?.trim() || derived.title || folderName,
       status: 'connecting',
@@ -233,11 +427,33 @@ export class WorkspaceManager {
       conn,
       fs: this.createFs(conn),
       terminals: new Map(),
-      browser: new BrowserController(id, this.getSender),
-      dev: new DevController(id, conn, resolvedPath, this.getSender, services),
+      browser: new BrowserController(
+        id,
+        this.getSender,
+        context
+          ? createHash('sha256')
+              .update(
+                `${context.project.id}:${locationId}:${config.browserProfile?.id ?? 'default'}:${resolvedPath}`
+              )
+              .digest('hex')
+          : undefined,
+        config.browserProfile?.label
+      ),
+      dev: new DevController(
+        id,
+        conn,
+        config.appSubdirectory
+          ? joinRemote(resolvedPath, config.appSubdirectory)
+          : resolvedPath,
+        this.getSender,
+        services
+      ),
       startupCommandSent: false,
       terminalRestore: opts.restore?.terminals?.length
-        ? { entries: opts.restore.terminals, activeId: opts.restore.activeTerminalId }
+        ? {
+            entries: opts.restore.terminals,
+            activeId: opts.restore.activeTerminalId
+          }
         : null,
       terminalRestoreStarted: false
     }
@@ -275,7 +491,9 @@ export class WorkspaceManager {
     const source = this.require(sourceId)
     const ticket = input.ticket.trim().toUpperCase()
     if (!/^[A-Z0-9][A-Z0-9._-]{0,63}$/.test(ticket)) {
-      throw new Error('Ticket must contain only letters, numbers, dots, dashes, or underscores')
+      throw new Error(
+        'Ticket must contain only letters, numbers, dots, dashes, or underscores'
+      )
     }
     const branch = (input.branch?.trim() || ticket.toLowerCase()).slice(0, 120)
     if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(branch) || branch.endsWith('/')) {
@@ -288,14 +506,43 @@ export class WorkspaceManager {
     )
     const repoRoot = rootResult.stdout.trim()
     if (rootResult.code !== 0 || !repoRoot) {
-      throw new Error(rootResult.stderr.trim() || 'The current workspace is not a Git repository')
+      throw new Error(
+        rootResult.stderr.trim() ||
+          'The current workspace is not a Git repository'
+      )
     }
     const cleanRoot = repoRoot.replace(/\/+$/, '')
     const slash = cleanRoot.lastIndexOf('/')
-    const parent = slash <= 0 ? '/' : cleanRoot.slice(0, slash)
-    const target = joinRemote(parent, `${basenameRemote(cleanRoot)}-${ticket}`)
+    const context = source.state.locationId
+      ? this.projects?.resolve(source.state.locationId)
+      : undefined
+    const parent = context
+      ? await this.resolvePath(
+          source.conn,
+          this.hosts.get(source.state.hostId)!,
+          context.location.workspacesRoot
+        )
+      : slash <= 0
+        ? '/'
+        : cleanRoot.slice(0, slash)
+    const folder = context
+      ? folderForTarget(
+          { key: ticket, title: ticket },
+          context.project.ai.workspaceFolderTemplate,
+          context.project.label
+        )
+      : `${basenameRemote(cleanRoot)}-${ticket}`
+    if (
+      !folder ||
+      folder.startsWith('/') ||
+      folder.split(/[/\\]/).includes('..')
+    )
+      throw new Error('Invalid project workspace folder template')
+    const target = joinRemote(parent, folder)
 
-    const exists = await source.conn.exec(`test -d ${shellQuote(target)}`, { timeoutMs: 10_000 })
+    const exists = await source.conn.exec(`test -d ${shellQuote(target)}`, {
+      timeoutMs: 10_000
+    })
     if (exists.code !== 0) {
       const command = [
         `cd ${shellQuote(cleanRoot)}`,
@@ -309,23 +556,44 @@ export class WorkspaceManager {
       ].join('\n')
       const created = await source.conn.exec(command, { timeoutMs: 120_000 })
       if (created.code !== 0) {
-        throw new Error(created.stderr.trim() || created.stdout.trim() || 'Could not create worktree')
+        throw new Error(
+          created.stderr.trim() ||
+            created.stdout.trim() ||
+            'Could not create worktree'
+        )
       }
     } else {
       const valid = await source.conn.exec(
-        `git -C ${shellQuote(target)} rev-parse --is-inside-work-tree`,
+        `git -C ${shellQuote(target)} rev-parse --path-format=absolute --git-common-dir`,
         { timeoutMs: 15_000 }
       )
-      if (valid.code !== 0) throw new Error(`${target} already exists and is not a Git worktree`)
+      if (valid.code !== 0)
+        throw new Error(`${target} already exists and is not a Git worktree`)
+      const original = await source.conn.exec(
+        `git -C ${shellQuote(cleanRoot)} rev-parse --path-format=absolute --git-common-dir`,
+        { timeoutMs: 15_000 }
+      )
+      if (valid.stdout.trim() !== original.stdout.trim())
+        throw new Error(
+          `${target} belongs to a different repository; choose another worktree root or naming template`
+        )
     }
 
-    const alreadyOpen = this.findByPath(source.state.hostId, target)
+    const alreadyOpen = this.findByPath(
+      source.state.hostId,
+      target,
+      source.state.locationId ?? undefined,
+      source.state.browserProfileId
+    )
     if (alreadyOpen) {
       this.renameWorkspace(alreadyOpen.id, ticket)
       this.bringToFront(alreadyOpen.id)
       return this.require(alreadyOpen.id).state
     }
-    const opened = await this.open(source.state.hostId, target)
+    const opened = await this.open(source.state.hostId, target, {
+      locationId: source.state.locationId ?? undefined,
+      browserProfileId: source.state.browserProfileId
+    })
     this.renameWorkspace(opened.id, ticket)
     await this.waitForConnected(opened.id, 20_000)
     return this.require(opened.id).state
@@ -343,11 +611,16 @@ export class WorkspaceManager {
   private persistSession(): void {
     if (!this.session || this.restoringSession) return
     this.session.save({
-      workspaces: [...this.workspaces.values()].map((w) => this.sessionEntry(w)),
+      workspaces: [...this.workspaces.values()].map((w) =>
+        this.sessionEntry(w)
+      ),
       ...(this.frontWsId
         ? {
             activeKey: SessionStore.keyFor({
               hostId: this.workspaces.get(this.frontWsId)!.state.hostId,
+              locationId: this.workspaces.get(this.frontWsId)!.state.locationId,
+              browserProfileId: this.workspaces.get(this.frontWsId)!.state
+                .browserProfileId,
               remotePath: this.workspaces.get(this.frontWsId)!.state.remotePath
             })
           }
@@ -379,27 +652,30 @@ export class WorkspaceManager {
       ...(terminal.tmuxName ? { tmuxName: terminal.tmuxName } : {}),
       ...(terminal.checkpoint() ? { replay: terminal.checkpoint() } : {})
     }))
-    const terminals = w.state.terminal.restoring && w.terminalRestore
-      ? w.terminalRestore.entries
-      : liveTerminals
-    const activeTerminalId = w.state.terminal.restoring && w.terminalRestore?.activeId
-      ? w.terminalRestore.activeId
-      : w.state.terminal.activeSessionId
+    const terminals =
+      w.state.terminal.restoring && w.terminalRestore
+        ? w.terminalRestore.entries
+        : liveTerminals
+    const activeTerminalId =
+      w.state.terminal.restoring && w.terminalRestore?.activeId
+        ? w.terminalRestore.activeId
+        : w.state.terminal.activeSessionId
     return {
       hostId: w.state.hostId,
+      locationId: w.state.locationId ?? undefined,
+      browserProfileId: w.state.browserProfileId,
       remotePath: w.state.remotePath,
       title: w.state.title,
       ...(terminals.length ? { terminals } : {}),
-      ...(activeTerminalId
-        ? { activeTerminalId }
-        : {})
+      ...(activeTerminalId ? { activeTerminalId } : {})
     }
   }
 
   close(id: string): void {
     const ws = this.workspaces.get(id)
     if (!ws) return
-    for (const term of ws.terminals.values()) term.dispose().catch(() => undefined)
+    for (const term of ws.terminals.values())
+      term.dispose().catch(() => undefined)
     ws.browser.dispose()
     ws.dev.dispose()
     ws.conn.close().catch(() => undefined)
@@ -412,21 +688,28 @@ export class WorkspaceManager {
     this.persistSession()
   }
 
-  async restore(session: { workspaces: { hostId: string; remotePath: string }[] }): Promise<void> {
+  async restore(session: {
+    workspaces: { hostId: string; remotePath: string }[]
+  }): Promise<void> {
     const state = session as { workspaces: SessionEntry[]; activeKey?: string }
     this.restoringSession = true
     try {
       for (const entry of state.workspaces) {
         if (!this.hosts.get(entry.hostId)) continue
         try {
-          await this.open(entry.hostId, entry.remotePath, { focus: false, restore: entry })
+          await this.open(entry.hostId, entry.remotePath, {
+            focus: false,
+            restore: entry,
+            locationId: entry.locationId ?? undefined
+          })
         } catch (err) {
           void err
         }
       }
       const wanted = state.activeKey
         ? [...this.workspaces.values()].find(
-            (workspace) => SessionStore.keyFor(workspace.state) === state.activeKey
+            (workspace) =>
+              SessionStore.keyFor(workspace.state) === state.activeKey
           )
         : undefined
       if (wanted) this.bringToFront(wanted.state.id)
@@ -465,7 +748,7 @@ export class WorkspaceManager {
       id: opts.id,
       wsId: id,
       conn: ws.conn,
-      cwd: opts.cwd ?? ws.state.remotePath,
+      cwd: opts.cwd ?? this.workingDirectory(id),
       cols: opts.cols,
       rows: opts.rows,
       label: opts.label,
@@ -485,10 +768,10 @@ export class WorkspaceManager {
       ...(session.aiTaskId ? { aiTaskId: session.aiTaskId } : {}),
       ...(session.tmuxName ? { tmuxName: session.tmuxName } : {})
     })
-    if (!ws.state.terminal.activeSessionId) ws.state.terminal.activeSessionId = session.id
+    if (!ws.state.terminal.activeSessionId)
+      ws.state.terminal.activeSessionId = session.id
     if (isFirst && !session.tmuxName && !ws.startupCommandSent) {
-      const host = this.hosts.get(ws.state.hostId)
-      const cmd = host?.terminalStartup?.trim()
+      const cmd = ws.state.projectSettings.terminalStartup.trim()
       if (cmd) {
         ws.startupCommandSent = true
         const line = cmd.endsWith('\n') ? cmd : `${cmd}\n`
@@ -517,7 +800,7 @@ export class WorkspaceManager {
           label: entry.label,
           aiTaskId: entry.aiTaskId,
           tmuxName: entry.tmuxName,
-          replay: entry.replay
+          replay: entry.replay ?? ''
         })
       } catch {
         // One stale shell descriptor must not prevent the other tabs restoring.
@@ -538,15 +821,27 @@ export class WorkspaceManager {
     return this.workspaces.get(id)?.terminals.get(sessionId)?.replay() ?? ''
   }
 
-  watchTerminal(id: string, sessionId: string, cb: (chunk: string) => void): () => void {
-    return this.workspaces.get(id)?.terminals.get(sessionId)?.watch(cb) ?? (() => undefined)
+  watchTerminal(
+    id: string,
+    sessionId: string,
+    cb: (chunk: string) => void
+  ): () => void {
+    return (
+      this.workspaces.get(id)?.terminals.get(sessionId)?.watch(cb) ??
+      (() => undefined)
+    )
   }
 
   writeTerminal(id: string, sessionId: string, data: string): void {
     this.workspaces.get(id)?.terminals.get(sessionId)?.write(data)
   }
 
-  resizeTerminal(id: string, sessionId: string, cols: number, rows: number): void {
+  resizeTerminal(
+    id: string,
+    sessionId: string,
+    cols: number,
+    rows: number
+  ): void {
     this.workspaces.get(id)?.terminals.get(sessionId)?.resize(cols, rows)
   }
 
@@ -583,9 +878,12 @@ export class WorkspaceManager {
     const ws = this.workspaces.get(id)
     if (!ws) return
     ws.terminals.delete(sessionId)
-    ws.state.terminal.sessions = ws.state.terminal.sessions.filter((s) => s.id !== sessionId)
+    ws.state.terminal.sessions = ws.state.terminal.sessions.filter(
+      (s) => s.id !== sessionId
+    )
     if (ws.state.terminal.activeSessionId === sessionId) {
-      ws.state.terminal.activeSessionId = ws.state.terminal.sessions[0]?.id ?? null
+      ws.state.terminal.activeSessionId =
+        ws.state.terminal.sessions[0]?.id ?? null
     }
     this.broadcast(id)
     this.persistSession()
@@ -594,8 +892,9 @@ export class WorkspaceManager {
   hideList(wsId?: string): string[] {
     const extra = this.settings.all().hideExtra ?? []
     const hostHide =
-      (wsId ? this.hosts.get(this.workspaces.get(wsId)?.state.hostId ?? '')?.hide : undefined) ??
-      DEFAULT_HIDE
+      (wsId
+        ? this.workspaces.get(wsId)?.state.projectSettings.hide
+        : undefined) ?? DEFAULT_HIDE
     return [...new Set([...hostHide, ...extra])]
   }
 
@@ -680,7 +979,9 @@ export class WorkspaceManager {
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean)
-        .map((relative) => joinRemote(ws.state.remotePath, relative.replace(/^\.\//, '')))
+        .map((relative) =>
+          joinRemote(ws.state.remotePath, relative.replace(/^\.\//, ''))
+        )
       ws.fileListCache = { paths, loadedAt: Date.now() }
     }
     return fuzzySort(query, paths, (path) => path).slice(0, 200)
@@ -755,7 +1056,9 @@ export class WorkspaceManager {
         `cd ${shellQuote(ws.state.remotePath)} && git show ${shellQuote(`HEAD:${gitPath}`)}`
       )
       if (original.code !== 0) {
-        throw new Error(original.stderr.trim() || `Could not read HEAD:${gitPath}`)
+        throw new Error(
+          original.stderr.trim() || `Could not read HEAD:${gitPath}`
+        )
       }
       if (Buffer.byteLength(original.stdout, 'utf8') > MAX_DIFF_FILE_BYTES) {
         throw new Error('File is too large to display in the diff viewer')
@@ -779,8 +1082,11 @@ export class WorkspaceManager {
     }
 
     const additions =
-      change.additions ?? (change.kind === 'untracked' && !binary ? countLines(newText) : null)
-    const deletions = change.deletions ?? (change.kind === 'deleted' && !binary ? countLines(oldText) : null)
+      change.additions ??
+      (change.kind === 'untracked' && !binary ? countLines(newText) : null)
+    const deletions =
+      change.deletions ??
+      (change.kind === 'deleted' && !binary ? countLines(oldText) : null)
 
     return {
       ...change,
@@ -805,15 +1111,22 @@ export class WorkspaceManager {
     return this.runGitMutation(ws, `git reset -q HEAD -- ${shellQuote(path)}`)
   }
 
-  async gitStageHunk(id: string, path: string, hunkId: string): Promise<string> {
+  async gitStageHunk(
+    id: string,
+    path: string,
+    hunkId: string
+  ): Promise<string> {
     const ws = this.require(id)
     await this.assertChangedPath(id, path)
     const diff = await ws.conn.exec(
       `cd ${shellQuote(ws.state.remotePath)} && git -c core.quotepath=false diff --no-ext-diff --no-color --unified=3 -- ${shellQuote(path)}`,
       { timeoutMs: 15_000 }
     )
-    if (diff.code !== 0) throw new Error(diff.stderr.trim() || 'Could not build hunk')
-    const hunk = parseGitHunks(diff.stdout).find((candidate) => candidate.id === hunkId)
+    if (diff.code !== 0)
+      throw new Error(diff.stderr.trim() || 'Could not build hunk')
+    const hunk = parseGitHunks(diff.stdout).find(
+      (candidate) => candidate.id === hunkId
+    )
     if (!hunk) throw new Error('That hunk changed; refresh and try again')
     const encoded = Buffer.from(hunk.patch, 'utf8').toString('base64')
     return this.runGitMutation(
@@ -837,7 +1150,8 @@ export class WorkspaceManager {
       { timeoutMs: 15_000 }
     )
     const branch = branchResult.stdout.trim()
-    if (branchResult.code !== 0 || !branch) throw new Error('Could not determine the current branch')
+    if (branchResult.code !== 0 || !branch)
+      throw new Error('Could not determine the current branch')
     return this.runGitMutation(
       ws,
       `if git rev-parse --verify '@{upstream}' >/dev/null 2>&1; then git push; else git push -u origin ${shellQuote(branch)}; fi`,
@@ -851,7 +1165,8 @@ export class WorkspaceManager {
       `cd ${shellQuote(ws.state.remotePath)} && git remote get-url origin && git branch --show-current`,
       { timeoutMs: 15_000 }
     )
-    if (result.code !== 0) throw new Error(result.stderr.trim() || 'Could not read Git remote')
+    if (result.code !== 0)
+      throw new Error(result.stderr.trim() || 'Could not read Git remote')
     const [remote, branch] = result.stdout.trim().split('\n')
     if (!remote || !branch) throw new Error('Git remote or branch is missing')
     const parsed = parseGitRemote(remote)
@@ -876,21 +1191,32 @@ export class WorkspaceManager {
     }
   }
 
-  private async runGitMutation(ws: Workspace, command: string, timeoutMs = 30_000): Promise<string> {
+  private async runGitMutation(
+    ws: Workspace,
+    command: string,
+    timeoutMs = 30_000
+  ): Promise<string> {
     const result = await ws.conn.exec(
       `cd ${shellQuote(ws.state.remotePath)} && ${command}`,
       { timeoutMs }
     )
-    if (result.code !== 0) throw new Error(result.stderr.trim() || result.stdout.trim() || 'Git command failed')
+    if (result.code !== 0)
+      throw new Error(
+        result.stderr.trim() || result.stdout.trim() || 'Git command failed'
+      )
     ws.gitChangesCache = undefined
     await this.refreshGit(ws.state.id)
-    return [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join('\n') || 'Done'
+    return (
+      [result.stdout.trim(), result.stderr.trim()].filter(Boolean).join('\n') ||
+      'Done'
+    )
   }
 
   private require(id: string): Workspace {
     const ws = this.workspaces.get(id)
     if (!ws) throw new Error('workspace not found')
-    if (ws.state.status !== 'connected') throw new Error('workspace not connected')
+    if (ws.state.status !== 'connected')
+      throw new Error('workspace not connected')
     return ws
   }
 
@@ -900,7 +1226,11 @@ export class WorkspaceManager {
   browserNewGroup(id: string, label?: string): string {
     return this.workspaces.get(id)!.browser.newGroup(label)
   }
-  browserUpdateGroup(id: string, groupId: string, patch: { label?: string; color?: string }): void {
+  browserUpdateGroup(
+    id: string,
+    groupId: string,
+    patch: { label?: string; color?: string }
+  ): void {
     this.workspaces.get(id)?.browser.updateGroup(groupId, patch)
   }
   browserCloseGroup(id: string, groupId: string): void {
@@ -933,12 +1263,39 @@ export class WorkspaceManager {
   async browserTestLogin(id: string): Promise<void> {
     const ws = this.workspaces.get(id)
     if (!ws) throw new Error('workspace not found')
-    const host = this.hosts.get(ws.state.hostId)
-    const cfg = host?.testLogin
-    if (!cfg?.username || !cfg.usernameSelector || !cfg.passwordSelector || !cfg.submitSelector) {
-      throw new Error('test login not configured on this host')
+    const context = ws.state.locationId
+      ? this.projects?.resolve(ws.state.locationId)
+      : undefined
+    const cfg = resolveProjectSettings(
+      context?.project,
+      context?.location,
+      ws.state.browserProfileId
+    ).browserProfile?.testLogin
+    if (
+      !cfg?.username ||
+      !cfg.usernameSelector ||
+      !cfg.passwordSelector ||
+      !cfg.submitSelector
+    ) {
+      throw new Error(
+        'test login not configured for this project browser profile'
+      )
     }
     if (!cfg.passwordEnc) throw new Error('test login password not set')
+    const active = ws.browser.snapshot()
+    const url = active.tabs.find((tab) => tab.id === active.activeId)?.url
+    try {
+      const current = new URL(url || '')
+      if (
+        !['http:', 'https:'].includes(current.protocol) ||
+        current.origin !== new URL(ws.state.derived.browserUrl).origin
+      )
+        throw new Error('origin mismatch')
+    } catch {
+      throw new Error(
+        'Navigate to this project profile’s configured site before filling test credentials'
+      )
+    }
     const password = decryptSecret(cfg.passwordEnc)
     await ws.browser.fillLogin({
       username: cfg.username,
@@ -966,7 +1323,13 @@ export class WorkspaceManager {
   browserSetDevtoolsVisible(id: string, visible: boolean): void {
     this.workspaces.get(id)?.browser.setDevtoolsVisible(visible)
   }
-  browserSetBounds(id: string, x: number, y: number, width: number, height: number): void {
+  browserSetBounds(
+    id: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): void {
     this.workspaces.get(id)?.browser.setBounds({ x, y, width, height })
   }
   browserSetVisible(id: string, visible: boolean): void {
@@ -974,6 +1337,9 @@ export class WorkspaceManager {
   }
   browserSnapshot(id: string): BrowserSnapshot | null {
     return this.workspaces.get(id)?.browser.snapshot() ?? null
+  }
+  browserEnsureTab(id: string, url?: string): string {
+    return this.require(id).browser.ensureTab(url)
   }
 
   execInWorkspace(
@@ -987,13 +1353,14 @@ export class WorkspaceManager {
   listServices(id: string) {
     const ws = this.workspaces.get(id)
     if (!ws) return []
-    const host = this.hosts.get(ws.state.hostId)
-    const services = host?.services ?? []
+    const services = ws.state.projectSettings.services
     ws.dev.setServices(services)
     return services
   }
 
-  devSnapshot(id: string): Record<string, import('../../shared/types').DevStatus> {
+  devSnapshot(
+    id: string
+  ): Record<string, import('../../shared/types').DevStatus> {
     const ws = this.workspaces.get(id)
     if (!ws) throw new Error('workspace not found')
     return ws.dev.getSnapshot()
@@ -1032,7 +1399,8 @@ export class WorkspaceManager {
       behind = Number(parts[0]) || 0
       ahead = Number(parts[1]) || 0
     }
-    const changed = branch !== ws.state.derived.branch || dirty !== ws.state.derived.dirty
+    const changed =
+      branch !== ws.state.derived.branch || dirty !== ws.state.derived.dirty
     ws.state.derived.branch = branch
     ws.state.derived.dirty = dirty
     if (changed) this.broadcast(id)
@@ -1059,7 +1427,10 @@ function parseGitRemote(remote: string): { host: string; base: string } | null {
   try {
     const url = new URL(remote)
     const path = url.pathname.replace(/^\//, '').replace(/\.git$/, '')
-    return { host: url.hostname.toLowerCase(), base: `https://${url.host}/${path}` }
+    return {
+      host: url.hostname.toLowerCase(),
+      base: `https://${url.host}/${path}`
+    }
   } catch {
     return null
   }

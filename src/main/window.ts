@@ -1,5 +1,6 @@
 import { BrowserWindow, Menu, shell } from 'electron'
 import { join } from 'path'
+import { appIconPath } from './branding'
 
 export function createMainWindow(options: { startHidden?: boolean } = {}): BrowserWindow {
   const win = new BrowserWindow({
@@ -9,7 +10,8 @@ export function createMainWindow(options: { startHidden?: boolean } = {}): Brows
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    title: 'mxwl-editor',
+    title: 'mxwl',
+    icon: appIconPath(),
     backgroundColor: '#0a0a0a',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

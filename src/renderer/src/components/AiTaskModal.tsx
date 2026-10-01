@@ -1,8 +1,20 @@
 import { useEffect, useMemo, useState, type FC } from 'react'
-import { Bot, ChevronDown, ChevronRight, Loader2, Play, Sparkles, Wrench, X } from 'lucide-react'
+import {
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Play,
+  Sparkles,
+  Wrench,
+  X
+} from 'lucide-react'
 import { Modal } from './Modal'
 import { useAiStore } from '../store/ai'
+import { useProjectsStore } from '../store/projects'
 import { useHostsStore } from '../store/hosts'
+import { useProjectNavigation } from '../store/projectNavigation'
+import { useWorkspacesStore } from '../store/workspaces'
 import { AI_CLIS, AI_CLI_ORDER } from '../../../shared/aiCli'
 import { humanDuration } from '../../../shared/duration'
 import type { AiCliId, AiRunState, AiTaskStatus } from '../../../shared/types'
@@ -23,7 +35,10 @@ for each of the epics, please open tabs to:
 
 if the branch doesn't exist, run $agent-init-branch first.`
 
-export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) => {
+export const AiTaskModal: FC<AiTaskModalProps> = ({
+  onClose,
+  hideBrowserWs
+}) => {
   const hosts = useHostsStore((s) => s.hosts)
   const brief = useAiStore((s) => s.brief)
   const setBrief = useAiStore((s) => s.setBrief)
@@ -40,7 +55,21 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
   const setPrompt = useAiStore((s) => s.setPrompt)
 
   const [cli, setCli] = useState<AiCliId>('claude')
-  const [hostId, setHostId] = useState('')
+  const {
+    projects,
+    locations: allLocations,
+    load: loadProjects
+  } = useProjectsStore()
+  const locations = useMemo(
+    () => allLocations.filter((l) => l.checkoutPath),
+    [allLocations]
+  )
+  const navigation = useProjectNavigation()
+  const activeWorkspace = useWorkspacesStore((s) =>
+    s.workspaces.find((w) => w.id === s.activeId)
+  )
+  const [locationId, setLocationId] = useState('')
+  const hostId = locations.find((l) => l.id === locationId)?.hostId ?? ''
   const [refine, setRefine] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
@@ -53,7 +82,11 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
   useEffect(() => {
     if (hideBrowserWs) void window.api.browser.setVisible(hideBrowserWs, false)
     return () => {
-      if (hideBrowserWs) void window.api.browser.setVisible(hideBrowserWs, true)
+      if (
+        hideBrowserWs &&
+        useWorkspacesStore.getState().activeId === hideBrowserWs
+      )
+        void window.api.browser.setVisible(hideBrowserWs, true)
     }
   }, [hideBrowserWs])
 
@@ -61,13 +94,31 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
     void window.api.settings.get().then((s) => {
       setCli(s.ai.defaultCli)
       setRefine(s.ai.refinePrompts)
-      setHostId((prev) => prev || s.ai.defaultHostId || '')
     })
   }, [])
 
   useEffect(() => {
-    if (!hostId && hosts.length > 0) setHostId(hosts[0].id)
-  }, [hosts, hostId])
+    void loadProjects()
+  }, [loadProjects])
+  useEffect(() => {
+    if (!locations.some((l) => l.id === locationId))
+      setLocationId(
+        locations.find((l) => l.id === activeWorkspace?.locationId)?.id ??
+          locations.find(
+            (l) =>
+              l.projectId === navigation.projectId &&
+              (!navigation.hostId || l.hostId === navigation.hostId)
+          )?.id ??
+          locations[0]?.id ??
+          ''
+      )
+  }, [
+    locations,
+    locationId,
+    activeWorkspace?.locationId,
+    navigation.projectId,
+    navigation.hostId
+  ])
 
   // Setup can run for minutes with nothing to say; the clock is what shows it is alive.
   const prepRunning = activeRun?.prep?.status === 'running'
@@ -83,7 +134,10 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
   const taskCount = plan?.targets.reduce((n, t) => n + t.tasks.length, 0) ?? 0
   // A brief can be only "open up tabs for PLAT-1 and PLAT-2" — no agent work at
   // all. There is still a run to make: the workspaces, and any setup before them.
-  const runnable = !!plan && (plan.targets.length > 0 || !!plan.prep)
+  const runnable =
+    !!plan &&
+    plan.locationId === locationId &&
+    (plan.targets.length > 0 || !!plan.prep)
 
   async function start(): Promise<void> {
     const run = await doRun()
@@ -95,7 +149,9 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
       <div className="grid max-h-[74vh] gap-4 overflow-y-auto pr-1">
         <div className="flex flex-wrap items-end gap-3">
           <label className="grid gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-neutral-500">CLI</span>
+            <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+              CLI
+            </span>
             <div className="flex gap-1">
               {AI_CLI_ORDER.map((id) => (
                 <button
@@ -114,16 +170,21 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
             </div>
           </label>
           <label className="grid gap-1">
-            <span className="text-[10px] uppercase tracking-wider text-neutral-500">Host</span>
+            <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+              Project / host
+            </span>
             <select
-              value={hostId}
-              onChange={(e) => setHostId(e.target.value)}
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
               className="rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100 focus:border-emerald-500 focus:outline-none"
             >
-              {hosts.length === 0 && <option value="">No hosts configured</option>}
-              {hosts.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.label}
+              {locations.length === 0 && (
+                <option value="">Configure a checkout in Projects first</option>
+              )}
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {projects.find((p) => p.id === l.projectId)?.label} ·{' '}
+                  {hosts.find((h) => h.id === l.hostId)?.label} · {l.label}
                 </option>
               ))}
             </select>
@@ -152,18 +213,25 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
           />
           <div className="flex items-center gap-2">
             <button
-              onClick={() => void doPlan({ hostId, cli, refine })}
+              onClick={() => void doPlan({ hostId, locationId, cli, refine })}
               disabled={planning || missingConfig || !brief.trim()}
               className="flex items-center gap-1.5 rounded-md border border-neutral-700 px-3 py-1.5 text-xs text-neutral-200 hover:border-neutral-500 disabled:opacity-40"
             >
-              {planning ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+              {planning ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Sparkles size={12} />
+              )}
               {planning ? 'Planning…' : 'Plan'}
             </button>
             {plan && (
               <span className="text-[11px] text-neutral-500">
-                {plan.targets.length} workspace{plan.targets.length === 1 ? '' : 's'} · {taskCount}{' '}
-                terminal{taskCount === 1 ? '' : 's'}
-                {refined && <span className="ml-1 text-emerald-400">· refined</span>}
+                {plan.targets.length} workspace
+                {plan.targets.length === 1 ? '' : 's'} · {taskCount} terminal
+                {taskCount === 1 ? '' : 's'}
+                {refined && (
+                  <span className="ml-1 text-emerald-400">· refined</span>
+                )}
               </span>
             )}
           </div>
@@ -179,16 +247,24 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
             <div className="flex items-center gap-2">
               <Wrench size={12} className="text-amber-400" />
               <span className="text-[11px] font-medium text-amber-200">
-                Setup — runs once{plan.prep.blocking ? ', before the tickets' : ', in parallel'}
+                Setup — runs once
+                {plan.prep.blocking ? ', before the tickets' : ', in parallel'}
               </span>
-              {activeRun?.prep && <StatusPill status={activeRun.prep.status} testId="ai-prep-status" />}
+              {activeRun?.prep && (
+                <StatusPill
+                  status={activeRun.prep.status}
+                  testId="ai-prep-status"
+                />
+              )}
               {activeRun?.prep?.startedAt && (
                 <span
                   data-testid="ai-prep-elapsed"
                   className="font-mono text-[10px] text-amber-300/70"
                 >
                   {humanDuration(
-                    (activeRun.prep.status === 'running' ? now : activeRun.prep.finishedAt ?? now) -
+                    (activeRun.prep.status === 'running'
+                      ? now
+                      : (activeRun.prep.finishedAt ?? now)) -
                       activeRun.prep.startedAt
                   )}
                 </span>
@@ -196,14 +272,17 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
             </div>
             <div className="flex items-center gap-2 font-mono text-[10px] text-neutral-400">
               <span className="text-neutral-600">{plan.prep.cwd}</span>
-              <span className="truncate text-amber-300/80">{plan.prep.command}</span>
+              <span className="truncate text-amber-300/80">
+                {plan.prep.command}
+              </span>
               <span className="ml-auto rounded bg-neutral-800 px-1 py-0.5 text-neutral-500">
                 {plan.prep.kind === 'cli' ? AI_CLIS[cli].label : 'shell'}
               </span>
             </div>
             {plan.prep.blocking && (
               <p className="text-[10px] text-neutral-500">
-                Waits for this command to finish, then opens the {plan.targets.length} ticket
+                Waits for this command to finish, then opens the{' '}
+                {plan.targets.length} ticket
                 {plan.targets.length === 1 ? ' tab' : ' tabs'}.
               </p>
             )}
@@ -216,14 +295,18 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
               </pre>
             )}
             {activeRun?.prep?.message && (
-              <p className="text-[10px] text-red-400">{activeRun.prep.message}</p>
+              <p className="text-[10px] text-red-400">
+                {activeRun.prep.message}
+              </p>
             )}
           </div>
         )}
 
         {plan && plan.targets.length > 0 && (
           <div className="grid gap-2">
-            <span className="text-[10px] uppercase tracking-wider text-neutral-500">Plan</span>
+            <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+              Plan
+            </span>
             {plan.targets.map((t) => (
               <div
                 key={t.id}
@@ -234,8 +317,12 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
                   <span className="text-xs font-medium text-neutral-200">
                     {t.key ?? t.title}
                   </span>
-                  <span className="truncate text-[11px] text-neutral-500">{t.title}</span>
-                  <span className="ml-auto font-mono text-[10px] text-neutral-600">{t.folder}</span>
+                  <span className="truncate text-[11px] text-neutral-500">
+                    {t.title}
+                  </span>
+                  <span className="ml-auto font-mono text-[10px] text-neutral-600">
+                    {t.folder}
+                  </span>
                   <button
                     onClick={() => dropTarget(t.id)}
                     title="Remove"
@@ -247,7 +334,9 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
                 <div className="border-t border-neutral-800/70 px-2 py-1.5">
                   {t.tasks.map((k) => {
                     const open = expanded === k.id
-                    const state = activeRun?.tasks.find((r) => r.taskId === k.id)
+                    const state = activeRun?.tasks.find(
+                      (r) => r.taskId === k.id
+                    )
                     return (
                       <div key={k.id} className="grid">
                         <div className="flex items-center gap-2 px-1 py-1">
@@ -255,11 +344,17 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
                             onClick={() => setExpanded(open ? null : k.id)}
                             className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[11px] text-neutral-300 hover:text-neutral-100"
                           >
-                            {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                            {open ? (
+                              <ChevronDown size={11} />
+                            ) : (
+                              <ChevronRight size={11} />
+                            )}
                             <span className="rounded bg-neutral-800 px-1.5 py-0.5 font-mono text-[10px] text-neutral-300">
                               {k.label}
                             </span>
-                            <span className="truncate text-neutral-500">{k.instruction}</span>
+                            <span className="truncate text-neutral-500">
+                              {k.instruction}
+                            </span>
                           </button>
                           {state && <StatusPill status={state.status} />}
                           <button
@@ -273,7 +368,9 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
                         {open && (
                           <textarea
                             value={k.prompt}
-                            onChange={(e) => setPrompt(t.id, k.id, e.target.value)}
+                            onChange={(e) =>
+                              setPrompt(t.id, k.id, e.target.value)
+                            }
                             rows={12}
                             className="mx-1 mb-2 w-[calc(100%-0.5rem)] resize-y rounded border border-neutral-800 bg-black/40 px-2 py-1.5 font-mono text-[11px] leading-relaxed text-neutral-300 focus:border-emerald-600 focus:outline-none"
                           />
@@ -282,7 +379,9 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({ onClose, hideBrowserWs }) =>
                     )
                   })}
                   {t.tasks.length === 0 && (
-                    <p className="px-1 py-1 text-[11px] text-neutral-600">No steps left</p>
+                    <p className="px-1 py-1 text-[11px] text-neutral-600">
+                      No steps left
+                    </p>
                   )}
                 </div>
               </div>
@@ -337,9 +436,13 @@ const RunProgress: FC<{ run: AiRunState }> = ({ run }) => (
         <div className="flex items-center gap-2 text-[11px]">
           <StatusPill status={run.prep.status} />
           <span className="text-amber-200">setup</span>
-          <span className="truncate font-mono text-[10px] text-neutral-600">{run.prep.path}</span>
+          <span className="truncate font-mono text-[10px] text-neutral-600">
+            {run.prep.path}
+          </span>
           {run.prep.message && (
-            <span className="ml-auto truncate text-red-400">{run.prep.message}</span>
+            <span className="ml-auto truncate text-red-400">
+              {run.prep.message}
+            </span>
           )}
         </div>
       )}
@@ -347,8 +450,12 @@ const RunProgress: FC<{ run: AiRunState }> = ({ run }) => (
         <div key={t.targetId} className="flex items-center gap-2 text-[11px]">
           <StatusPill status={t.status} />
           <span className="text-neutral-300">{t.key ?? t.title}</span>
-          <span className="truncate font-mono text-[10px] text-neutral-600">{t.path}</span>
-          {t.message && <span className="ml-auto truncate text-red-400">{t.message}</span>}
+          <span className="truncate font-mono text-[10px] text-neutral-600">
+            {t.path}
+          </span>
+          {t.message && (
+            <span className="ml-auto truncate text-red-400">{t.message}</span>
+          )}
         </div>
       ))}
     </div>
@@ -373,7 +480,10 @@ const STATUS_STYLE: Record<AiTaskStatus, string> = {
   skipped: 'bg-neutral-800 text-neutral-600'
 }
 
-const StatusPill: FC<{ status: AiTaskStatus; testId?: string }> = ({ status, testId }) => (
+const StatusPill: FC<{ status: AiTaskStatus; testId?: string }> = ({
+  status,
+  testId
+}) => (
   <span
     data-testid={testId}
     className={`rounded px-1.5 py-0.5 text-[9px] uppercase ${STATUS_STYLE[status]}`}

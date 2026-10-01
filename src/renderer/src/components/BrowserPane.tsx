@@ -42,7 +42,12 @@ export function BrowserPane({
   onToggleMaximize
 }: BrowserPaneProps): JSX.Element {
   const viewportRef = useRef<HTMLDivElement>(null)
-  const [snap, setSnap] = useState<Snapshot>({ wsId, activeId: null, tabs: [], groups: [] })
+  const [snap, setSnap] = useState<Snapshot>({
+    wsId,
+    activeId: null,
+    tabs: [],
+    groups: []
+  })
   const [address, setAddress] = useState('')
   const [loginBusy, setLoginBusy] = useState(false)
   const [loginErr, setLoginErr] = useState<string | null>(null)
@@ -52,7 +57,9 @@ export function BrowserPane({
     snap.groups.find((g) => g.id === tab.groupId)
   const activeColor = active ? groupOf(active)?.color : undefined
   // Keep each group's tabs contiguous so the colour bands read as blocks.
-  const ordered = snap.groups.flatMap((g) => snap.tabs.filter((t) => t.groupId === g.id))
+  const ordered = snap.groups.flatMap((g) =>
+    snap.tabs.filter((t) => t.groupId === g.id)
+  )
 
   function sendBounds(): void {
     if (!wsActive) return
@@ -84,7 +91,7 @@ export function BrowserPane({
       if (cancelled || !s) return
       setSnap(s)
       if (s.tabs.length === 0) {
-        void window.api.browser.newTab(wsId, defaultUrl || 'about:blank')
+        void window.api.browser.ensureTab(wsId, defaultUrl || 'about:blank')
       }
     })
 
@@ -184,7 +191,10 @@ export function BrowserPane({
         </div>
 
         <ChromeBtn
-          onClick={() => active && window.api.browser.zoom(wsId, active.id, (active.zoom ?? 1) - 0.1)}
+          onClick={() =>
+            active &&
+            window.api.browser.zoom(wsId, active.id, (active.zoom ?? 1) - 0.1)
+          }
         >
           <Minus size={13} />
         </ChromeBtn>
@@ -192,11 +202,16 @@ export function BrowserPane({
           {Math.round((active?.zoom ?? 1) * 100)}%
         </span>
         <ChromeBtn
-          onClick={() => active && window.api.browser.zoom(wsId, active.id, (active.zoom ?? 1) + 0.1)}
+          onClick={() =>
+            active &&
+            window.api.browser.zoom(wsId, active.id, (active.zoom ?? 1) + 0.1)
+          }
         >
           <Plus size={13} />
         </ChromeBtn>
-        <ChromeBtn onClick={() => active && window.api.browser.devtools(wsId, active.id)}>
+        <ChromeBtn
+          onClick={() => active && window.api.browser.devtools(wsId, active.id)}
+        >
           <Wrench size={13} />
         </ChromeBtn>
         {canTestLogin && (
@@ -237,14 +252,20 @@ export function BrowserPane({
               key={g.id}
               className="group/chip flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]"
               style={{ borderColor: g.color, color: g.color }}
-              title={g.partition ? `Own cookie jar (${g.partition})` : 'Default session cookies'}
+              title={
+                g.partition
+                  ? `Own cookie jar (${g.partition})`
+                  : 'Default session cookies'
+              }
             >
               {renaming === g.id ? (
                 <input
                   autoFocus
                   defaultValue={g.label}
                   onBlur={(e) => {
-                    void window.api.browser.updateGroup(wsId, g.id, { label: e.target.value })
+                    void window.api.browser.updateGroup(wsId, g.id, {
+                      label: e.target.value
+                    })
                     setRenaming(null)
                   }}
                   onKeyDown={(e) => {
@@ -254,12 +275,17 @@ export function BrowserPane({
                   className="w-20 bg-transparent focus:outline-none"
                 />
               ) : (
-                <button onDoubleClick={() => setRenaming(g.id)} title="Double-click to rename">
+                <button
+                  onDoubleClick={() => setRenaming(g.id)}
+                  title="Double-click to rename"
+                >
                   {g.label} · {count}
                 </button>
               )}
               <button
-                onClick={() => void window.api.browser.newTab(wsId, 'about:blank', g.id)}
+                onClick={() =>
+                  void window.api.browser.newTab(wsId, 'about:blank', g.id)
+                }
                 title={`New tab in ${g.label}`}
                 className="opacity-50 hover:opacity-100"
               >
@@ -301,22 +327,37 @@ export function BrowserPane({
             <div
               key={tab.id}
               onClick={() => window.api.browser.setActive(wsId, tab.id)}
-              style={{ borderTopColor: color, borderTopWidth: 2, borderTopStyle: 'solid' }}
+              style={{
+                borderTopColor: color,
+                borderTopWidth: 2,
+                borderTopStyle: 'solid'
+              }}
               className={`group flex max-w-[180px] cursor-pointer items-center gap-1.5 rounded-t px-2.5 py-1 text-xs ${
-                isActive ? 'bg-neutral-900 text-neutral-100' : 'text-neutral-500 hover:bg-neutral-900/60'
+                isActive
+                  ? 'bg-neutral-900 text-neutral-100'
+                  : 'text-neutral-500 hover:bg-neutral-900/60'
               }`}
             >
               {tab.loading ? (
                 <RotateCw size={10} className="animate-spin text-amber-400" />
               ) : (
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: color }}
+                />
               )}
               <span className="truncate">{tab.title || 'New Tab'}</span>
               {snap.groups.length > 1 && (
                 <select
                   value={tab.groupId}
                   onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => void window.api.browser.moveTab(wsId, tab.id, e.target.value)}
+                  onChange={(e) =>
+                    void window.api.browser.moveTab(
+                      wsId,
+                      tab.id,
+                      e.target.value
+                    )
+                  }
                   title="Move to another sandbox (reloads the tab)"
                   className="w-3 cursor-pointer appearance-none bg-transparent text-[9px] text-neutral-600 opacity-0 focus:outline-none group-hover:opacity-100"
                 >
@@ -340,7 +381,9 @@ export function BrowserPane({
           )
         })}
         <button
-          onClick={() => void window.api.browser.newTab(wsId, 'about:blank', active?.groupId)}
+          onClick={() =>
+            void window.api.browser.newTab(wsId, 'about:blank', active?.groupId)
+          }
           className="ml-1 rounded p-1 text-neutral-500 hover:bg-neutral-800 hover:text-neutral-200"
           title="New tab in the current sandbox"
         >

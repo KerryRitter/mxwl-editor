@@ -8,8 +8,6 @@ import { encryptSecret, decryptSecret } from '../hosts/secrets'
 import { randomBytes } from 'node:crypto'
 
 const DEFAULTS: AppSettings = {
-  taskProvider: 'none',
-  scmProvider: 'none',
   ai: { ...DEFAULT_AI_SETTINGS },
   agent: { ...DEFAULT_AGENT_SETTINGS },
   notifications: {
@@ -36,7 +34,6 @@ const DEFAULTS: AppSettings = {
   },
   jira: null,
   bitbucket: null,
-  defaultBrowserUrl: '',
   cdpPort: 9222,
   mcpAuthToken: '',
   theme: 'dark',

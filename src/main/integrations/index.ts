@@ -9,12 +9,9 @@ import type { WorkspaceManager } from '../workspace/WorkspaceManager'
 export interface IntegrationsSettingsInput {
   jira?: { host: string; email: string; apiToken?: string } | null
   bitbucket?:
-    | { host: string; username: string; appPassword?: string; workspace: string; repo: string }
+    | { host: string; username: string; appPassword?: string }
     | null
-  defaultBrowserUrl?: string
   mcpAuthToken?: string
-  taskProvider?: import('../../shared/types').TaskProviderId
-  scmProvider?: import('../../shared/types').ScmProviderId
   ai?: Partial<import('../../shared/types').AiSettings>
   agent?: Partial<import('../../shared/types').AgentSettings>
   notifications?: Partial<import('../../shared/types').AgentNotificationSettings>
@@ -27,11 +24,6 @@ export function registerIntegrationsIpc(
   settingsStore: SettingsStore,
   workspaceManager: WorkspaceManager
 ): void {
-  function client(): { jira: JiraClient; bb: BitbucketClient; settings: AppSettings } {
-    const settings = settingsStore.all()
-    return { jira: new JiraClient(settings), bb: new BitbucketClient(settings), settings }
-  }
-
   ipcMain.handle('settings:get', (): SettingsSnapshot => ({
     ...settingsStore.all(),
     encryptionAvailable: isEncryptionAvailable()
@@ -39,17 +31,9 @@ export function registerIntegrationsIpc(
   ipcMain.handle('settings:update', (_e: IpcMainInvokeEvent, input: IntegrationsSettingsInput) => {
     const current = settingsStore.all()
     const patch: Partial<AppSettings> = {}
-    if (input.defaultBrowserUrl !== undefined) {
-      patch.defaultBrowserUrl = input.defaultBrowserUrl
-    }
+
     if (input.mcpAuthToken !== undefined) {
       patch.mcpAuthToken = input.mcpAuthToken
-    }
-    if (input.taskProvider !== undefined) {
-      patch.taskProvider = input.taskProvider
-    }
-    if (input.scmProvider !== undefined) {
-      patch.scmProvider = input.scmProvider
     }
     if (input.ai !== undefined) {
       patch.ai = { ...current.ai, ...input.ai }
@@ -92,15 +76,13 @@ export function registerIntegrationsIpc(
     }
     if (input.bitbucket !== undefined) {
       patch.bitbucket =
-        input.bitbucket && (input.bitbucket.workspace || input.bitbucket.repo)
+        input.bitbucket && (input.bitbucket.host || input.bitbucket.username)
           ? {
               host: input.bitbucket.host,
               username: input.bitbucket.username,
               appPasswordEnc: input.bitbucket.appPassword
                 ? encryptSecret(input.bitbucket.appPassword)
-                : current.bitbucket?.appPasswordEnc ?? '',
-              workspace: input.bitbucket.workspace,
-              repo: input.bitbucket.repo
+                : current.bitbucket?.appPasswordEnc ?? ''
             }
           : null
     }
@@ -110,8 +92,13 @@ export function registerIntegrationsIpc(
     }
   })
 
-  ipcMain.handle('jira:get', async (_e: IpcMainInvokeEvent, key: string): Promise<JiraIssue | null> => {
-    const { jira } = client()
+  ipcMain.handle('jira:get', async (_e: IpcMainInvokeEvent, key: string, wsId?: string): Promise<JiraIssue | null> => {
+    if (wsId) {
+      const ws = workspaceManager.get(wsId)
+      const project = ws?.state.projectId ? workspaceManager.projects?.get(ws.state.projectId) : undefined
+      if (project?.integrations.taskProvider !== 'jira') return null
+    }
+    const jira = new JiraClient(settingsStore.all())
     if (!jira.isConfigured()) return null
     try {
       return await jira.getIssue(key)
@@ -121,8 +108,10 @@ export function registerIntegrationsIpc(
   })
 
   ipcMain.handle('pr:get', async (_e: IpcMainInvokeEvent, wsId: string): Promise<PullRequest | null> => {
-    const { bb } = client()
     const ws = workspaceManager.get(wsId)
+    const project = ws?.state.projectId ? workspaceManager.projects?.get(ws.state.projectId) : undefined
+    if (project?.integrations.scmProvider !== 'bitbucket') return null
+    const bb = new BitbucketClient(settingsStore.all(), { workspace: project.integrations.repositoryWorkspace, repo: project.integrations.repositorySlug })
     const branch = ws?.state.derived.branch
     if (!branch) return null
     if (!bb.isConfigured()) return null

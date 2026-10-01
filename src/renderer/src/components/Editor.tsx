@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Circle, Loader2, X } from 'lucide-react'
-import { monaco } from '../monaco-setup'
+import { monaco, createCodeEditor, disposeEditor } from '../monaco-setup'
 import { useEditorStore } from '../store/editor'
 import { basename, languageForPath } from '../util'
 
@@ -20,7 +20,6 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const modelsRef = useRef<Map<string, monaco.editor.ITextModel>>(new Map())
-  const fetchingRef = useRef<Set<string>>(new Set())
   const activePathRef = useRef<string | null>(activePath)
   const wsIdRef = useRef<string>(wsId)
   activePathRef.current = activePath
@@ -32,7 +31,9 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
   useEffect(() => {
     if (!storageKey) return
     try {
-      const saved = JSON.parse(localStorage.getItem(`${storageKey}.editorTabs`) ?? 'null') as {
+      const saved = JSON.parse(
+        localStorage.getItem(`${storageKey}.editorTabs`) ?? 'null'
+      ) as {
         paths?: string[]
         activePath?: string | null
       } | null
@@ -53,7 +54,7 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    const e = monaco.editor.create(container, {
+    const e = createCodeEditor(container, {
       automaticLayout: true,
       theme: 'mxwl-dark',
       fontSize: 13,
@@ -72,13 +73,16 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
       const p = activePathRef.current
       if (p) setDirty(wsIdRef.current, p, true)
     })
-    e.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void saveActive())
+    e.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
+      () => void saveActive()
+    )
 
     return () => {
+      editorRef.current = null
+      disposeEditor(e)
       modelsRef.current.forEach((m) => m.dispose())
       modelsRef.current.clear()
-      e.dispose()
-      editorRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -98,6 +102,7 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
   useEffect(() => {
     const e = editorRef.current
     if (!e) return
+    setLoading(false)
     if (!activePath || binaryPaths.has(activePath)) {
       e.setModel(null)
       return
@@ -106,26 +111,42 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
       e.setModel(modelsRef.current.get(activePath) ?? null)
       return
     }
-    if (fetchingRef.current.has(activePath)) return
-    fetchingRef.current.add(activePath)
+    let cancelled = false
     setLoading(true)
     window.api.fs
       .readFile(wsId, activePath)
       .then(({ content, encoding }) => {
+        // A read may complete after the file was closed or its editor unmounted.
+        if (
+          cancelled ||
+          editorRef.current !== e ||
+          !useEditorStore
+            .getState()
+            .byWs[wsId]?.files.some((file) => file.path === activePath)
+        )
+          return
         if (encoding === 'base64') {
           setBinaryPaths((s) => new Set(s).add(activePath))
           if (activePathRef.current === activePath) e.setModel(null)
           return
         }
-        const model = monaco.editor.createModel(content, languageForPath(activePath))
+        const model = monaco.editor.createModel(
+          content,
+          languageForPath(activePath)
+        )
         modelsRef.current.set(activePath, model)
         if (activePathRef.current === activePath) e.setModel(model)
       })
-      .catch((err) => console.error('read failed', err))
-      .finally(() => {
-        fetchingRef.current.delete(activePath)
-        setLoading(false)
+      .catch((err) => {
+        if (!cancelled && editorRef.current === e)
+          console.error('read failed', err)
       })
+      .finally(() => {
+        if (!cancelled && editorRef.current === e) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [activePath, wsId, binaryPaths])
 
   useEffect(() => {
@@ -160,9 +181,15 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
               className="text-neutral-600 hover:text-red-400"
             >
               {f.dirty ? (
-                <Circle size={8} className="fill-current text-neutral-500 hover:hidden" />
+                <Circle
+                  size={8}
+                  className="fill-current text-neutral-500 hover:hidden"
+                />
               ) : null}
-              <X size={12} className={f.dirty ? 'hidden group-hover:block' : ''} />
+              <X
+                size={12}
+                className={f.dirty ? 'hidden group-hover:block' : ''}
+              />
             </button>
           </div>
         ))}

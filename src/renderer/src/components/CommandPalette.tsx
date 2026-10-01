@@ -1,8 +1,16 @@
-import { useCallback, useEffect, useMemo, useState, type FC, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FC,
+  type ReactNode
+} from 'react'
 import { Boxes, FileCode2, Loader2, Search, Terminal } from 'lucide-react'
 import { Modal } from './Modal'
 import { useWorkspacesStore } from '../store/workspaces'
 import { useHostsStore } from '../store/hosts'
+import { useProjectsStore } from '../store/projects'
 import { useEditorStore } from '../store/editor'
 import { useAgentStore } from '../store/agent'
 import { useNavigationStore } from '../store/navigation'
@@ -54,6 +62,8 @@ export const CommandPalette: FC<SpotlightProps> = ({
   const setActive = useWorkspacesStore((state) => state.setActive)
   const closeWs = useWorkspacesStore((state) => state.close)
   const hosts = useHostsStore((state) => state.hosts)
+  const projects = useProjectsStore((state) => state.projects)
+  const locations = useProjectsStore((state) => state.locations)
   const activeId = useWorkspacesStore((state) => state.activeId)
   const editorByWs = useEditorStore((state) => state.byWs)
   const openFile = useEditorStore((state) => state.open)
@@ -64,7 +74,10 @@ export const CommandPalette: FC<SpotlightProps> = ({
   const focusPanel = useNavigationStore((state) => state.focus)
   const pluginCatalog = usePluginsStore((state) => state.catalog)
   const activeWs = workspaces.find((workspace) => workspace.id === activeId)
-  const enabledTools = useMemo(() => new Set(workspaceTools(pluginCatalog).map((tool) => tool.key)), [pluginCatalog])
+  const enabledTools = useMemo(
+    () => new Set(workspaceTools(pluginCatalog).map((tool) => tool.key)),
+    [pluginCatalog]
+  )
   const codeEnabled = enabledTools.has('mxwl.code:code')
   const changesEnabled = enabledTools.has('mxwl.changes:changes')
 
@@ -79,7 +92,10 @@ export const CommandPalette: FC<SpotlightProps> = ({
   useEffect(() => {
     if (hideBrowserWs) void window.api.browser.setVisible(hideBrowserWs, false)
     return () => {
-      if (hideBrowserWs && useWorkspacesStore.getState().activeId === hideBrowserWs) {
+      if (
+        hideBrowserWs &&
+        useWorkspacesStore.getState().activeId === hideBrowserWs
+      ) {
         void window.api.browser.setVisible(hideBrowserWs, true)
       }
     }
@@ -94,7 +110,9 @@ export const CommandPalette: FC<SpotlightProps> = ({
     void Promise.all(
       workspaces.map(async (workspace) => ({
         workspace,
-        snapshot: await window.api.browser.snapshot(workspace.id).catch(() => null)
+        snapshot: await window.api.browser
+          .snapshot(workspace.id)
+          .catch(() => null)
       }))
     ).then((results) => {
       if (cancelled) return
@@ -135,29 +153,34 @@ export const CommandPalette: FC<SpotlightProps> = ({
 
     let cancelled = false
     setLoadingFiles(true)
-    const timer = setTimeout(() => {
-      void Promise.all(
-        targets.map(async (workspace) => ({
-          workspace,
-          paths: await window.api.workspace.listFiles(workspace.id, q).catch(() => [])
-        }))
-      )
-        .then((results) => {
-          if (cancelled) return
-          setFiles(
-            results.flatMap(({ workspace, paths }) =>
-              paths.slice(0, mode === 'all' ? 80 : 200).map((path) => ({
-                wsId: workspace.id,
-                workspace: workspace.title,
-                path
-              }))
+    const timer = setTimeout(
+      () => {
+        void Promise.all(
+          targets.map(async (workspace) => ({
+            workspace,
+            paths: await window.api.workspace
+              .listFiles(workspace.id, q)
+              .catch(() => [])
+          }))
+        )
+          .then((results) => {
+            if (cancelled) return
+            setFiles(
+              results.flatMap(({ workspace, paths }) =>
+                paths.slice(0, mode === 'all' ? 80 : 200).map((path) => ({
+                  wsId: workspace.id,
+                  workspace: workspace.title,
+                  path
+                }))
+              )
             )
-          )
-        })
-        .finally(() => {
-          if (!cancelled) setLoadingFiles(false)
-        })
-    }, q ? 100 : 0)
+          })
+          .finally(() => {
+            if (!cancelled) setLoadingFiles(false)
+          })
+      },
+      q ? 100 : 0
+    )
     return () => {
       cancelled = true
       clearTimeout(timer)
@@ -277,7 +300,8 @@ export const CommandPalette: FC<SpotlightProps> = ({
           group: 'Command',
           run: async () => {
             const snapshot = await window.api.browser.snapshot(activeId)
-            if (snapshot?.activeId) await window.api.browser.reload(activeId, snapshot.activeId)
+            if (snapshot?.activeId)
+              await window.api.browser.reload(activeId, snapshot.activeId)
             onClose()
           }
         }
@@ -296,15 +320,19 @@ export const CommandPalette: FC<SpotlightProps> = ({
       }
     }
 
-    for (const host of hosts) {
+    for (const location of locations) {
+      if (!location.checkoutPath) continue
+      const host = hosts.find((h) => h.id === location.hostId)
+      const project = projects.find((p) => p.id === location.projectId)
+      if (!host || !project) continue
       list.push({
-        id: `host-${host.id}`,
-        label: `New workspace on ${host.label}`,
-        hint: host.kind === 'local' ? 'this machine' : `${host.username}@${host.host}`,
-        group: 'Host',
-        keywords: `${host.label} ${host.host}`,
+        id: `project-host-${location.id}`,
+        label: `Open workspace · ${project.label} → ${host.label}`,
+        hint: `${location.label} · ${location.checkoutPath}`,
+        group: 'Project host',
+        keywords: `${project.label} ${host.label} ${host.host} ${location.label}`,
         run: () => {
-          setNewModalOpen(true, host.id)
+          setNewModalOpen(true, host.id, location.id)
           onClose()
         }
       })
@@ -318,6 +346,8 @@ export const CommandPalette: FC<SpotlightProps> = ({
     closeWs,
     focusPanel,
     hosts,
+    projects,
+    locations,
     onClose,
     onLaunchTicket,
     onOpenAi,
@@ -341,7 +371,9 @@ export const CommandPalette: FC<SpotlightProps> = ({
         }
       })
 
-      for (const file of codeEnabled ? (editorByWs[workspace.id]?.files ?? []) : []) {
+      for (const file of codeEnabled
+        ? (editorByWs[workspace.id]?.files ?? [])
+        : []) {
         list.push({
           id: `editor:${workspace.id}:${file.path}`,
           label: basename(file.path),
@@ -462,7 +494,8 @@ export const CommandPalette: FC<SpotlightProps> = ({
     return fuzzySort(
       q,
       source,
-      (item) => `${item.label} ${item.hint ?? ''} ${item.group} ${item.keywords ?? ''}`
+      (item) =>
+        `${item.label} ${item.hint ?? ''} ${item.group} ${item.keywords ?? ''}`
     ).slice(0, 100)
   }, [actions, mode, q, resources])
 
@@ -485,13 +518,25 @@ export const CommandPalette: FC<SpotlightProps> = ({
   return (
     <Modal title={title} onClose={onClose} width={660}>
       <div className="mb-2 flex gap-1">
-        <ModeChip active={mode === 'all'} onClick={() => setMode('all')} icon={<Search size={12} />}>
+        <ModeChip
+          active={mode === 'all'}
+          onClick={() => setMode('all')}
+          icon={<Search size={12} />}
+        >
           Everything · Ctrl+K
         </ModeChip>
-        <ModeChip active={mode === 'files'} onClick={() => setMode('files')} icon={<FileCode2 size={12} />}>
+        <ModeChip
+          active={mode === 'files'}
+          onClick={() => setMode('files')}
+          icon={<FileCode2 size={12} />}
+        >
           Files · Ctrl+P
         </ModeChip>
-        <ModeChip active={mode === 'commands'} onClick={() => setMode('commands')} icon={<Terminal size={12} />}>
+        <ModeChip
+          active={mode === 'commands'}
+          onClick={() => setMode('commands')}
+          icon={<Terminal size={12} />}
+        >
           Commands · Ctrl+Shift+P
         </ModeChip>
       </div>
@@ -503,7 +548,9 @@ export const CommandPalette: FC<SpotlightProps> = ({
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown') {
               event.preventDefault()
-              setCursor((current) => Math.min(current + 1, Math.max(0, items.length - 1)))
+              setCursor((current) =>
+                Math.min(current + 1, Math.max(0, items.length - 1))
+              )
             } else if (event.key === 'ArrowUp') {
               event.preventDefault()
               setCursor((current) => Math.max(0, current - 1))
@@ -513,7 +560,11 @@ export const CommandPalette: FC<SpotlightProps> = ({
             } else if (event.key === 'Tab') {
               event.preventDefault()
               setMode((current) =>
-                current === 'all' ? 'files' : current === 'files' ? 'commands' : 'all'
+                current === 'all'
+                  ? 'files'
+                  : current === 'files'
+                    ? 'commands'
+                    : 'all'
               )
               setQ('')
             }
@@ -527,7 +578,12 @@ export const CommandPalette: FC<SpotlightProps> = ({
           }
           className="mb-3 w-full rounded-md border border-neutral-700 bg-neutral-950 px-3 py-2 pr-9 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
         />
-        {loadingFiles && <Loader2 size={14} className="absolute right-3 top-2.5 animate-spin text-neutral-500" />}
+        {loadingFiles && (
+          <Loader2
+            size={14}
+            className="absolute right-3 top-2.5 animate-spin text-neutral-500"
+          />
+        )}
       </div>
       <div className="max-h-[440px] overflow-auto">
         {items.map((item, index) => (
@@ -546,7 +602,9 @@ export const CommandPalette: FC<SpotlightProps> = ({
             </span>
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
             {item.hint && (
-              <span className="max-w-[45%] truncate text-[11px] text-neutral-500">{item.hint}</span>
+              <span className="max-w-[45%] truncate text-[11px] text-neutral-500">
+                {item.hint}
+              </span>
             )}
           </button>
         ))}

@@ -174,7 +174,7 @@ export function createArtifactService(client) {
     async list(ticket) {
       if (!/^[A-Z][A-Z0-9]+-\d+$/.test(ticket)) return [];
       return client.call("files.readDirectory", {
-        path: `.zipper-agent/local/${ticket}`,
+        path: `.agent-artifacts/local/${ticket}`,
       });
     },
 
@@ -200,7 +200,7 @@ describe("artifact service", () => {
       .mockResolvedValue([
         {
           name: "QA_PREP.md",
-          path: ".zipper-agent/local/PROJ-42/QA_PREP.md",
+          path: ".agent-artifacts/local/PROJ-42/QA_PREP.md",
           isDirectory: false,
         },
       ]);
@@ -208,7 +208,7 @@ describe("artifact service", () => {
 
     await expect(service.list("PROJ-42")).resolves.toHaveLength(1);
     expect(call).toHaveBeenCalledWith("files.readDirectory", {
-      path: ".zipper-agent/local/PROJ-42",
+      path: ".agent-artifacts/local/PROJ-42",
     });
   });
 

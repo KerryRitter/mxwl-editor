@@ -1,18 +1,29 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-alpha.5
 
 ### Added
+- Project-first configuration with reusable projects, a permanent local checkout, and multiple local or SSH hosts per project
+- Project/host breadcrumbs and host-scoped workspace tabs that keep background workspaces running
+- Per-project browser profiles, services, integrations, AI task setup, and plugin visibility with checkout-specific overrides
+- Tailscale machine discovery and Tailscale SSH connections without stored keys or passwords
+- Shared branded application, tray, desktop launcher, and package icons
 - Versioned local plugin manifests with enable/disable controls, permission-gated host APIs, scoped storage, and sandboxed workspace-tool UI
 - A complete Task Board example plugin plus an authoring, architecture, lifecycle, and security guide
 - Read-only directory discovery for plugins, including explicit hidden artifact folders
 - Linked plugin installation from an arbitrary directory or manifest path, without copying or deleting external source
 - A versioned browser SDK with context, visibility, and permission-gated host calls
-- A real standalone Zipper Branch Brief integration used to validate linked plugins end to end
+- A standalone branch-artifact reader integration used to validate linked plugins end to end
 
 ### Changed
+- Browser cookies, sessions, agent conversations, and workspace recovery are scoped to project, checkout, folder, and browser profile
+- Browser, editor, terminal, and layout handling improved across workspace switches
+- Linux installer installs bundled icons and replaces the executable atomically
 - Code Explorer and Changes now register as built-in plugins through the same workspace-tool contribution registry
 - Linked plugins are disabled on first discovery and automatically require approval again when requested permissions change
+
+### Upgrade notes
+- Legacy host-specific application settings are not migrated automatically. Create projects and configure their checkout paths, browser profiles, services, integrations, and AI task settings after upgrading.
 
 ## 0.2.0-alpha.4
 
@@ -72,7 +83,7 @@
 - Crash log file under app userData
 
 ### Changed
-- Removed Zipper/Generic preset switching from the product path — config lives on each host
+- Removed Example App/Generic preset switching from the product path — config lives on each host
 - Settings is credentials + fallbacks only
 - SSH reconnect caps after repeated failures
 

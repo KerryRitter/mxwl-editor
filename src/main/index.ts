@@ -11,6 +11,7 @@ import {
 import { registerIpc } from './ipc'
 import { createMainWindow } from './window'
 import { HostStore, HostManager, registerHostIpc } from './hosts'
+import { ProjectManager, registerProjectIpc } from './projects'
 import { WorkspaceManager, registerWorkspaceIpc } from './workspace'
 import { SettingsStore } from './persistence/SettingsStore'
 import { SessionStore } from './persistence/SessionStore'
@@ -25,6 +26,7 @@ import {
   runControlCli
 } from './control'
 import { PluginManager, registerPluginIpc } from './plugins'
+import { appIconPath } from './branding'
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -110,10 +112,7 @@ function focusAgent(wsId: string): void {
 }
 
 function trayImage() {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22"><rect width="22" height="22" rx="6" fill="#09090b"/><path d="M4 15V7l4 5 3-5 3 5 4-5v8" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
-  return nativeImage.createFromDataURL(
-    `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
-  )
+  return nativeImage.createFromPath(appIconPath()).resize({ width: 22, height: 22 })
 }
 
 function refreshTrayMenu(): void {
@@ -208,18 +207,21 @@ async function bootstrap(): Promise<void> {
   registerIpc()
   const hostStore = new HostStore()
   hostManager = new HostManager(hostStore)
-  registerHostIpc(hostManager)
 
   settingsStore = new SettingsStore()
   const sessionStore = new SessionStore()
+  const projects = new ProjectManager(id => Boolean(hostManager?.get(id)), undefined, () => hostManager!.ensureLocal())
 
   workspaceManager = new WorkspaceManager(
     hostManager,
     () => mainWindow,
     sessionStore,
-    settingsStore
+    settingsStore,
+    projects
   )
   registerWorkspaceIpc(workspaceManager)
+  registerProjectIpc(projects, workspaceManager)
+  registerHostIpc(hostManager, id => !projects.listLocations().some(l => l.hostId === id) && !workspaceManager!.list().some(w => w.hostId === id))
   registerIntegrationsIpc(settingsStore, workspaceManager)
 
   mcpController = new McpController(workspaceManager, settingsStore)

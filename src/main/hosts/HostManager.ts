@@ -3,11 +3,10 @@ import { readFileSync, existsSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { Client, type ConnectConfig } from 'ssh2'
-import type { AuthConfig, DeriveConfig, HostConfig, PresetService, TestResult } from '../../shared/types'
+import type { AuthConfig, HostConfig, TestResult } from '../../shared/types'
 import { decryptSecret } from './secrets'
 import { HostStore } from './store'
 import { createLocalHostConfig } from '../workspace/LocalConnection'
-import { DEFAULT_DERIVE, DEFAULT_HIDE, emptyServices } from '../../shared/hostDefaults'
 
 export function expandHome(p: string): string {
   if (!p) return p
@@ -33,13 +32,16 @@ export function buildConnectConfig(host: HostConfig): ConnectConfig {
 function authCreds(auth: AuthConfig): ConnectConfig {
   switch (auth.kind) {
     case 'none':
+    case 'tailscale':
       return {}
     case 'agent':
       return { agent: process.env.SSH_AUTH_SOCK }
     case 'key':
       return {
         privateKey: readKey(auth.keyPath),
-        passphrase: auth.encryptedPassphrase ? decryptSecret(auth.encryptedPassphrase) : undefined
+        passphrase: auth.encryptedPassphrase
+          ? decryptSecret(auth.encryptedPassphrase)
+          : undefined
       }
     case 'password':
       return { password: decryptSecret(auth.encryptedPassword) }
@@ -52,7 +54,9 @@ function readKey(keyPath: string): Buffer {
     return readFileSync(resolved)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    throw new Error(`Cannot read private key at "${keyPath}" (resolved "${resolved}"): ${msg}`)
+    throw new Error(
+      `Cannot read private key at "${keyPath}" (resolved "${resolved}"): ${msg}`
+    )
   }
 }
 
@@ -60,15 +64,17 @@ export class HostManager {
   constructor(private store: HostStore) {}
 
   list(): HostConfig[] {
-    return this.store.all().map((h) => this.persistIfMigrated(normalizeHost(h)))
+    return this.store.all().map(normalizeHost)
   }
 
   get(id: string): HostConfig | undefined {
     const h = this.store.get(id)
-    return h ? this.persistIfMigrated(normalizeHost(h)) : undefined
+    return h ? normalizeHost(h) : undefined
   }
 
   save(host: HostConfig): HostConfig {
+    if (this.get(host.id)?.kind === 'local' && host.kind !== 'local')
+      throw new Error('A local machine connection cannot be converted to a remote connection')
     return this.store.upsert(normalizeHost(host))
   }
 
@@ -76,23 +82,9 @@ export class HostManager {
     this.store.delete(id)
   }
 
-  ensureLocal(workspacesRoot?: string): HostConfig {
-    const existing = this.list().find((h) => h.kind === 'local' || looksLikeLocal(h))
-    if (existing) {
-      const fixed: HostConfig = {
-        ...createLocalHostConfig(workspacesRoot ?? existing.workspacesRoot),
-        id: existing.id,
-        addedAt: existing.addedAt,
-        label: existing.label || 'This machine',
-        workspacesRoot: workspacesRoot ?? existing.workspacesRoot ?? '~/Workspaces',
-        derive: existing.derive,
-        folderFilter: existing.folderFilter,
-        services: existing.services,
-        hide: existing.hide
-      }
-      return this.save(fixed)
-    }
-    return this.save(createLocalHostConfig(workspacesRoot))
+  ensureLocal(): HostConfig {
+    const existing = this.store.firstLocal()
+    return existing ? normalizeHost(existing) : this.save(createLocalHostConfig())
   }
 
   clone(id: string): HostConfig {
@@ -107,24 +99,9 @@ export class HostManager {
     return this.save(copy)
   }
 
-  private persistIfMigrated(host: HostConfig): HostConfig {
-    const raw = this.store.get(host.id) as HostConfig & { browserUrlTemplate?: string } | undefined
-    if (!raw) return host
-    const needsWrite =
-      raw.kind !== host.kind ||
-      raw.auth?.kind !== host.auth.kind ||
-      !raw.derive ||
-      !Array.isArray(raw.services) ||
-      (raw as { browserUrlTemplate?: string }).browserUrlTemplate !== undefined ||
-      (host.kind === 'local' && (raw.port !== 0 || raw.auth?.kind !== 'none'))
-    if (needsWrite) this.store.upsert(host)
-    return host
-  }
-
   test(host: HostConfig): Promise<TestResult> {
     const start = Date.now()
     if (host.kind === 'local') {
-      const root = expandHome(host.workspacesRoot || '~/Workspaces')
       const homeOk = existsSync(homedir())
       return Promise.resolve({
         ok: homeOk,
@@ -144,65 +121,35 @@ export class HostManager {
         resolve({ ...r, latencyMs: Date.now() - start })
       }
       client.once('ready', () => finish({ ok: true }))
-      client.once('error', (err: Error) => finish({ ok: false, error: err.message }))
-      const timer = setTimeout(() => finish({ ok: false, error: 'timeout (10s)' }), 10000)
+      client.once('error', (err: Error) =>
+        finish({ ok: false, error: err.message })
+      )
+      const timer = setTimeout(
+        () => finish({ ok: false, error: 'timeout (10s)' }),
+        10000
+      )
       client.once('close', () => clearTimeout(timer))
       try {
         client.connect(buildConnectConfig(host))
       } catch (err) {
-        finish({ ok: false, error: err instanceof Error ? err.message : String(err) })
+        finish({
+          ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        })
       }
     })
   }
 }
 
-function looksLikeLocal(h: HostConfig): boolean {
-  if (h.kind === 'local') return true
-  if (h.auth?.kind === 'none') return true
-  if (h.port === 0 && (h.host === 'localhost' || h.host === '127.0.0.1')) return true
-  return false
-}
-
-function normalizeHost(h: HostConfig & { browserUrlTemplate?: string }): HostConfig {
-  const legacyUrl = h.browserUrlTemplate?.trim()
-  const derive: DeriveConfig = h.derive
-    ? {
-        folderPattern: h.derive.folderPattern || DEFAULT_DERIVE.folderPattern,
-        titleTemplate: h.derive.titleTemplate || DEFAULT_DERIVE.titleTemplate,
-        browserUrlTemplate: h.derive.browserUrlTemplate ?? legacyUrl ?? '',
-        issueKeyTemplate: h.derive.issueKeyTemplate
-      }
-    : {
-        ...DEFAULT_DERIVE,
-        browserUrlTemplate: legacyUrl ?? ''
-      }
-  const services: PresetService[] = Array.isArray(h.services) ? h.services : emptyServices()
-  const hide = h.hide ?? DEFAULT_HIDE
-  const base: HostConfig = {
+function normalizeHost(h: HostConfig): HostConfig {
+  return {
     id: h.id,
     label: h.label,
     host: h.host,
-    port: h.port,
+    port: h.kind === 'local' ? 0 : h.port,
     username: h.username,
-    auth: h.auth ?? { kind: 'agent' },
-    workspacesRoot: h.workspacesRoot || '~/Workspaces',
-    derive,
-    folderFilter: h.folderFilter,
-    services,
-    hide,
-    terminalStartup: h.terminalStartup?.trim() || undefined,
-    testLogin: h.testLogin,
-    addedAt: h.addedAt || Date.now(),
+    auth: h.kind === 'local' ? { kind: 'none' } : h.auth,
+    addedAt: h.addedAt,
     kind: h.kind ?? 'ssh'
   }
-  if (looksLikeLocal(base)) {
-    return {
-      ...base,
-      kind: 'local',
-      host: base.host || 'localhost',
-      port: 0,
-      auth: { kind: 'none' }
-    }
-  }
-  return base
 }

@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { _electron as electron, type ElectronApplication, type Page } from 'playwright'
+import { emptyProject } from '../src/shared/projects'
 import { test as base } from '@playwright/test'
 
 export type AppFixture = {
@@ -60,17 +61,26 @@ export const expect = test.expect
 
 /** Registers the local machine as a host rooted at `workRoot` and returns its id. */
 export async function useLocalHost(page: Page, workRoot: string): Promise<string> {
-  return page.evaluate(async (root) => {
-    const host = await window.api.host.ensureLocal(root)
+  return page.evaluate(async ({ root, defaults }) => {
+    const host = await window.api.host.ensureLocal()
+    const project = await window.api.project.save({ ...defaults, label: 'Test project' })
+    await window.api.project.saveLocation({ projectId: project.id, hostId: host.id, label: 'Test local', checkoutPath: root, workspacesRoot: root, folderFilter: '', appSubdirectory: '', browserProfileId: null, overrides: {} })
     return host.id
-  }, workRoot)
+  }, { root: workRoot, defaults: emptyProject() })
 }
 
 export async function setAiSettings(
   page: Page,
   ai: Record<string, unknown>
 ): Promise<void> {
-  await page.evaluate((patch) => window.api.settings.update({ ai: patch }), ai)
+  await page.evaluate(async patch => {
+    const { workspaceFolderTemplate, initBranchCommand, baseRepoFolder, ...global } = patch
+    if (workspaceFolderTemplate !== undefined || initBranchCommand !== undefined) {
+      for (const project of await window.api.project.list()) await window.api.project.save({ ...project, browserProfiles: [], ai: { workspaceFolderTemplate: String(workspaceFolderTemplate ?? project.ai.workspaceFolderTemplate), initBranchCommand: String(initBranchCommand ?? project.ai.initBranchCommand) } })
+    }
+    if (baseRepoFolder) for (const location of await window.api.project.locations()) await window.api.project.saveLocation({ ...location, checkoutPath: String(baseRepoFolder) })
+    await window.api.settings.update({ ai: global })
+  }, ai)
 }
 
 export async function setAgentSettings(

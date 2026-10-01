@@ -30,7 +30,11 @@ export class DevController {
     return [...this.serviceMap.values()]
   }
 
+  setCwd(cwd: string): void { this.cwd = cwd }
+
   setServices(services: PresetService[]): void {
+    const ids = new Set(services.map(s => s.id))
+    for (const id of this.serviceMap.keys()) if (!ids.has(id)) { this.stopTail(id); delete this.statuses[id] }
     this.serviceMap = new Map(services.map((s) => [s.id, s]))
     for (const s of services) {
       if (!this.statuses[s.id]) this.statuses[s.id] = 'unknown'
@@ -51,7 +55,8 @@ export class DevController {
     const cmd = this.cmdFor(action, serviceId)
     if (!cmd) throw new Error(`no ${action} command configured for ${serviceId}`)
     this.setStatus(serviceId, 'starting')
-    const full = `cd ${shellQuote(this.cwd)} && ${cmd}`
+    const subdir = this.serviceMap.get(serviceId)?.cwd
+    const full = `cd ${shellQuote(subdir ? `${this.cwd}/${subdir}` : this.cwd)} && ${cmd}`
     const stream = await this.conn.execStream(full)
     this.bindStream(serviceId, stream, action === 'stop' ? 'stopped' : 'running')
   }
@@ -63,7 +68,8 @@ export class DevController {
       this.sendLog(serviceId, 'stderr', `[no logs command configured for ${serviceId}]`)
       return
     }
-    const full = `cd ${shellQuote(this.cwd)} && ${cmd}`
+    const subdir = this.serviceMap.get(serviceId)?.cwd
+    const full = `cd ${shellQuote(subdir ? `${this.cwd}/${subdir}` : this.cwd)} && ${cmd}`
     try {
       const stream = await this.conn.execStream(full)
       this.tails.set(serviceId, stream)

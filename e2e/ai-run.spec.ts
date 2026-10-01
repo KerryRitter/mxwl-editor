@@ -19,18 +19,18 @@ test('runs the brief setup command, waits for it, then opens the ticket tabs', a
   page,
   workRoot
 }) => {
-  const repo = join(workRoot, 'zipper')
+  const repo = join(workRoot, 'myapp')
   mkdirSync(repo, { recursive: true })
   const init = join(repo, 'init.sh')
   writeFileSync(
     init,
-    '#!/bin/bash\nsleep 1\nmkdir -p ../zipper-PLAT-5583 ../zipper-PLAT-5577\necho init done\n'
+    '#!/bin/bash\nsleep 1\nmkdir -p ../myapp-PLAT-5583 ../myapp-PLAT-5577\necho init done\n'
   )
   chmodSync(init, 0o755)
 
   const hostId = await useLocalHost(page, workRoot)
   await setAiSettings(page, {
-    workspaceFolderTemplate: 'zipper-${key}',
+    workspaceFolderTemplate: 'myapp-${key}',
     initTimeoutSec: 60,
     refinePrompts: false,
     // Keep the per-ticket launch inert — this test is about orchestration.
@@ -40,7 +40,7 @@ test('runs the brief setup command, waits for it, then opens the ticket tabs', a
   const brief = `in ${repo}, run ./init.sh, then run the qa checks for PLAT-5583 and PLAT-5577`
 
   const plan = await page.evaluate(
-    ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, cli: 'claude', refine: false }),
+    async ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, locationId: (await window.api.project.locations()).find(l => l.hostId === host)!.id, cli: 'claude', refine: false }),
     [brief, hostId] as const
   )
   expect(plan.plan.prep?.kind).toBe('shell')
@@ -66,8 +66,8 @@ test('runs the brief setup command, waits for it, then opens the ticket tabs', a
     )
 
   // The setup command actually ran on the host.
-  expect(existsSync(join(workRoot, 'zipper-PLAT-5583'))).toBe(true)
-  expect(existsSync(join(workRoot, 'zipper-PLAT-5577'))).toBe(true)
+  expect(existsSync(join(workRoot, 'myapp-PLAT-5583'))).toBe(true)
+  expect(existsSync(join(workRoot, 'myapp-PLAT-5577'))).toBe(true)
 
   expect(final.prep?.status).toBe('done')
   expect(final.targets.map((t) => t.status)).toEqual(['running', 'running'])
@@ -77,8 +77,8 @@ test('runs the brief setup command, waits for it, then opens the ticket tabs', a
   // A workspace and an AI-labelled terminal exist for each ticket.
   const workspaces = await page.evaluate(() => window.api.workspace.list())
   const paths = workspaces.map((w) => w.remotePath)
-  expect(paths).toContain(join(workRoot, 'zipper-PLAT-5583'))
-  expect(paths).toContain(join(workRoot, 'zipper-PLAT-5577'))
+  expect(paths).toContain(join(workRoot, 'myapp-PLAT-5583'))
+  expect(paths).toContain(join(workRoot, 'myapp-PLAT-5577'))
 
   for (const target of final.targets) {
     const ws = workspaces.find((w) => w.id === target.wsId)!
@@ -138,14 +138,14 @@ test('a blocking slash-command setup runs headless with the configured flags', a
   page,
   workRoot
 }) => {
-  const repo = join(workRoot, 'zipper')
+  const repo = join(workRoot, 'myapp')
   mkdirSync(repo, { recursive: true })
-  const folders = ['zipper-PLAT-5583', 'zipper-PLAT-5577'].map((f) => join(workRoot, f))
+  const folders = ['myapp-PLAT-5583', 'myapp-PLAT-5577'].map((f) => join(workRoot, f))
   const bin = fakeCli(workRoot, folders, 5)
 
   const hostId = await useLocalHost(page, workRoot)
   await setAiSettings(page, {
-    workspaceFolderTemplate: 'zipper-${key}',
+    workspaceFolderTemplate: 'myapp-${key}',
     initTimeoutSec: 60,
     refinePrompts: false,
     commandOverrides: { claude: bin },
@@ -157,7 +157,7 @@ test('a blocking slash-command setup runs headless with the configured flags', a
     'then run the qa checks for PLAT-5583 and PLAT-5577'
 
   const plan = await page.evaluate(
-    ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, cli: 'claude', refine: false }),
+    async ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, locationId: (await window.api.project.locations()).find(l => l.hostId === host)!.id, cli: 'claude', refine: false }),
     [brief, hostId] as const
   )
   expect(plan.plan.prep?.kind).toBe('cli')
@@ -180,8 +180,8 @@ test('a blocking slash-command setup runs headless with the configured flags', a
   expect(argv).toContain('--dangerously-skip-permissions')
 
   // The prompt survived the file round-trip and names both folders to create.
-  expect(prompt).toContain('zipper-PLAT-5583')
-  expect(prompt).toContain('zipper-PLAT-5577')
+  expect(prompt).toContain('myapp-PLAT-5583')
+  expect(prompt).toContain('myapp-PLAT-5577')
 
   // Tabs opened only after the CLI exited.
   const finishedAt = Number(readFileSync(join(workRoot, 'cli-finished'), 'utf8').trim())
@@ -202,11 +202,11 @@ test('waits for the setup command to exit, not for the folders to appear', async
   page,
   workRoot
 }) => {
-  const repo = join(workRoot, 'zipper')
+  const repo = join(workRoot, 'myapp')
   mkdirSync(repo, { recursive: true })
   // Both folders exist before the run starts — a folder check passes at t=0.
-  mkdirSync(join(workRoot, 'zipper-PLAT-5583'), { recursive: true })
-  mkdirSync(join(workRoot, 'zipper-PLAT-5577'), { recursive: true })
+  mkdirSync(join(workRoot, 'myapp-PLAT-5583'), { recursive: true })
+  mkdirSync(join(workRoot, 'myapp-PLAT-5577'), { recursive: true })
 
   const stamp = join(workRoot, 'init-finished')
   const init = join(repo, 'init.sh')
@@ -215,7 +215,7 @@ test('waits for the setup command to exit, not for the folders to appear', async
 
   const hostId = await useLocalHost(page, workRoot)
   await setAiSettings(page, {
-    workspaceFolderTemplate: 'zipper-${key}',
+    workspaceFolderTemplate: 'myapp-${key}',
     initTimeoutSec: 60,
     refinePrompts: false,
     commandOverrides: { claude: 'echo' }
@@ -223,7 +223,7 @@ test('waits for the setup command to exit, not for the folders to appear', async
 
   const brief = `in ${repo}, run ./init.sh, then run the qa checks for PLAT-5583 and PLAT-5577`
   const plan = await page.evaluate(
-    ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, cli: 'claude', refine: false }),
+    async ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, locationId: (await window.api.project.locations()).find(l => l.hostId === host)!.id, cli: 'claude', refine: false }),
     [brief, hostId] as const
   )
   const started = await page.evaluate((p) => window.api.ai.run(p), plan.plan)
@@ -242,7 +242,7 @@ test('waits for the setup command to exit, not for the folders to appear', async
   expect(existsSync(stamp), 'run finished before the setup script did').toBe(true)
   const finishedAt = Number(readFileSync(stamp, 'utf8').trim())
   const workspaces = await page.evaluate(() => window.api.workspace.list())
-  for (const folder of ['zipper-PLAT-5583', 'zipper-PLAT-5577']) {
+  for (const folder of ['myapp-PLAT-5583', 'myapp-PLAT-5577']) {
     const ws = workspaces.find((w) => w.remotePath === join(workRoot, folder))!
     expect(ws, `${folder} workspace`).toBeTruthy()
     expect(ws.createdAt).toBeGreaterThan(finishedAt)
@@ -258,7 +258,7 @@ test('a failed blocking setup stops the run instead of launching the agents', as
   page,
   workRoot
 }) => {
-  const repo = join(workRoot, 'zipper')
+  const repo = join(workRoot, 'myapp')
   mkdirSync(repo, { recursive: true })
   const init = join(repo, 'init.sh')
   writeFileSync(init, '#!/bin/bash\necho "clone failed: no such remote" >&2\nexit 3\n')
@@ -266,7 +266,7 @@ test('a failed blocking setup stops the run instead of launching the agents', as
 
   const hostId = await useLocalHost(page, workRoot)
   await setAiSettings(page, {
-    workspaceFolderTemplate: 'zipper-${key}',
+    workspaceFolderTemplate: 'myapp-${key}',
     initTimeoutSec: 60,
     refinePrompts: false,
     commandOverrides: { claude: 'echo' }
@@ -274,7 +274,7 @@ test('a failed blocking setup stops the run instead of launching the agents', as
 
   const brief = `in ${repo}, run ./init.sh, then run the qa checks for PLAT-5583 and PLAT-5577`
   const plan = await page.evaluate(
-    ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, cli: 'claude', refine: false }),
+    async ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, locationId: (await window.api.project.locations()).find(l => l.hostId === host)!.id, cli: 'claude', refine: false }),
     [brief, hostId] as const
   )
   const started = await page.evaluate((p) => window.api.ai.run(p), plan.plan)
@@ -310,19 +310,19 @@ test('a failed blocking setup stops the run instead of launching the agents', as
  * editor windows. Opening the workspaces is mxwl's own job, not agent work.
  */
 test('“open up tabs” opens the workspaces and launches no agent', async ({ page, workRoot }) => {
-  mkdirSync(join(workRoot, 'zipper-PLAT-5583'), { recursive: true })
-  mkdirSync(join(workRoot, 'zipper-PLAT-5577'), { recursive: true })
+  mkdirSync(join(workRoot, 'myapp-PLAT-5583'), { recursive: true })
+  mkdirSync(join(workRoot, 'myapp-PLAT-5577'), { recursive: true })
 
   const hostId = await useLocalHost(page, workRoot)
   await setAiSettings(page, {
-    workspaceFolderTemplate: 'zipper-${key}',
+    workspaceFolderTemplate: 'myapp-${key}',
     refinePrompts: false,
     commandOverrides: { claude: 'echo' }
   })
 
   const brief = 'open up tabs for PLAT-5583 and PLAT-5577'
   const plan = await page.evaluate(
-    ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, cli: 'claude', refine: false }),
+    async ([b, host]) => window.api.ai.plan({ brief: b, hostId: host, locationId: (await window.api.project.locations()).find(l => l.hostId === host)!.id, cli: 'claude', refine: false }),
     [brief, hostId] as const
   )
   expect(plan.plan.targets.flatMap((t) => t.tasks)).toEqual([])
@@ -341,7 +341,7 @@ test('“open up tabs” opens the workspaces and launches no agent', async ({ p
   // Both workspaces are open …
   const workspaces = await page.evaluate(() => window.api.workspace.list())
   expect(workspaces.map((w) => w.remotePath).sort()).toEqual(
-    [join(workRoot, 'zipper-PLAT-5577'), join(workRoot, 'zipper-PLAT-5583')].sort()
+    [join(workRoot, 'myapp-PLAT-5577'), join(workRoot, 'myapp-PLAT-5583')].sort()
   )
   // … and nothing was launched into them.
   expect(workspaces.flatMap((w) => w.terminal.sessions)).toEqual([])

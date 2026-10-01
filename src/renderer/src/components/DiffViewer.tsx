@@ -14,7 +14,7 @@ import {
   Upload
 } from 'lucide-react'
 import type { GitChange, GitChangeKind, GitChangesSnapshot, GitFileDiff } from '../../../shared/types'
-import { monaco } from '../monaco-setup'
+import { monaco, createDiffEditor, disposeEditor } from '../monaco-setup'
 import { basename, languageForPath } from '../util'
 
 type DiffLayout = 'unified' | 'split'
@@ -500,7 +500,7 @@ const MonacoDiff: FC<{
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    const editor = monaco.editor.createDiffEditor(container, {
+    const editor = createDiffEditor(container, {
       automaticLayout: true,
       theme: 'mxwl-dark',
       readOnly: true,
@@ -529,8 +529,10 @@ const MonacoDiff: FC<{
     ]
     return () => {
       disposables.forEach((disposable) => disposable.dispose())
-      editor.dispose()
+      // React cleans up the editor effect before the model effect on unmount.
+      // Detach while its services are live, and invalidate the ref before dispose.
       editorRef.current = null
+      disposeEditor(editor)
     }
   }, [])
 
@@ -558,7 +560,7 @@ const MonacoDiff: FC<{
     )
     editor.setModel({ original, modified })
     return () => {
-      editor.setModel(null)
+      if (editorRef.current === editor) editor.setModel(null)
       original.dispose()
       modified.dispose()
     }

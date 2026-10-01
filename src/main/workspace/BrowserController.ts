@@ -38,10 +38,21 @@ export class BrowserController {
   private dtBounds: Rectangle | null = null
   private dtAttachedTabId: string | null = null
 
-  constructor(wsId: string, getSender: () => BrowserWindow | null) {
+  constructor(
+    wsId: string,
+    getSender: () => BrowserWindow | null,
+    private profileScope?: string,
+    profileLabel?: string
+  ) {
     this.wsId = wsId
     this.getSender = getSender
     this.groups = [makeDefaultGroup(wsId)]
+    if (profileScope)
+      this.groups[0] = {
+        ...this.groups[0],
+        label: profileLabel || 'Project',
+        partition: `persist:mxwl-project-${profileScope}`
+      }
   }
 
   /** New cookie sandbox. Tabs in it share nothing with the other groups. */
@@ -52,7 +63,7 @@ export class BrowserController {
       id,
       label: label?.trim() || `Group ${n}`,
       color: groupColor(n - 1),
-      partition: groupPartition(this.wsId, id)
+      partition: groupPartition(this.profileScope ?? this.wsId, id)
     })
     this.emit()
     return id
@@ -80,7 +91,9 @@ export class BrowserController {
   async clearGroup(id: string): Promise<void> {
     const group = this.groups.find((g) => g.id === id)
     if (!group) return
-    const sess = group.partition ? session.fromPartition(group.partition) : session.defaultSession
+    const sess = group.partition
+      ? session.fromPartition(group.partition)
+      : session.defaultSession
     await sess.clearStorageData()
   }
 
@@ -95,6 +108,11 @@ export class BrowserController {
     const url = tab.url
     this.closeTab(tabId)
     return this.newTab(url || 'about:blank', groupId)
+  }
+
+  /** The UI and external callers may initialize concurrently; claim one default tab atomically. */
+  ensureTab(url?: string): string {
+    return this.activeId ?? this.tabs.keys().next().value ?? this.newTab(url)
   }
 
   newTab(url?: string, groupId?: string): string {
@@ -196,7 +214,9 @@ export class BrowserController {
     this.getSender()?.contentView.removeChildView(tab.view)
     try {
       if (tab.devtoolsOpen) tab.view.webContents.closeDevTools()
-      ;(tab.view as unknown as { webContents: { destroy: () => void } }).webContents.destroy()
+      ;(
+        tab.view as unknown as { webContents: { destroy: () => void } }
+      ).webContents.destroy()
     } catch (err) {
       void err
     }
@@ -299,7 +319,9 @@ export class BrowserController {
       return
     }
     this.setDevtoolsVisible(true)
-    this.getSender()?.webContents.send('browser:devtools-show', { wsId: this.wsId })
+    this.getSender()?.webContents.send('browser:devtools-show', {
+      wsId: this.wsId
+    })
   }
 
   setDevtoolsBounds(bounds: Rectangle): void {
@@ -387,7 +409,9 @@ export class BrowserController {
       wc.setDevToolsWebContents(dtView.webContents)
       wc.openDevTools({ mode: 'detach' })
       const kick = (): void => {
-        void dtView.webContents.executeJavaScript('window.location.reload()').catch(() => undefined)
+        void dtView.webContents
+          .executeJavaScript('window.location.reload()')
+          .catch(() => undefined)
       }
       if (dtView.webContents.getURL()) kick()
       else dtView.webContents.once('dom-ready', () => setTimeout(kick, 50))
@@ -411,7 +435,8 @@ export class BrowserController {
       const tab = this.tabs.get(attachedId)
       if (tab) {
         try {
-          if (tab.view.webContents.isDevToolsOpened()) tab.view.webContents.closeDevTools()
+          if (tab.view.webContents.isDevToolsOpened())
+            tab.view.webContents.closeDevTools()
         } catch (err) {
           void err
         }
@@ -421,7 +446,9 @@ export class BrowserController {
     if (dtView) {
       try {
         this.getSender()?.contentView.removeChildView(dtView)
-        ;(dtView as unknown as { webContents: { destroy: () => void } }).webContents.destroy()
+        ;(
+          dtView as unknown as { webContents: { destroy: () => void } }
+        ).webContents.destroy()
       } catch (err) {
         void err
       }

@@ -1,5 +1,12 @@
 import { useEffect, useState, type FC, type ReactNode } from 'react'
-import { Bot, Bug, Maximize2, Minimize2, ScrollText, TerminalSquare } from 'lucide-react'
+import {
+  Bot,
+  Bug,
+  Maximize2,
+  Minimize2,
+  ScrollText,
+  TerminalSquare
+} from 'lucide-react'
 import type { TerminalInfo } from '../../../shared/types'
 import { TerminalPane } from './Terminal'
 import { DevPanel } from './DevPanel'
@@ -40,10 +47,14 @@ export const BottomTabs: FC<BottomTabsProps> = ({
   const storageKey = `${persistenceKey}.bottomTab`
   const [tab, setTabState] = useState<BottomTab>(() => {
     const saved = localStorage.getItem(storageKey)
-    return saved === 'terminal' || saved === 'logs' || saved === 'devtools' ? saved : 'agent'
+    return saved === 'terminal' || saved === 'logs' || saved === 'devtools'
+      ? saved
+      : 'agent'
   })
   const active: BottomTab = tab === 'logs' && !hasServices ? 'terminal' : tab
-  const agentBusy = useAgentStore((s) => (s.sessions[wsId]?.turn ?? 'idle') !== 'idle')
+  const agentBusy = useAgentStore(
+    (s) => (s.sessions[wsId]?.turn ?? 'idle') !== 'idle'
+  )
   const focusRequest = useNavigationStore((s) => s.requests[wsId])
   const showDevtools = workspaceActive && active === 'devtools'
   const setTab = (next: BottomTab): void => {
@@ -61,7 +72,12 @@ export const BottomTabs: FC<BottomTabsProps> = ({
 
   useEffect(() => {
     const target = focusRequest?.target
-    if (target === 'agent' || target === 'terminal' || target === 'logs' || target === 'devtools') {
+    if (
+      target === 'agent' ||
+      target === 'terminal' ||
+      target === 'logs' ||
+      target === 'devtools'
+    ) {
       setTab(target)
     }
     // The sequence makes repeated requests for the same tab observable.
@@ -72,9 +88,14 @@ export const BottomTabs: FC<BottomTabsProps> = ({
       <div className="flex items-center gap-1 border-b border-neutral-800 px-1.5 py-0.5">
         <TabBtn active={active === 'agent'} onClick={() => setTab('agent')}>
           <Bot size={12} /> Agent
-          {agentBusy && <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />}
+          {agentBusy && (
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+          )}
         </TabBtn>
-        <TabBtn active={active === 'terminal'} onClick={() => setTab('terminal')}>
+        <TabBtn
+          active={active === 'terminal'}
+          onClick={() => setTab('terminal')}
+        >
           <TerminalSquare size={12} /> Terminal
         </TabBtn>
         {hasServices && (
@@ -82,7 +103,10 @@ export const BottomTabs: FC<BottomTabsProps> = ({
             <ScrollText size={12} /> Dev logs
           </TabBtn>
         )}
-        <TabBtn active={active === 'devtools'} onClick={() => setTab('devtools')}>
+        <TabBtn
+          active={active === 'devtools'}
+          onClick={() => setTab('devtools')}
+        >
           <Bug size={12} /> Dev Tools
         </TabBtn>
         {onToggleMaximize && (
@@ -98,7 +122,9 @@ export const BottomTabs: FC<BottomTabsProps> = ({
       </div>
       <div className="relative min-h-0 flex-1">
         {/* Terminal stays mounted — switching tabs must not kill running AI sessions */}
-        <div className={`absolute inset-0 ${active === 'terminal' ? '' : 'hidden'}`}>
+        <div
+          className={`absolute inset-0 ${active === 'terminal' ? '' : 'hidden'}`}
+        >
           <TerminalPane
             key={wsId}
             wsId={wsId}
@@ -107,11 +133,14 @@ export const BottomTabs: FC<BottomTabsProps> = ({
             activeSessionId={activeSessionId}
             restoring={restoringTerminals}
             connected={connected}
+            visible={workspaceActive && active === 'terminal'}
           />
         </div>
         {/* Same for the agent: the transcript lives in main, but an unmount would
             throw away scroll position and whatever is half-typed in the composer */}
-        <div className={`absolute inset-0 ${active === 'agent' ? '' : 'hidden'}`}>
+        <div
+          className={`absolute inset-0 ${active === 'agent' ? '' : 'hidden'}`}
+        >
           <AgentPanel
             key={wsId}
             wsId={wsId}
@@ -119,7 +148,9 @@ export const BottomTabs: FC<BottomTabsProps> = ({
             visible={workspaceActive && active === 'agent'}
           />
         </div>
-        {active === 'devtools' && <DevToolsPanel wsId={wsId} visible={showDevtools} />}
+        {active === 'devtools' && (
+          <DevToolsPanel wsId={wsId} visible={showDevtools} />
+        )}
         {active === 'logs' && hasServices && <DevPanel wsId={wsId} />}
       </div>
     </div>
@@ -134,7 +165,9 @@ const TabBtn: FC<{
   <button
     onClick={onClick}
     className={`flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] ${
-      active ? 'bg-neutral-800 text-neutral-100' : 'text-neutral-500 hover:text-neutral-300'
+      active
+        ? 'bg-neutral-800 text-neutral-100'
+        : 'text-neutral-500 hover:text-neutral-300'
     }`}
   >
     {children}

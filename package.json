@@ -1,18 +1,19 @@
 {
   "name": "mxwl-editor",
-  "version": "0.2.0-alpha.4",
+  "version": "0.2.0-alpha.5",
   "description": "Multi-workspace tool — local or SSH — browser + editor + terminal locked to a folder, with MCP/CDP bridge",
   "homepage": "https://github.com/kerryritter/mxwl-editor",
   "main": "out/main/index.js",
   "author": {
     "name": "kerry",
-    "email": "kerry@joinzipper.com"
+    "email": "kerryritter@users.noreply.github.com"
   },
   "license": "MIT",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "icons": "node scripts/build-icons.cjs",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "npm run typecheck:node && npm run typecheck:web",

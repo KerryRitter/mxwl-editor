@@ -60,7 +60,7 @@ export function registerAgentIpc(agents: AgentController, attention?: AttentionC
 
   ipcMain.handle(
     'agent:history',
-    (_e: IpcMainInvokeEvent, cwd?: string): AgentTranscriptMeta[] => agents.history(cwd)
+    (_e: IpcMainInvokeEvent, cwd?: string, wsId?: string): AgentTranscriptMeta[] => agents.history(cwd, wsId)
   )
 
   ipcMain.handle(

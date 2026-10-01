@@ -3,6 +3,11 @@ export type MxwlWorkspaceContext = {
   title: string
   remotePath: string
   hostId: string
+  hostLabel?: string
+  projectId?: string | null
+  projectLabel?: string | null
+  locationId?: string | null
+  browserProfileId?: string | null
   status: string
   issueKey?: string | null
   branch?: string | null

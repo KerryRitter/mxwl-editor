@@ -12,14 +12,14 @@ Open with **Ctrl+Shift+A**, the header bot button, or `Run AI tasks…` in the p
 | `defaultCli` | Claude Code · Codex · Cursor · Gemini · Kimi · GitHub Copilot · Qwen Code · OpenCode · Goose |
 | Binary | Override the command (`claude`, `codex`, `cursor-agent`, …) |
 | Extra flags | Appended before the prompt argument |
-| Workspace folder template | Folder name per ticket. Vars: `${key} ${keyLower} ${keyNum} ${slug} ${title}` |
-| Base repo folder | Folder under `workspacesRoot` to run branch init from |
-| Branch init command | Run when the ticket folder is missing |
 | Init timeout | Seconds to wait for the folder to appear |
 | Refine prompts | Ask the CLI (headless) to rewrite prompts before running |
 
-Folders resolve against the host's `workspacesRoot`, so `zipper-${key}` →
-`~/Workspaces/zipper-PLAT-5874`.
+Choose a **project / host** in the AI tasks modal (it defaults to your current navigation context). The project's General settings own the
+workspace folder template (`${project}`, `${key}`, `${keyLower}`, `${keyNum}`, `${slug}`, `${title}`)
+and branch init command. The project host owns the checkout path used for initialization.
+Folders resolve against that host checkout's `workspacesRoot`, so `myapp-${key}` →
+`~/Workspaces/myapp-PLAT-5874`.
 
 Each CLI ships a headless flag used by the planner and the prep phase (`-p`,
 `codex exec`, `opencode run`, `goose run -t`, `kimi --print`). A CLI that renames
@@ -59,7 +59,7 @@ A leading clause naming a directory and a command becomes a one-off **setup**
 phase, so branch creation does not have to live in Settings:
 
 ```
-in ~/Workspaces/zipper, run /agent:init-branch for both branches,
+in ~/Workspaces/myapp, run /agent:init-branch for both branches,
 then open up tabs for PLAT-5583 and PLAT-5577
 ```
 
@@ -78,7 +78,7 @@ Either way the clause is stripped from the per-ticket prompts — it is a one-of
 
 The gate is the setup command exiting, not the ticket folders appearing. Folder
 presence is a bad signal: a command like `/agent/init-branch` creates
-`zipper-{KEY}` in its first step and then spends minutes checking it out,
+`myapp-{KEY}` in its first step and then spends minutes checking it out,
 building it and booting it — and if the folder already existed, the check passes
 instantly. Either way the ticket agents would land on a half-built tree.
 
@@ -100,7 +100,7 @@ onto both the interactive and the headless line, so
 unattended setup that runs shell steps — belongs there. Note the args apply to
 the per-ticket agents too, not just to setup.
 
-Settings → AI `Base repo folder` + `Branch init command` remain the fallback for
+The project host's `Repository checkout path` + the project's `AI branch initialization command` remain the fallback for
 briefs that don't name a setup command. If the brief did name one, mxwl will not
 silently run a second, different init command.
 
