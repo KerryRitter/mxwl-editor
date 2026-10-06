@@ -18,6 +18,7 @@ import type {
   ControlStatus,
   RuntimeSettings
 } from '../../../shared/types'
+import { githubHost as normalizeGitHubHost, type GitHubAccount } from '../../../shared/github'
 
 type SettingsModalProps = {
   onClose: () => void
@@ -31,6 +32,13 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
   const [bbHost, setBbHost] = useState('https://api.bitbucket.org')
   const [bbUser, setBbUser] = useState('')
   const [bbPass, setBbPass] = useState('')
+  const [githubHost, setGithubHost] = useState('github.com')
+  const [githubAuth, setGithubAuth] = useState<GitHubAccount['auth']>('public')
+  const [githubToken, setGithubToken] = useState('')
+  const [githubTokenSaved, setGithubTokenSaved] = useState(false)
+  const [githubTesting, setGithubTesting] = useState(false)
+  const [githubResult, setGithubResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [mcpToken, setMcpToken] = useState('')
   const [ai, setAi] = useState<AiSettings>({ ...DEFAULT_AI_SETTINGS })
   const [agent, setAgent] = useState<AgentSettings>({ ...DEFAULT_AGENT_SETTINGS })
@@ -81,6 +89,9 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
       setJiraEmail(s.jira?.email ?? '')
       setBbHost(s.bitbucket?.host || 'https://api.bitbucket.org')
       setBbUser(s.bitbucket?.username ?? '')
+      setGithubHost(s.github?.host ?? 'github.com')
+      setGithubAuth(s.github?.auth ?? 'public')
+      setGithubTokenSaved(Boolean(s.github?.tokenEnc))
       setMcpToken(s.mcpAuthToken ?? '')
       setAi({ ...DEFAULT_AI_SETTINGS, ...(s.ai ?? {}) })
       setAgent({ ...DEFAULT_AGENT_SETTINGS, ...(s.agent ?? {}) })
@@ -95,7 +106,10 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
 
   async function save(): Promise<void> {
     setSaving(true)
+    setSaveError(null)
+    try {
     await window.api.settings.update({
+      github: { host: githubHost, auth: githubAuth, token: githubToken || undefined },
       ai,
       agent,
       notifications,
@@ -105,12 +119,28 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
       jira: (jiraHost || jiraEmail) ? { host: jiraHost, email: jiraEmail, apiToken: jiraToken || undefined } : null,
       bitbucket: bbUser ? { host: bbHost, username: bbUser, appPassword: bbPass || undefined } : null
     })
-    setSaving(false)
     onClose()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : String(error))
+    } finally { setSaving(false) }
+  }
+
+  async function testGithub(): Promise<void> {
+    setGithubTesting(true)
+    setGithubResult(null)
+    try {
+      setGithubResult(await window.api.github.test({ host: githubHost, auth: githubAuth, token: githubToken || undefined }))
+    } catch { setGithubResult({ ok: false, message: 'Could not check the GitHub connection.' }) }
+    finally { setGithubTesting(false) }
   }
 
   const inputCls =
     'w-full rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none'
+  let githubLoginCommand = 'gh auth login'
+  try {
+    const host = normalizeGitHubHost(githubHost).host
+    if (host !== 'github.com') githubLoginCommand += ` --hostname ${host}`
+  } catch { /* Invalid hosts are explained by the connection check or save. */ }
 
   return (
     <Modal title="Settings" onClose={onClose} width={600}>
@@ -123,7 +153,7 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
         {!encryptionOk && (
           <div className="rounded-md border border-amber-700/60 bg-amber-950/40 px-3 py-2 text-[11px] text-amber-200">
             OS secret encryption (keychain) is unavailable. Passwords/tokens will be stored with an
-            insecure marker — prefer SSH agent/key auth until encryption works.
+            insecure marker — prefer SSH agent/key auth and GitHub CLI authentication until encryption works.
           </div>
         )}
 
@@ -490,7 +520,7 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
                     '_blank'
                   )
                 }
-                className="rounded-md bg-violet-600 px-2.5 py-1.5 text-[10px] text-white hover:bg-violet-500 disabled:opacity-40"
+                className="rounded-md bg-brand-accent px-2.5 py-1.5 text-[10px] text-brand-ink hover:bg-brand-hover disabled:opacity-40"
               >
                 Open dashboard
               </button>
@@ -699,6 +729,22 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
         <ProviderSection title="Accounts">
           <p className="mb-3 text-xs text-neutral-500">Reusable credentials. Projects choose their own task provider and source-control repository.</p>
           <div className="grid gap-2">
+            <span className="text-xs text-neutral-400">GitHub</span>
+            <Field label="GitHub host"><input className={inputCls} value={githubHost} onChange={e => { setGithubHost(e.target.value); setGithubResult(null) }} placeholder="github.com" /></Field>
+            <Field label="GitHub authentication">
+              <select className={inputCls} value={githubAuth} onChange={e => { setGithubAuth(e.target.value as GitHubAccount['auth']); setGithubResult(null) }}>
+                <option value="public">Public repositories</option>
+                <option value="cli">GitHub CLI login</option>
+                <option value="token">Personal access token</option>
+              </select>
+            </Field>
+            {githubAuth === 'cli' && <p className="text-[11px] leading-relaxed text-neutral-500">Use your existing GitHub CLI account. Run <code>{githubLoginCommand}</code> on the computer running mxwl first.</p>}
+            {githubAuth === 'token' && <>
+              <Field label={`GitHub token${githubTokenSaved ? ' (blank keeps existing)' : ''}`}><input type="password" autoComplete="new-password" className={inputCls} value={githubToken} onChange={e => { setGithubToken(e.target.value); setGithubResult(null) }} /></Field>
+              <p className="text-[11px] leading-relaxed text-neutral-500">Select the repositories you use and grant read access to Issues and Pull requests. Authorize organization SSO when required.</p>
+            </>}
+            <div><button type="button" onClick={() => void testGithub()} disabled={githubTesting} className="rounded border border-neutral-700 px-2.5 py-1 text-xs text-brand-accent hover:bg-neutral-800 disabled:opacity-40">{githubTesting ? 'Checking GitHub…' : 'Test GitHub connection'}</button></div>
+            {githubResult && <p role="status" className={`text-[11px] ${githubResult.ok ? 'text-brand-accent' : 'text-red-400'}`}>{githubResult.message}</p>}
             <span className="text-xs text-neutral-400">Jira {configured.jira ? '· configured' : ''}</span>
             <Field label="Jira host"><input className={inputCls} value={jiraHost} onChange={e => setJiraHost(e.target.value)} /></Field>
             <Field label="Jira email"><input className={inputCls} value={jiraEmail} onChange={e => setJiraEmail(e.target.value)} /></Field>
@@ -711,6 +757,7 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
         </ProviderSection>
       </div>
 
+      {saveError && <p role="alert" className="mt-3 text-xs text-red-400">{saveError}</p>}
       <div className="mt-5 flex justify-end gap-2">
         <button
           onClick={onClose}
@@ -721,7 +768,7 @@ export const SettingsModal: FC<SettingsModalProps> = ({ onClose, hideBrowserWs }
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
+          className="rounded-md bg-brand-accent px-4 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-hover disabled:opacity-40"
         >
           {saving ? 'Saving…' : 'Save'}
         </button>

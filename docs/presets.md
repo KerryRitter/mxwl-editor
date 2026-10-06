@@ -9,7 +9,7 @@ Several projects can share a machine, and a project can use several machines.
 
 | Layer | Settings |
 |---|---|
-| mxwl Settings | Runtime, notifications, agent/CLI defaults, installed plugins and permission grants, reusable Jira/Bitbucket account credentials |
+| mxwl Settings | Runtime, notifications, agent/CLI defaults, installed plugins and permission grants, reusable GitHub/Jira/Bitbucket account credentials |
 | Machine connection library | Reusable connection label, Local / SSH / Tailscale, address, port, username, authentication |
 | Project | Repository identity, folder/title/issue/preview templates, services, hidden files, startup command, browser profiles, task/SCM provider, AI folder/init templates, plugin visibility |
 | Project host | Machine connection + checkout path, workspaces/worktrees root, folder filter, app subdirectory, preferred browser profile, machine-specific URL/startup/service overrides |
@@ -65,8 +65,10 @@ code/terminal defaults, not another project's services or credentials.
 - **Services:** start/stop/restart/logs commands. Each service has an optional relative
   working directory beneath the location's app directory.
 - **Integrations:** task provider/project key and source-control provider/repository.
-  Built-in Jira and Bitbucket API cards use credentials in **Settings → Accounts**.
+  Built-in GitHub, Jira, and Bitbucket API cards use accounts in **Settings → Accounts**.
+  GitHub supports public access, an existing `gh` login, or a personal token, plus issue-to-worktree launching.
   Other providers can use plugins; GitHub/GitLab PR creation links use Git remotes.
+  See [GitHub setup](./github.md) for repository inference, account access, and issue references.
 - **Plugins:** inherit each globally approved plugin or disable it for this project.
   A project setting cannot grant permissions or enable a globally disabled plugin.
 

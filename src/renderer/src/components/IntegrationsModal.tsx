@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, GitBranch, GitPullRequest, Loader2, Ticket } from 'lucide-react'
-import type { JiraIssue, PullRequest } from '../../../shared/types'
+import {
+  ExternalLink,
+  GitBranch,
+  GitPullRequest,
+  Loader2,
+  Ticket
+} from 'lucide-react'
+import type {
+  WorkspaceIssue,
+  PullRequest,
+  WorkspaceIntegrations
+} from '../../../shared/types'
 import { Modal } from './Modal'
 
 interface IntegrationsModalProps {
@@ -16,7 +26,8 @@ export function IntegrationsModal({
   branch,
   onClose
 }: IntegrationsModalProps): JSX.Element {
-  const [issue, setIssue] = useState<JiraIssue | null>(null)
+  const [issue, setIssue] = useState<WorkspaceIssue | null>(null)
+  const [context, setContext] = useState<WorkspaceIntegrations | null>(null)
   const [pr, setPr] = useState<PullRequest | null>(null)
   const [loadingJira, setLoadingJira] = useState(false)
   const [loadingPr, setLoadingPr] = useState(false)
@@ -31,32 +42,87 @@ export function IntegrationsModal({
   }, [wsId])
 
   useEffect(() => {
+    let cancelled = false
+    void window.api.integrations
+      .context(wsId)
+      .then((next) => {
+        if (!cancelled) setContext(next)
+      })
+      .catch((error) => {
+        if (!cancelled) setJiraErr(String(error))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [wsId])
+
+  useEffect(() => {
+    setIssue(null)
+    setJiraErr(null)
     if (!issueKey) return
+    let cancelled = false
     setLoadingJira(true)
-    window.api.jira
+    window.api.issue
       .get(issueKey, wsId)
-      .then((i) => setIssue(i))
-      .catch((e) => setJiraErr(String(e)))
-      .finally(() => setLoadingJira(false))
+      .then((i) => {
+        if (!cancelled) setIssue(i)
+      })
+      .catch((e) => {
+        if (!cancelled) setJiraErr(String(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingJira(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [issueKey, wsId])
 
   useEffect(() => {
+    setPr(null)
+    setPrErr(null)
     if (!branch) return
+    let cancelled = false
     setLoadingPr(true)
     window.api.pr
       .get(wsId)
-      .then((p) => setPr(p))
-      .catch((e) => setPrErr(String(e)))
-      .finally(() => setLoadingPr(false))
+      .then((p) => {
+        if (!cancelled) setPr(p)
+      })
+      .catch((e) => {
+        if (!cancelled) setPrErr(String(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPr(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [wsId, branch])
 
   return (
     <Modal title="Ticket & Pull Request" onClose={onClose} width={560}>
       <div className="grid gap-4">
-        <Section icon={<Ticket size={14} className="text-blue-400" />} title="Jira">
+        {context?.error && <Error text={context.error} />}
+        <Section
+          icon={<Ticket size={14} className="text-blue-400" />}
+          title={
+            context?.taskProvider === 'github-issues'
+              ? 'GitHub issue'
+              : context?.taskProvider === 'jira'
+                ? 'Jira'
+                : 'Issue'
+          }
+        >
           {!issueKey && <Empty>No ticket derived from this folder.</Empty>}
           {issueKey && loadingJira && <Loading />}
           {issueKey && jiraErr && <Error text={jiraErr} />}
+          {issueKey && !loadingJira && !issue && !jiraErr && (
+            <Empty>
+              No issue found. Check the project’s task provider, repository, and
+              account access in Settings.
+            </Empty>
+          )}
           {issueKey && issue && (
             <div>
               <div className="flex items-center gap-2">
@@ -66,42 +132,83 @@ export function IntegrationsModal({
                 <span className="rounded bg-neutral-800 px-1.5 py-0.5 text-[11px] text-neutral-300">
                   {issue.status}
                 </span>
-                {issue.assignee && <span className="text-[11px] text-neutral-500">{issue.assignee}</span>}
+                {issue.assignee && (
+                  <span className="text-[11px] text-neutral-500">
+                    {issue.assignee}
+                  </span>
+                )}
               </div>
               <p className="mt-1.5 text-sm text-neutral-200">{issue.summary}</p>
               {issue.labels.length > 0 && (
                 <div className="mt-1.5 flex flex-wrap gap-1">
                   {issue.labels.map((l) => (
-                    <span key={l} className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400">
+                    <span
+                      key={l}
+                      className="rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-400"
+                    >
                       {l}
                     </span>
                   ))}
                 </div>
               )}
-              <LinkRow wsId={wsId} href={issue.url} label="Open in Jira" />
+              {issue.body && (
+                <p className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-neutral-400">
+                  {issue.body.slice(0, 6000)}
+                </p>
+              )}
+              <LinkRow
+                wsId={wsId}
+                href={issue.url}
+                label={
+                  issue.provider === 'github-issues'
+                    ? 'Open in GitHub'
+                    : 'Open in Jira'
+                }
+              />
             </div>
           )}
         </Section>
 
-        <Section icon={<GitPullRequest size={14} className="text-emerald-400" />} title="Pull Request">
+        <Section
+          icon={<GitPullRequest size={14} className="text-emerald-400" />}
+          title="Pull Request"
+        >
           <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-neutral-500">
             <GitBranch size={11} /> {branch ?? 'no branch'}
           </div>
           {!branch && <Empty>No branch detected.</Empty>}
           {branch && loadingPr && <Loading />}
           {branch && prErr && <Error text={prErr} />}
-          {branch && !loadingPr && !pr && !prErr && <Empty>No open PR for this branch.</Empty>}
+          {branch && !loadingPr && !pr && !prErr && (
+            <Empty>No open PR for this branch.</Empty>
+          )}
           {pr && (
             <div>
               <div className="flex items-center gap-2">
                 <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[11px] font-medium text-emerald-300">
                   #{pr.id}
                 </span>
-                <span className="text-[11px] capitalize text-neutral-400">{pr.state}</span>
-                {pr.author && <span className="text-[11px] text-neutral-500">{pr.author}</span>}
+                <span className="text-[11px] capitalize text-neutral-400">
+                  {pr.draft ? 'Draft' : pr.state}
+                </span>
+                {pr.author && (
+                  <span className="text-[11px] text-neutral-500">
+                    {pr.author}
+                  </span>
+                )}
               </div>
               <p className="mt-1.5 text-sm text-neutral-200">{pr.title}</p>
-              {pr.url && <LinkRow wsId={wsId} href={pr.url} label="Open in Bitbucket" />}
+              {pr.url && (
+                <LinkRow
+                  wsId={wsId}
+                  href={pr.url}
+                  label={
+                    pr.provider === 'github'
+                      ? 'Open in GitHub'
+                      : 'Open in Bitbucket'
+                  }
+                />
+              )}
             </div>
           )}
         </Section>
@@ -123,7 +230,9 @@ function Section({
     <section>
       <div className="mb-2 flex items-center gap-1.5">
         {icon}
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">{title}</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
+          {title}
+        </h3>
       </div>
       {children}
     </section>

@@ -30,7 +30,7 @@ const inputClass =
 const buttonClass =
   'rounded-md border border-neutral-700 px-3 py-1.5 text-xs text-neutral-300 hover:border-emerald-500'
 const primaryClass =
-  'rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-40'
+  'rounded-md bg-brand-accent px-3 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-hover disabled:opacity-40'
 const projectSettingsTabs = [
   'General',
   'Browser',
@@ -136,7 +136,7 @@ export function ProjectManager() {
     }
   }
   return (
-    <div className="flex h-full flex-col">
+    <div className="workspace-home flex h-full flex-col">
       <header className="flex items-center gap-3 border-b border-neutral-800 px-5 py-3">
         <FolderGit2 size={18} className="text-emerald-400" />
         <h1 className="text-sm font-semibold">
@@ -175,10 +175,10 @@ export function ProjectManager() {
           </p>
         )}
         {!selectedProject && projects.length === 0 && (
-          <div className="mx-auto max-w-lg py-12 text-center">
-            <FolderGit2 size={40} className="mx-auto text-neutral-600" />
+          <div className="workspace-home-intro mx-auto mt-8 max-w-lg text-center">
+            <FolderGit2 size={32} className="mx-auto text-emerald-400" />
             <h2 className="mt-4 text-base font-medium">
-              One project. Any machine.
+              A home for your whole workflow.
             </h2>
             <p className="mt-2 text-sm text-neutral-500">
               Create a project in mxwl, add local, SSH, or Tailscale hosts
@@ -852,7 +852,7 @@ function ProjectEditor({
                   }
                 >
                   {['none', 'jira', 'linear', 'github-issues'].map((p) => (
-                    <option key={p}>{p}</option>
+                    <option key={p} value={p}>{({ none: 'None', jira: 'Jira', linear: 'Linear', 'github-issues': 'GitHub Issues' } as Record<string, string>)[p]}</option>
                   ))}
                 </select>
               </Field>
@@ -876,7 +876,7 @@ function ProjectEditor({
                   }
                 >
                   {['none', 'bitbucket', 'github', 'gitlab'].map((p) => (
-                    <option key={p}>{p}</option>
+                    <option key={p} value={p}>{({ none: 'None', bitbucket: 'Bitbucket', github: 'GitHub', gitlab: 'GitLab' } as Record<string, string>)[p]}</option>
                   ))}
                 </select>
               </Field>
@@ -901,8 +901,10 @@ function ProjectEditor({
                 }
               />
               <p className="text-[11px] text-neutral-500">
-                Jira and Bitbucket have built-in API cards. GitHub/GitLab use
+                GitHub, Jira, and Bitbucket have built-in API cards. GitLab uses
                 Git remote PR links; other tracker adapters can be plugins.
+                GitHub can infer the repository from the project URL or checkout’s
+                origin remote when both repository fields are blank.
               </p>
             </>
           )}

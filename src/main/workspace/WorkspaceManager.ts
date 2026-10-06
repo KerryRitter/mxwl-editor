@@ -58,6 +58,7 @@ export type HostShell = {
 
 type Workspace = {
   state: WorkspaceState
+  issueKeyOverride?: string
   conn: Conn
   fs: FsBackend
   terminals: Map<string, TerminalSession>
@@ -164,6 +165,7 @@ export class WorkspaceManager {
       })
       ws.state.derived = {
         ...derived,
+        issueKey: ws.issueKeyOverride ?? derived.issueKey,
         branch: ws.state.derived.branch,
         dirty: ws.state.derived.dirty
       }
@@ -371,6 +373,7 @@ export class WorkspaceManager {
       derive: config.derive,
       defaultBrowserUrl: config.browserUrl
     })
+    if (opts.restore?.issueKey) derived.issueKey = opts.restore.issueKey
     const id = randomUUID()
     const conn = this.createConn(host)
     const services = config.services
@@ -424,6 +427,7 @@ export class WorkspaceManager {
 
     const ws: Workspace = {
       state,
+      issueKeyOverride: opts.restore?.issueKey,
       conn,
       fs: this.createFs(conn),
       terminals: new Map(),
@@ -586,6 +590,7 @@ export class WorkspaceManager {
       source.state.browserProfileId
     )
     if (alreadyOpen) {
+      this.setIssueKey(alreadyOpen.id, ticket)
       this.renameWorkspace(alreadyOpen.id, ticket)
       this.bringToFront(alreadyOpen.id)
       return this.require(alreadyOpen.id).state
@@ -596,7 +601,16 @@ export class WorkspaceManager {
     })
     this.renameWorkspace(opened.id, ticket)
     await this.waitForConnected(opened.id, 20_000)
+    this.setIssueKey(opened.id, ticket)
     return this.require(opened.id).state
+  }
+
+  private setIssueKey(id: string, key: string): void {
+    const ws = this.require(id)
+    ws.issueKeyOverride = key
+    ws.state.derived.issueKey = key
+    this.broadcast(id)
+    this.persistSession()
   }
 
   bringToFront(id: string): void {
@@ -666,6 +680,7 @@ export class WorkspaceManager {
       browserProfileId: w.state.browserProfileId,
       remotePath: w.state.remotePath,
       title: w.state.title,
+      ...(w.issueKeyOverride ? { issueKey: w.issueKeyOverride } : {}),
       ...(terminals.length ? { terminals } : {}),
       ...(activeTerminalId ? { activeTerminalId } : {})
     }

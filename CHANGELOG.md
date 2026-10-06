@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Native GitHub issue and pull-request cards, recently updated issue selection, and issue-to-worktree launching with agent context
+- GitHub public access, existing CLI authentication, personal access tokens, connection checks, and Enterprise host support
+- GitHub repository inference from project URLs or checkout remotes, including fork-aware PR lookup
+
+### Changed
+- CodeMirror 6 replaces the previous editor in Code and Changes, with lazy language loading, per-file undo/selection/scroll state, and read-only split or unified diffs
+- The editor, terminal, and mobile dashboard share the website's charcoal and lime branding, bundled typography, and pixel wordmark
+
+### Fixed
+- Ctrl+S and Cmd+S save the active file throughout the code pane, including Find/Replace and the file tree; write failures remain visible with the draft preserved
+
 ## 0.2.0-alpha.5
 
 ### Added
@@ -28,7 +42,7 @@
 ## 0.2.0-alpha.4
 
 ### Added
-- Live working-tree review in the Code quadrant with changed-file navigation and unified / split Monaco diffs
+- Live working-tree review in the Code quadrant with changed-file navigation and unified / split syntax-highlighted diffs
 - Manual names for workspace and terminal tabs
 - Crash-safe workspace / terminal tab recovery, including active tabs, terminal output checkpoints, agent drafts, editor tabs, and panel layout
 - Persistent whole-app UI zoom (75–200%) with header controls and keyboard shortcuts

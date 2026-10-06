@@ -125,6 +125,7 @@ export const CodePane: FC<{
         {tools.map((tool) => (
           <div
             key={tool.key}
+            data-code-editor-pane={tool.key === CODE_KEY ? '' : undefined}
             className={`absolute inset-0 ${selectedKey === tool.key ? '' : 'hidden'}`}
           >
             <WorkspaceTool

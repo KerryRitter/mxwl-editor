@@ -32,6 +32,7 @@ describe('SessionStore', () => {
           hostId: 'local',
           remotePath: '/work/repo',
           title: 'Release train',
+          issueKey: 'GH-42',
           activeTerminalId: 'term-2',
           terminals: [
             { id: 'term-1', label: 'tests', cwd: '/work/repo', replay: 'passed\n' },

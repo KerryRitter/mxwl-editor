@@ -1,0 +1,272 @@
+---
+import Base from '../layouts/Base.astro';
+import Screenshot from '../components/Screenshot.astro';
+import Icon from '../components/Icon.astro';
+import Closing from '../components/Closing.astro';
+const features = [
+  {
+    icon: 'browser',
+    title: 'A browser that belongs here.',
+    text: 'Embedded Chromium with tabs, isolated cookie sandboxes, native DevTools, zoom, and external-browser handoff.',
+  },
+  {
+    icon: 'code',
+    title: 'Code, close at hand.',
+    text: 'CodeMirror 6 editing for local and SFTP files. Quick-open, workspace search with ripgrep, and multiple editor tabs.',
+  },
+  {
+    icon: 'git',
+    title: 'Review before you ship.',
+    text: 'A changed-file inbox with unified and split diffs, file and hunk staging, commits, pushes, and pull-request actions.',
+  },
+  {
+    icon: 'agent',
+    title: 'Your agent, in context.',
+    text: 'Streaming responses, tool calls, plans, permissions, usage, and saved conversations through ACP.',
+  },
+  {
+    icon: 'terminal',
+    title: 'A real shell. Or several.',
+    text: 'Named terminal tabs, PTYs on the workspace host, service logs, and optional tmux for process persistence.',
+  },
+  {
+    icon: 'puzzle',
+    title: 'Room for your own tools.',
+    text: 'Built-in and linked plugins share a workspace-tool deck. Enable the tools you need for each project.',
+  },
+];
+---
+
+<Base
+  title="The tour"
+  description="See how mxwl brings your browser, code, Git review, agents, and terminals into one workspace. Real screenshots and a complete product tour."
+>
+  <header class="page-hero container">
+    <div class="eyebrow">WELCOME TO THE WORKSPACE</div>
+    <h1>
+      Everything you need.
+      <br />
+      Right where you work<span class="accent">.</span>
+    </h1>
+    <p class="lead">
+      The tools around a task should feel like one environment. mxwl brings them together, then
+      keeps them tied to the same folder.
+    </p>
+    <div class="button-row">
+      <a class="button primary" href="/download/">
+        Get mxwl
+      </a>
+      <a class="button secondary" href="/docs/getting-started/">
+        Read the quick start
+      </a>
+    </div>
+  </header>
+  <div class="container">
+    <Screenshot
+      src="/images/mxwl-workspace.png"
+      alt="The balanced mxwl workspace with a Chromium browser, CodeMirror 6 editor, and coding agent sharing one demo project."
+      caption="One folder anchors the whole cockpit."
+      label="mxwl / balanced workspace"
+      eager
+    />
+  </div>
+  <section class="container page-section">
+    <div class="section-heading">
+      <div>
+        <div class="eyebrow">ONE WORKSPACE / FIVE SURFACES</div>
+        <h2>It all belongs together.</h2>
+      </div>
+      <p>
+        Follow the work from prompt to running app to reviewed diff. Change focus without losing
+        context.
+      </p>
+    </div>
+    <div class="feature-index">
+      {features.map((feature, i) => (
+        <div class="index-item">
+          <div class="index-top">
+            <Icon name={feature.icon} size={26} />
+            <span class="number">[0{i + 1}]</span>
+          </div>
+          <h3>{feature.title}</h3>
+          <p>{feature.text}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+  <section class="container page-section section-divider" id="browser">
+    <div class="detail-grid">
+      <div>
+        <div class="eyebrow">THE BROWSER</div>
+        <h2>Your app. All its identities.</h2>
+        <p>
+          Test an admin and a customer at the same time. Cookie sandboxes keep cookies,
+          localStorage, and sessionStorage isolated, even against the same application.
+        </p>
+        <a class="text-link" href="/docs/browser/">
+          Read about browser sandboxes
+        </a>
+      </div>
+      <ul class="detail-list">
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Multiple tabs and sandboxes.</strong> Move around the application while keeping
+            each identity separate.
+          </span>
+        </li>
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>DevTools in the workspace.</strong> Inspect the DOM, requests, and console close
+            to the code.
+          </span>
+        </li>
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Agent access through MCP/CDP.</strong> Connect browser automation to the desktop
+            browser, including from a remote host.
+          </span>
+        </li>
+      </ul>
+    </div>
+  </section>
+  <section class="container page-section section-divider" id="review">
+    <div class="section-heading">
+      <div>
+        <div class="eyebrow">CHANGES</div>
+        <h2>
+          A review loop
+          <br />
+          with no loose ends.
+        </h2>
+      </div>
+      <p>
+        Read what changed. Ask the agent why. Stage what’s ready. The review surface is next to the
+        code and the agent that can act on your feedback.
+      </p>
+    </div>
+    <Screenshot
+      src="/images/mxwl-review.png"
+      alt="mxwl Changes displaying the original and updated risk-scoring TypeScript file side by side, with hunk staging and pull-request controls."
+      caption="Unified or split. File or hunk. Your call."
+      label="mxwl / review layout"
+    />
+    <div class="flow-line">
+      <div>
+        <span class="number">01 / INSPECT</span>
+        <strong>Read the diff</strong>
+        <p>Navigate changed files in unified or split mode.</p>
+      </div>
+      <div>
+        <span class="number">02 / REFINE</span>
+        <strong>Ask the agent</strong>
+        <p>Send selected lines for an explanation or a fix.</p>
+      </div>
+      <div>
+        <span class="number">03 / STAGE</span>
+        <strong>Choose the change</strong>
+        <p>Stage one hunk or an entire file.</p>
+      </div>
+      <div>
+        <span class="number">04 / SHIP</span>
+        <strong>Open the PR</strong>
+        <p>
+          Commit, push, then open the pull request. GitHub issue and PR cards keep branch context
+          close.
+        </p>
+      </div>
+    </div>
+  </section>
+  <section class="container page-section section-divider">
+    <div class="detail-grid">
+      <div>
+        <div class="eyebrow">FIND YOUR FOCUS</div>
+        <h2>A layout for the moment.</h2>
+        <p>
+          Start balanced. Get closer to the code. Make room for a review or a debugging session.
+          Maximize any pane, then restore the cockpit.
+        </p>
+        <div class="layout-pills">
+          <span>Balanced</span>
+          <span>Code</span>
+          <span>Review</span>
+          <span>Debug</span>
+          <span>Agent</span>
+        </div>
+        <p>Whole-app zoom from 75–200% helps the workspace fit your display.</p>
+      </div>
+      <div>
+        <div class="eyebrow">KEEP MOVING</div>
+        <h2>
+          One command bar.
+          <br />A lot less hunting.
+        </h2>
+        <p>
+          <kbd>Ctrl / ⌘ K</kbd> searches files, workspaces, commands, agents, and open tabs.{' '}
+          <kbd>Ctrl / ⌘ P</kbd> jumps straight to a file.
+        </p>
+        <p>
+          The workspace bar shows Git and agent state. Give tabs your own names and switch among
+          local folders and remote worktrees.
+        </p>
+        <a class="text-link" href="/docs/getting-started/#a-few-useful-shortcuts">
+          Learn the shortcuts
+        </a>
+      </div>
+    </div>
+  </section>
+  <section class="statement">
+    <div class="container">
+      <div>
+        <div class="eyebrow">START THE WORK / KEEP THE CONTEXT</div>
+        <h2>
+          A ticket becomes
+          <br />a place to work.
+        </h2>
+      </div>
+      <div>
+        <p>
+          Pick a GitHub issue or enter its number. The ticket launcher can create a sibling Git
+          worktree, open its workspace, add a cookie sandbox, launch the default agent, and seed it
+          with the mission.
+        </p>
+        <p>Come back later to your tabs, drafts, transcripts, and layout.</p>
+        <a class="text-link" href="/docs/projects/">
+          How workspaces fit together
+        </a>
+      </div>
+    </div>
+  </section>
+  <section class="container page-section">
+    <div class="detail-grid">
+      <div>
+        <div class="eyebrow">DESIGNED TO COME BACK</div>
+        <h2>
+          Leave the window.
+          <br />
+          Keep the work.
+        </h2>
+        <p>
+          With the background runtime enabled, closing the window leaves live workspaces, SSH
+          connections, terminals, agents, and notifications running in the tray.
+        </p>
+      </div>
+      <div>
+        <p>
+          After a restart, mxwl restores your workspace setup, recent terminal output, agent drafts
+          and conversations. Ordinary terminal processes start fresh; choose tmux when the process
+          itself needs to survive.
+        </p>
+        <p>
+          Agents relaunch with saved transcripts. Interrupted tool calls don’t resume mid-execution.
+        </p>
+        <a class="text-link" href="/docs/agent-control/">
+          Read about runtime & recovery
+        </a>
+      </div>
+    </div>
+  </section>
+  <Closing />
+</Base>

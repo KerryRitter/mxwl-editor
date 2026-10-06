@@ -28,6 +28,7 @@ import { AiTaskModal } from './components/AiTaskModal'
 import { TicketLaunchModal } from './components/TicketLaunchModal'
 import { AgentNotificationBell } from './components/AgentNotificationBell'
 import type { AiRunState } from '../../shared/types'
+import brandIcon from '../../../resources/icons/icon_128.png'
 
 const UI_ZOOM_LEVELS = [0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2] as const
 const UI_ZOOM_STORAGE_KEY = 'mxwl.uiZoom'
@@ -183,7 +184,7 @@ const App: FC = () => {
       }
     }
 
-    // capture: true so Monaco/xterm don't swallow shortcuts
+    // capture: true so CodeMirror/xterm don't swallow shortcuts
     window.addEventListener('keydown', onKey, true)
     const off = window.api.on('shortcut:palette', (...args: unknown[]) => {
       const payload = args[0] as { mode?: SpotlightMode } | undefined
@@ -214,10 +215,10 @@ const App: FC = () => {
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
-      <header className="flex items-center gap-3 border-b border-neutral-800 px-4 py-2">
-        <span className="text-sm font-semibold tracking-tight">mxwl</span>
-        <span className="text-xs text-neutral-500">
-          Projects across machines · browser + editor + agents
+      <header className="flex items-center gap-4 border-b border-neutral-700 bg-neutral-950 px-4 py-2">
+        <span className="app-brand"><img src={brandIcon} alt="" /><span>mxwl</span></span>
+        <span className="hidden font-mono text-[10px] tracking-[.09em] text-neutral-500 xl:block">
+          YOUR WORKSPACE, TOGETHER.
         </span>
         <div className="ml-auto flex items-center gap-3 text-xs text-neutral-400">
           <Server size={14} className="text-neutral-500" />

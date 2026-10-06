@@ -1,8 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { Circle, Loader2, X } from 'lucide-react'
-import { monaco, createCodeEditor, disposeEditor } from '../monaco-setup'
+import {
+  Compartment,
+  EditorState,
+  type Text,
+  type Extension
+} from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
+import { editorExtensions, loadLanguage } from '../codemirror-setup'
 import { useEditorStore } from '../store/editor'
-import { basename, languageForPath } from '../util'
+import { basename } from '../util'
+
+type FileSession = {
+  state: EditorState
+  savedDoc: Text
+  lineSeparator: string
+  scroll: ReturnType<EditorView['scrollSnapshot']> | null
+}
 
 interface EditorProps {
   wsId: string
@@ -18,8 +32,11 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
   const restore = useEditorStore((s) => s.restore)
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
-  const modelsRef = useRef<Map<string, monaco.editor.ITextModel>>(new Map())
+  const editorRef = useRef<EditorView | null>(null)
+  const sessionsRef = useRef<Map<string, FileSession>>(new Map())
+  const displayedPathRef = useRef<string | null>(null)
+  const extensionsRef = useRef<Extension[]>([])
+  const languageRef = useRef(new Compartment())
   const activePathRef = useRef<string | null>(activePath)
   const wsIdRef = useRef<string>(wsId)
   activePathRef.current = activePath
@@ -27,6 +44,10 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
 
   const [binaryPaths, setBinaryPaths] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
+  const [saveError, setSaveError] = useState<{
+    path: string
+    message: string
+  } | null>(null)
 
   useEffect(() => {
     if (!storageKey) return
@@ -54,63 +75,132 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-    const e = createCodeEditor(container, {
-      automaticLayout: true,
-      theme: 'mxwl-dark',
-      fontSize: 13,
-      fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
-      fontLigatures: true,
-      minimap: { enabled: true },
-      scrollBeyondLastLine: false,
-      tabSize: 2,
-      renderWhitespace: 'selection',
-      smoothScrolling: true,
-      cursorBlinking: 'smooth',
-      fixedOverflowWidgets: true
+    extensionsRef.current = [
+      ...editorExtensions({ label: 'Code editor' }),
+      languageRef.current.of([]),
+      EditorView.updateListener.of((update) => {
+        const path = displayedPathRef.current
+        const session = path ? sessionsRef.current.get(path) : null
+        if (!path || !session) return
+        session.state = update.state
+        if (update.docChanged)
+          setDirty(
+            wsIdRef.current,
+            path,
+            !update.state.doc.eq(session.savedDoc)
+          )
+      })
+    ]
+    const e = new EditorView({
+      parent: container,
+      state: EditorState.create({
+        extensions: [...extensionsRef.current, EditorState.readOnly.of(true)]
+      })
     })
     editorRef.current = e
-    e.onDidChangeModelContent(() => {
-      const p = activePathRef.current
-      if (p) setDirty(wsIdRef.current, p, true)
-    })
-    e.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
-      () => void saveActive()
-    )
+
+    // Save belongs to the whole code pane, including find/replace, file tabs,
+    // and the file tree. Capture it before individual controls handle the key.
+    const pane =
+      container.closest<HTMLElement>('[data-code-editor-pane]') ??
+      container.parentElement?.parentElement ??
+      container
+    const onSaveKey = (event: KeyboardEvent): void => {
+      if (
+        event.defaultPrevented ||
+        !(event.ctrlKey || event.metaKey) ||
+        event.altKey ||
+        event.shiftKey ||
+        event.isComposing ||
+        event.key.toLowerCase() !== 's'
+      )
+        return
+      event.preventDefault()
+      event.stopPropagation()
+      if (!event.repeat) saveActive()
+    }
+    pane.addEventListener('keydown', onSaveKey, true)
 
     return () => {
+      pane.removeEventListener('keydown', onSaveKey, true)
       editorRef.current = null
-      disposeEditor(e)
-      modelsRef.current.forEach((m) => m.dispose())
-      modelsRef.current.clear()
+      displayedPathRef.current = null
+      e.destroy()
+      sessionsRef.current.clear()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function saveActive(): void {
-    const p = activePathRef.current
+    const p = displayedPathRef.current
     const e = editorRef.current
-    if (!p || !e) return
-    const model = e.getModel()
-    if (!model) return
+    const session = p ? sessionsRef.current.get(p) : null
+    if (!p || p !== activePathRef.current || !e || !session) return
+    const doc = e.state.doc
+    const workspaceId = wsIdRef.current
+    setSaveError(null)
     window.api.fs
-      .writeFile(wsIdRef.current, p, model.getValue())
-      .then(() => setDirty(wsIdRef.current, p, false))
-      .catch((err) => console.error('save failed', err))
+      .writeFile(
+        workspaceId,
+        p,
+        doc.sliceString(0, doc.length, session.lineSeparator)
+      )
+      .then(() => {
+        // A save can finish after more typing, a tab close, or a workspace switch.
+        if (sessionsRef.current.get(p) !== session) return
+        session.savedDoc = doc
+        setDirty(workspaceId, p, !session.state.doc.eq(doc))
+      })
+      .catch((err) => {
+        if (sessionsRef.current.get(p) === session)
+          setSaveError({
+            path: p,
+            message: err instanceof Error ? err.message : String(err)
+          })
+      })
   }
 
   useEffect(() => {
     const e = editorRef.current
     if (!e) return
+    const previous = displayedPathRef.current
+    const previousSession = previous ? sessionsRef.current.get(previous) : null
+    if (previousSession) {
+      previousSession.state = e.state
+      previousSession.scroll = e.scrollSnapshot()
+    }
+    const display = (path: string | null, session?: FileSession): void => {
+      displayedPathRef.current = path
+      e.setState(
+        session?.state ??
+          EditorState.create({
+            extensions: [
+              ...extensionsRef.current,
+              EditorState.readOnly.of(true)
+            ]
+          })
+      )
+      e.dispatch({
+        effects:
+          session?.scroll ??
+          EditorView.scrollIntoView(0, { y: 'start', x: 'start' })
+      })
+      // CodeMirror restores its DOM selection when focused through the view.
+      // Focusing only contentDOM can let Chromium choose a visible DOM position
+      // instead of the cached cursor in a virtualized document.
+      if (session) e.focus()
+    }
     setLoading(false)
     if (!activePath || binaryPaths.has(activePath)) {
-      e.setModel(null)
+      display(null)
       return
     }
-    if (modelsRef.current.has(activePath)) {
-      e.setModel(modelsRef.current.get(activePath) ?? null)
+    const cached = sessionsRef.current.get(activePath)
+    if (cached) {
+      display(activePath, cached)
       return
     }
+    display(null)
     let cancelled = false
     setLoading(true)
     window.api.fs
@@ -127,15 +217,36 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
           return
         if (encoding === 'base64') {
           setBinaryPaths((s) => new Set(s).add(activePath))
-          if (activePathRef.current === activePath) e.setModel(null)
+          if (activePathRef.current === activePath) display(null)
           return
         }
-        const model = monaco.editor.createModel(
-          content,
-          languageForPath(activePath)
-        )
-        modelsRef.current.set(activePath, model)
-        if (activePathRef.current === activePath) e.setModel(model)
+        const state = EditorState.create({
+          doc: content,
+          extensions: extensionsRef.current
+        })
+        const session: FileSession = {
+          state,
+          savedDoc: state.doc,
+          lineSeparator: content.match(/\r\n?|\n/)?.[0] ?? '\n',
+          scroll: null
+        }
+        sessionsRef.current.set(activePath, session)
+        if (activePathRef.current === activePath) display(activePath, session)
+        void loadLanguage(activePath)
+          .then((language) => {
+            if (!language || sessionsRef.current.get(activePath) !== session)
+              return
+            const transaction = session.state.update({
+              effects: languageRef.current.reconfigure(language)
+            })
+            if (
+              editorRef.current === e &&
+              displayedPathRef.current === activePath
+            )
+              e.dispatch(transaction)
+            else session.state = transaction.state
+          })
+          .catch((err) => console.error('language loading failed', err))
       })
       .catch((err) => {
         if (!cancelled && editorRef.current === e)
@@ -151,12 +262,15 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
 
   useEffect(() => {
     const open = new Set(files.map((f) => f.path))
-    for (const [path, model] of modelsRef.current) {
+    for (const [path] of sessionsRef.current) {
       if (!open.has(path)) {
-        model.dispose()
-        modelsRef.current.delete(path)
+        sessionsRef.current.delete(path)
       }
     }
+    setBinaryPaths((current) => {
+      const retained = new Set([...current].filter((path) => open.has(path)))
+      return retained.size === current.size ? current : retained
+    })
   }, [files])
 
   return (
@@ -195,12 +309,23 @@ export function Editor({ wsId, storageKey }: EditorProps): JSX.Element {
         ))}
         <button
           onClick={saveActive}
-          className="ml-auto self-center px-3 text-[11px] text-neutral-500 hover:text-neutral-200"
-          title="Save (⌘S)"
+          disabled={!activePath || loading || binaryPaths.has(activePath)}
+          className="ml-auto self-center px-3 text-[11px] text-neutral-500 hover:text-neutral-200 disabled:opacity-40"
+          title="Save (Ctrl+S / ⌘S)"
+          aria-keyshortcuts="Control+S Meta+S"
         >
           Save
         </button>
       </div>
+
+      {saveError && saveError.path === activePath && (
+        <div
+          role="alert"
+          className="break-words border-b border-red-900/50 bg-red-950/30 px-3 py-2 text-xs text-red-300"
+        >
+          Save failed: {saveError.message}
+        </div>
+      )}
 
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="absolute inset-0" />

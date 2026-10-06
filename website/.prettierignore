@@ -1,0 +1,6 @@
+dist/
+node_modules/
+.astro/
+.qa/
+package-lock.json
+src/pages/docs/*.md

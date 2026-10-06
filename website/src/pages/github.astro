@@ -1,0 +1,156 @@
+---
+import Base from '../layouts/Base.astro';
+import Screenshot from '../components/Screenshot.astro';
+import Icon from '../components/Icon.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import Closing from '../components/Closing.astro';
+---
+
+<Base
+  title="GitHub"
+  description="GitHub issues and pull requests belong beside the work. Choose an issue, launch a worktree and coding agent, review the diff, and open the PR in mxwl."
+>
+  <header class="page-hero container">
+    <div class="eyebrow">GITHUB / FROM ISSUE TO WORKSPACE</div>
+    <h1>
+      Your next issue.
+      <br />
+      Your whole workspace<span class="accent">.</span>
+    </h1>
+    <p class="lead">
+      Pick the work on GitHub. Bring its context into mxwl. A branch, a browser sandbox, and a
+      coding agent are ready to get moving.
+    </p>
+    <div class="button-row">
+      <a class="button primary" href="/docs/github/">
+        Connect GitHub <Icon name="git" size={17} />
+      </a>
+      <a class="button secondary" href="/download/">
+        Get mxwl
+      </a>
+    </div>
+  </header>
+  <section class="container page-section">
+    <div class="section-heading">
+      <div>
+        <div class="eyebrow">LESS CONTEXT TO REBUILD</div>
+        <h2>
+          Issue in.
+          <br />
+          Pull request out.
+        </h2>
+      </div>
+      <p>
+        The issue, code, conversation, and review share a home. Keep the reason for a change next to
+        the tools that make it.
+      </p>
+    </div>
+    <div class="feature-index">
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="git" size={26} />
+          <span class="number">[01]</span>
+        </div>
+        <h3>Bring the issue along.</h3>
+        <p>
+          See the title, description, labels, assignee, and open or closed state. Browse recent open
+          issues, enter a number, or paste an issue URL from your repository.
+        </p>
+      </div>
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="agent" size={26} />
+          <span class="number">[02]</span>
+        </div>
+        <h3>Start with context.</h3>
+        <p>
+          Launch the issue’s Git worktree, give its browser a fresh cookie sandbox, and start an
+          agent with the title, link, description, and your mission.
+        </p>
+      </div>
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="code" size={26} />
+          <span class="number">[03]</span>
+        </div>
+        <h3>Keep review close.</h3>
+        <p>
+          Find the current branch’s open PR, including drafts and fork branches. Review the diff,
+          stage a hunk, commit, push, and open GitHub’s PR creation page.
+        </p>
+      </div>
+    </div>
+  </section>
+  <div class="container">
+    <Screenshot
+      src="/images/mxwl-github.png"
+      alt="The mxwl GitHub integration displaying issue 42 with its description, labels, and assignee alongside draft pull request 88 for the current branch."
+      caption="The reason for the change. The pull request that carries it."
+      label="mxwl / GitHub issue & pull request · demo repository"
+      eager
+    />
+  </div>
+  <section class="statement">
+    <div class="container">
+      <div>
+        <div class="eyebrow">THE ACCOUNT YOU ALREADY USE</div>
+        <h2>
+          Your repositories.
+          <br />
+          Your GitHub login.
+          <br />
+          Your call.
+        </h2>
+      </div>
+      <div>
+        <p>
+          Reuse the account you signed into with GitHub CLI. Prefer a personal token? Choose the
+          repositories it can read. Public repositories work without signing in.
+        </p>
+        <p>
+          GitHub Enterprise Server is welcome too. Set its hostname in Accounts. Each project
+          chooses its own repository and tracker, so GitHub pull requests can live alongside Jira
+          tickets.
+        </p>
+        <a class="text-link" href="/docs/github/#choose-account-access">
+          Choose account access
+        </a>
+      </div>
+    </div>
+  </section>
+  <section class="container page-section">
+    <div class="detail-grid">
+      <div>
+        <div class="eyebrow">A SHORT PATH TO YOUR FIRST ISSUE</div>
+        <h2>
+          Connect once.
+          <br />
+          Get back to building.
+        </h2>
+        <p>
+          Choose <strong>GitHub Issues</strong> and <strong>GitHub</strong> in the project
+          integrations. Set the repository owner and name, or let mxwl infer them from your project
+          URL or checkout’s origin.
+        </p>
+        <p>
+          In <strong>Settings → Accounts → GitHub</strong>, choose your authentication and test the
+          connection. Then open the ticket launcher and pick an issue.
+        </p>
+        <a class="text-link" href="/docs/github/">
+          The complete GitHub guide
+        </a>
+      </div>
+      <div>
+        <CodeBlock label="On the computer running mxwl / GitHub CLI" code="gh auth login" />
+        <p class="small-copy">
+          GitHub API access uses the desktop’s account. For SSH workspaces, Git commands and agents
+          still run on the remote host with that host’s own credentials.
+        </p>
+        <a class="text-link" href="/remote/">
+          Bring a remote workspace
+        </a>
+      </div>
+    </div>
+  </section>
+  <Closing />
+</Base>

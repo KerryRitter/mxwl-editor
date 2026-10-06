@@ -10,7 +10,7 @@ A desktop app for building Example App. Open a workspace = pick a host + a remot
 |---|---|
 | Multi-workspace tabs, one SSH host each | Multi-window / tear-out panes |
 | Multiplexed ssh2 (shell + sftp + exec + forwardIn) | Local workspaces (no SSH) |
-| SFTP-backed Monaco editor + lazy tree | Inotify-based live file watch (v1 = manual reload) |
+| SFTP-backed CodeMirror 6 editor + lazy tree | Inotify-based live file watch (v1 = manual reload) |
 | Chromium browser pane, multi-tab, DevTools, zoom, CDP | Custom browser extensions |
 | Terminal pane, multiple sessions | Terminal splits inside the pane |
 | Dev-server controls (start/stop/restart/logs via `z`) | Inline diff editor |
@@ -30,7 +30,7 @@ Electron
 │   ├─ WorkspaceManager     — N workspaces, each:
 │   │   ├─ SshConnection        ssh2.Client (one per workspace)
 │   │   │   ├─ shell()  → TerminalSession(s)   (PTY → xterm over IPC)
-│   │   │   ├─ sftp()   → SftpFs               (Monaco FileSystemProvider + tree)
+│   │   │   ├─ sftp()   → SftpFs               (read/write API + tree)
 │   │   │   ├─ exec()   → DevController        (z CLI: start/stop/logs/status, git)
 │   │   │   └─ forwardIn()  → reverse CDP tunnel (localhost:9222 on host → us)
 │   │   ├─ BrowserController    WebContentsView[] (one per browser tab)
@@ -44,14 +44,14 @@ Electron
     └─ WorkspaceView
         ├─ Browser pane:  tab strip + chrome + (WebContentsView behind)
         └─ Right split:
-            ├─ Editor:     FileTree | EditorTabs | Monaco
+            ├─ Editor:     FileTree | EditorTabs | CodeMirror 6
             └─ Bottom:     Terminal | Logs | Git   (tabbed)
     + Modals: Jira, PR, Settings, CommandPalette
 ```
 
 ### Data flow (example: open a file)
 
-Renderer `FileTree.onClick(path)` → `window.api.fs.readFile(wsId, path)` (preload) → IPC `fs:readFile` → main `WorkspaceManager.get(wsId).sftpFs.readFile(path)` → ssh2 sftp `open/get` → bytes back → IPC reply → renderer sets Monaco model.
+Renderer `FileTree.onClick(path)` → `window.api.fs.readFile(wsId, path)` (preload) → IPC `fs:readFile` → main `WorkspaceManager.get(wsId).sftpFs.readFile(path)` → ssh2 sftp `open/get` → bytes back → IPC reply → renderer sets the CodeMirror document state.
 
 ### SSH multiplexing
 
@@ -69,7 +69,7 @@ One `ssh2.Client` per workspace. All channels (shell/sftp/exec) and the reverse 
 Wraps `ssh2.Client`. Methods: `connect()`, `shell(opts)→stream`, `sftp()→sftp`, `exec(cmd)→{stdout,stderr,code}`, `forwardIn(port)`, `status`, events (`connected|disconnected|reconnecting|error`). Reconnect with backoff; emits state for the renderer status dot.
 
 ### 4.2 SftpFs (`main/workspace/SftpFs.ts`)
-Implements a file-tree + read/write API (Monaco models loaded imperatively rather than vscode FileSystemProvider, since we're not embedding VS Code — Monaco alone).
+Implements a file-tree + read/write API (CodeMirror documents loaded through the host file API).
 - `readDir(path)→Entry[]` (lazy, no recursion), `readFile`/`writeFile`, `stat`, `mkdir`, `rename`, `delete`.
 - Stat cache with short TTL; entry cache invalidated on expand/refresh. No recursive reads over SFTP.
 - Paths: `~` expansion, normalize against workspace root.
@@ -203,7 +203,7 @@ mxwl-editor/
 
 | Risk | Mitigation |
 |---|---|
-| Monaco workers under electron-vite | Use `@monaco-editor/react` (handles worker URL via Vite); spike in phase 0, not phase 4 |
+| Language loading under electron-vite | Load CodeMirror language packages on demand through Vite chunks |
 | SFTP perf on huge repos | Lazy tree, stat cache + TTL, never recursive, debounce writes |
 | WebContentsView overlays DOM | Hide the view from main when a renderer modal opens; documented z-order protocol |
 | CDP exposes all webContents | Per-workspace toggle, loopback-only, UI warning |

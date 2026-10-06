@@ -23,7 +23,7 @@ import {
   PanelResizeHandle,
   type ImperativePanelGroupHandle
 } from 'react-resizable-panels'
-import type { WorkspaceState } from '../../../shared/types'
+import type { WorkspaceState, WorkspaceIntegrations } from '../../../shared/types'
 import { BottomTabs } from './BottomTabs'
 import { BrowserPane } from './BrowserPane'
 import { CodePane } from './CodePane'
@@ -52,8 +52,8 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   const [showTicket, setShowTicket] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [showIntegrations, setShowIntegrations] = useState(false)
-  const [jiraHost, setJiraHost] = useState<string | null>(null)
-  const [bbWebBase, setBbWebBase] = useState<string | null>(null)
+  const [integrationContext, setIntegrationContext] = useState<WorkspaceIntegrations | null>(null)
+  const [settingsRevision, setSettingsRevision] = useState(0)
   const [prUrl, setPrUrl] = useState<string | null>(null)
   const [everReady, setEverReady] = useState(ws.status === 'connected')
   const layoutKey = workspacePersistenceKey(ws)
@@ -129,33 +129,17 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   }, [ws.status])
 
   useEffect(() => {
-    void Promise.all([
-      window.api.project.list(),
-      window.api.settings.get()
-    ]).then(([projects, s]) => {
-      const project = projects.find((p) => p.id === ws.projectId)
-      setJiraHost(
-        project?.integrations.taskProvider === 'jira'
-          ? s.jira?.host?.replace(/\/+$/, '') || null
-          : null
-      )
-      const bb = project?.integrations
-      setBbWebBase(
-        bb?.scmProvider === 'bitbucket' &&
-          bb.repositoryWorkspace &&
-          bb.repositorySlug
-          ? `https://bitbucket.org/${bb.repositoryWorkspace}/${bb.repositorySlug}`
-          : null
-      )
-      setShowIntegrations(
-        Boolean(
-          project &&
-            (project.integrations.taskProvider !== 'none' ||
-              project.integrations.scmProvider !== 'none')
-        )
-      )
-    })
-  }, [ws.projectId, ws.projectSettings])
+    if (ws.status !== 'connected') return
+    let cancelled = false
+    void window.api.integrations.context(ws.id).then(context => {
+      if (cancelled) return
+      setIntegrationContext(context)
+      setShowIntegrations(context.taskProvider !== 'none' || context.scmProvider !== 'none')
+    }).catch(() => { if (!cancelled) setIntegrationContext(null) })
+    return () => { cancelled = true }
+  }, [ws.id, ws.status, ws.projectId, ws.projectSettings, ws.derived.issueKey, settingsRevision])
+
+  useEffect(() => window.api.on('settings:changed', () => setSettingsRevision(revision => revision + 1)), [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -195,7 +179,7 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
     return () => {
       cancelled = true
     }
-  }, [ws.id, ws.status, ws.derived.branch])
+  }, [ws.id, ws.status, ws.derived.branch, ws.projectId, ws.projectSettings, settingsRevision])
 
   // First connect only — never tear down shells/editor on brief reconnects
   if (!everReady) {
@@ -229,16 +213,11 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
     void window.api.browser.newTab(ws.id, url)
   }
 
-  const jiraUrl =
-    jiraHost && ws.derived.issueKey
-      ? `${jiraHost}/browse/${ws.derived.issueKey}`
-      : null
+  const jiraUrl = integrationContext?.issueUrl
   const branch = ws.derived.branch
   const bbUrl =
     prUrl ||
-    (bbWebBase && branch
-      ? `${bbWebBase}/pull-requests/?q=${encodeURIComponent(`source.branch.name="${branch}"`)}`
-      : null)
+    (branch ? integrationContext?.pullRequestsUrl : null)
   const devUrl = ws.derived.browserUrl || null
   const showTicketBtn = showIntegrations && (ws.derived.issueKey || branch)
   return (
@@ -276,7 +255,7 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
           ) : (
             <button
               onClick={() => setShowTicket(true)}
-              title="Configure Jira host in Settings to open directly"
+              title="Open issue details and account setup"
               className="flex items-center gap-1 text-neutral-300 hover:text-emerald-400"
             >
               <Ticket size={11} /> {ws.derived.issueKey}

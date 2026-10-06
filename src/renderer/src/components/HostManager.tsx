@@ -134,7 +134,7 @@ export const HostManager: FC = () => {
               setSeed({})
               setShowForm(true)
             }}
-            className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500"
+            className="flex items-center gap-1.5 rounded-md bg-brand-accent px-3 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-hover"
           >
             <Plus size={14} /> Add host
           </button>
@@ -157,7 +157,7 @@ export const HostManager: FC = () => {
                 setSeed({})
                 setShowForm(true)
               }}
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs text-white hover:bg-emerald-500"
+              className="rounded-md bg-brand-accent px-3 py-1.5 text-xs text-brand-ink hover:bg-brand-hover"
             >
               Add host
             </button>
@@ -657,7 +657,7 @@ const HostForm: FC<{
           <button
             type="submit"
             disabled={!valid || saving}
-            className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
+            className="rounded-md bg-brand-accent px-4 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-hover disabled:opacity-40"
           >
             Save
           </button>

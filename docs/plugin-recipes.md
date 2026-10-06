@@ -373,8 +373,8 @@ async function openDiff(path) {
 }
 ```
 
-The API provides before/after text suitable for your own unified renderer, split renderer, Monaco,
-CodeMirror, or another locally bundled viewer. Keep bundle chunks under the 2 MiB per-asset limit.
+The API provides before/after text suitable for your own unified renderer, split renderer, CodeMirror 6,
+or another locally bundled viewer. Keep bundle chunks under the 2 MiB per-asset limit.
 
 ### Stage with stale-state recovery
 

@@ -84,9 +84,14 @@ export type ProjectBrowserProfile = {
   testLogin?: TestLoginConfig
 }
 
-export type ProjectInput = Omit<ProjectConfig, 'id' | 'addedAt' | 'browserProfiles'> & {
+export type ProjectInput = Omit<
+  ProjectConfig,
+  'id' | 'addedAt' | 'browserProfiles'
+> & {
   id?: string
-  browserProfiles: (Omit<ProjectBrowserProfile, 'testLogin'> & { testLogin?: TestLoginInput | null })[]
+  browserProfiles: (Omit<ProjectBrowserProfile, 'testLogin'> & {
+    testLogin?: TestLoginInput | null
+  })[]
 }
 
 /** Many projects can live on one host; one project can have many locations. */
@@ -102,9 +107,16 @@ export type ProjectLocation = {
   folderFilter: string
   appSubdirectory: string
   browserProfileId: string | null
-  overrides: { browserUrl?: string; terminalStartup?: string; services?: PresetService[] }
+  overrides: {
+    browserUrl?: string
+    terminalStartup?: string
+    services?: PresetService[]
+  }
 }
-export type ProjectLocationInput = Omit<ProjectLocation, 'id' | 'builtinLocal'> & { id?: string }
+export type ProjectLocationInput = Omit<
+  ProjectLocation,
+  'id' | 'builtinLocal'
+> & { id?: string }
 
 export type WorkspaceProjectSettings = {
   derive: DeriveConfig
@@ -156,11 +168,7 @@ export type DirEntry = {
 }
 
 export type WorkspaceStatus =
-  | 'disconnected'
-  | 'connecting'
-  | 'connected'
-  | 'reconnecting'
-  | 'error'
+  'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
 export type DeriveConfig = {
   folderPattern: string
@@ -248,7 +256,9 @@ export type WorkspaceState = {
   hostLabel: string
   browserProfileId: string | null
   /** Resolved per-workspace; no global current project. Contains no credentials. */
-  projectSettings: Omit<WorkspaceProjectSettings, 'browserProfile'> & { testLoginAvailable: boolean }
+  projectSettings: Omit<WorkspaceProjectSettings, 'browserProfile'> & {
+    testLoginAvailable: boolean
+  }
   remotePath: string
   title: string
   status: WorkspaceStatus
@@ -327,6 +337,7 @@ export type AppSettings = {
   control: ControlSettings
   runtime: RuntimeSettings
   plugins: import('./plugins').PluginSettings
+  github: import('./github').GitHubAccount | null
   jira: { host: string; email: string; apiTokenEnc: string } | null
   bitbucket: {
     host: string
@@ -354,12 +365,30 @@ export type JiraIssue = {
   url: string
 }
 
+export type WorkspaceIssue = JiraIssue & {
+  provider: 'jira' | 'github-issues'
+  body?: string
+}
+
+export type WorkspaceIntegrations = {
+  taskProvider: TaskProviderId
+  scmProvider: ScmProviderId
+  githubRepository: import('./github').GitHubRepository | null
+  githubHost: string | null
+  issueUrl: string | null
+  repositoryUrl: string | null
+  pullRequestsUrl: string | null
+  error?: string
+}
+
 export type PullRequest = {
   id: number
   title: string
   state: string
   url: string
   author?: string
+  provider?: 'github' | 'bitbucket'
+  draft?: boolean
 }
 
 export type McpStatus = {
@@ -420,7 +449,7 @@ export type GitDiffHunk = {
   deletions: number
 }
 
-/** Text needed by Monaco's diff editor for one changed path. */
+/** Text needed by CodeMirror 6's diff editor for one changed path. */
 export type GitFileDiff = GitChange & {
   oldText: string | null
   newText: string | null
@@ -541,12 +570,7 @@ export type AiRunState = {
 // ── Agent panel (ACP) ────────────────────────────────────────────────────────
 
 export type AgentConnStatus =
-  | 'idle'
-  | 'starting'
-  | 'auth-required'
-  | 'ready'
-  | 'error'
-  | 'exited'
+  'idle' | 'starting' | 'auth-required' | 'ready' | 'error' | 'exited'
 
 export type AgentTurnStatus = 'idle' | 'running' | 'cancelling'
 
@@ -676,7 +700,8 @@ export type AgentSessionState = {
   startedAt: number
 }
 
-export type AgentActivityState = 'starting' | 'working' | 'attention' | 'idle' | 'error'
+export type AgentActivityState =
+  'starting' | 'working' | 'attention' | 'idle' | 'error'
 
 export type AgentActivity = {
   state: AgentActivityState

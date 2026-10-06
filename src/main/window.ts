@@ -1,6 +1,7 @@
 import { BrowserWindow, Menu, shell } from 'electron'
 import { join } from 'path'
 import { appIconPath } from './branding'
+import brand from '../shared/brand.json'
 
 export function createMainWindow(options: { startHidden?: boolean } = {}): BrowserWindow {
   const win = new BrowserWindow({
@@ -12,7 +13,7 @@ export function createMainWindow(options: { startHidden?: boolean } = {}): Brows
     autoHideMenuBar: true,
     title: 'mxwl',
     icon: appIconPath(),
-    backgroundColor: '#0a0a0a',
+    backgroundColor: brand.background,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

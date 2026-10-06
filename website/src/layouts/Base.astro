@@ -1,0 +1,258 @@
+---
+import '@fontsource/space-grotesk/latin-400.css';
+import '@fontsource/space-grotesk/latin-500.css';
+import '@fontsource/space-grotesk/latin-600.css';
+import '@fontsource/space-grotesk/latin-700.css';
+import '@fontsource/ibm-plex-mono/latin-400.css';
+import '@fontsource/ibm-plex-mono/latin-500.css';
+import '@fontsource/pixelify-sans/latin-600.css';
+import '../styles/global.css';
+import Icon from '../components/Icon.astro';
+import { product } from '../data/product';
+interface Props {
+  title: string;
+  description: string;
+  home?: boolean;
+}
+const { title, description, home = false } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const nav = [
+  { href: '/tour/', title: 'The tour' },
+  { href: '/agents/', title: 'Agents' },
+  { href: '/remote/', title: 'Remote' },
+  { href: '/plugins/', title: 'Plugins' },
+  { href: '/docs/', title: 'The manual' },
+];
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{home ? 'mxwl — A home for your whole workflow.' : `${title} — mxwl`}</title>
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#101411" />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/png" href="/images/icon-32.png" />
+    <link rel="apple-touch-icon" href="/images/icon-256.png" />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content={home ? 'mxwl — A home for your whole workflow.' : `${title} — mxwl`}
+    />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL('/images/brand.png', Astro.site)} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script is:inline>
+      try {
+        const t = localStorage.getItem('mxwl-theme');
+        if (t === 'light') document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <a href="#main" class="skip-link">
+      Skip to content
+    </a>
+    <header class="site-header">
+      <div class="container nav-shell">
+        <a class="brand" href="/" aria-label="mxwl home">
+          <img src="/images/icon-128.png" width="30" height="30" alt="" />
+          <span>mxwl</span>
+        </a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="main-nav">
+          Menu <span aria-hidden="true">+</span>
+        </button>
+        <nav id="main-nav" aria-label="Main navigation">
+          {nav.map((item) => (
+            <a
+              href={item.href}
+              aria-current={Astro.url.pathname.startsWith(item.href) ? 'page' : undefined}
+            >
+              {item.title}
+            </a>
+          ))}
+        </nav>
+        <div class="nav-actions">
+          <button
+            class="theme-toggle icon-button"
+            type="button"
+            aria-label="Switch to light theme"
+            aria-pressed="false"
+          >
+            <Icon name="sun" size={18} />
+          </button>
+          <a
+            class="github-nav icon-button"
+            href={product.repository}
+            aria-label="mxwl source on GitHub"
+          >
+            <Icon name="github" size={20} />
+          </a>
+          <a
+            class="nav-download"
+            href="/download/"
+            aria-current={Astro.url.pathname === '/download/' ? 'page' : undefined}
+          >
+            Get mxwl
+            <Icon name="download" size={16} />
+          </a>
+        </div>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <div class="container footer-main">
+        <div class="footer-brand">
+          <a class="brand" href="/">
+            <img src="/images/icon-128.png" width="30" height="30" alt="" />
+            <span>mxwl</span>
+          </a>
+          <p>
+            A home for your whole workflow.
+            <br />
+            Built for people who build things.
+          </p>
+          <span class="mono footer-version">v{product.version}</span>
+        </div>
+        <div>
+          <h2>Explore</h2>
+          <a href="/tour/">The editor</a>
+          <a href="/agents/">Agent command center</a>
+          <a href="/remote/">Local & remote</a>
+          <a href="/tailscale/">Your Tailscale machines</a>
+          <a href="/github/">GitHub issues & pull requests</a>
+          <a href="/plugins/">Make it yours</a>
+        </div>
+        <div>
+          <h2>Learn</h2>
+          <a href="/docs/">The manual</a>
+          <a href="/docs/getting-started/">Getting started</a>
+          <a href="/docs/changelog/">Changelog</a>
+          <a href="/docs/alpha/">Alpha status</a>
+        </div>
+        <div>
+          <h2>Project</h2>
+          <a href="/about/">Why mxwl</a>
+          <a href={product.repository}>Source code</a>
+          <a href={`${product.repository}/issues`}>Feedback & issues</a>
+          <a href="/docs/security/">Security</a>
+        </div>
+      </div>
+      <div class="container footer-bottom">
+        <span>
+          © {new Date().getFullYear()} Kerry Ritter.{' '}
+          <a href={`${product.repository}/blob/main/LICENSE`}>MIT licensed.</a>
+        </span>
+        <span class="mono">YOUR TOOLS. YOUR MACHINES. YOUR WORK.</span>
+      </div>
+    </footer>
+    <dialog class="image-dialog" aria-label="Product screenshot">
+      <div class="dialog-toolbar">
+        <span class="mono">MXWL / PRODUCT CAPTURE</span>
+        <button class="dialog-close button secondary" type="button">
+          Close <Icon name="close" size={16} />
+        </button>
+      </div>
+      <img class="dialog-image" alt="" />
+      <p class="dialog-caption"></p>
+    </dialog>
+    <script>
+      const root = document.documentElement;
+      const themeToggle = document.querySelector<HTMLButtonElement>('.theme-toggle');
+      function syncThemeButton() {
+        const light = root.dataset.theme === 'light';
+        themeToggle?.setAttribute('aria-label', `Switch to ${light ? 'dark' : 'light'} theme`);
+        themeToggle?.setAttribute('aria-pressed', String(light));
+        document
+          .querySelector('meta[name="theme-color"]')
+          ?.setAttribute('content', light ? '#f1f3ed' : '#101411');
+      }
+      syncThemeButton();
+      themeToggle?.addEventListener('click', () => {
+        root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light';
+        try {
+          localStorage.setItem('mxwl-theme', root.dataset.theme);
+        } catch {}
+        syncThemeButton();
+      });
+      const menu = document.querySelector<HTMLButtonElement>('.menu-toggle');
+      const nav = document.querySelector<HTMLElement>('#main-nav');
+      function closeMenu() {
+        menu?.setAttribute('aria-expanded', 'false');
+        nav?.classList.remove('is-open');
+      }
+      menu?.addEventListener('click', () => {
+        const expanded = menu.getAttribute('aria-expanded') !== 'true';
+        menu.setAttribute('aria-expanded', String(expanded));
+        nav?.classList.toggle('is-open', expanded);
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && menu?.getAttribute('aria-expanded') === 'true') {
+          closeMenu();
+          menu.focus();
+        }
+      });
+      document.addEventListener('click', (event) => {
+        if (
+          event.target instanceof Node &&
+          !document.querySelector('.nav-shell')?.contains(event.target)
+        )
+          closeMenu();
+      });
+      document.querySelectorAll<HTMLButtonElement>('[data-copy]').forEach((button) =>
+        button.addEventListener('click', async () => {
+          const label = button.querySelector('span');
+          const status = button.closest('.code-block')?.querySelector('.copy-status');
+          try {
+            await navigator.clipboard.writeText(button.dataset.copy ?? '');
+            if (label) label.textContent = 'Copied!';
+            if (status) status.textContent = 'Command copied to clipboard.';
+          } catch {
+            if (label) label.textContent = 'Select text';
+            if (status) status.textContent = 'Clipboard unavailable. Select and copy the command.';
+          }
+          window.setTimeout(() => {
+            if (label) label.textContent = 'Copy';
+          }, 2400);
+        }),
+      );
+      const dialog = document.querySelector<HTMLDialogElement>('.image-dialog');
+      const dialogImage = dialog?.querySelector<HTMLImageElement>('.dialog-image');
+      let imageTrigger: HTMLButtonElement | null = null;
+      document.querySelectorAll<HTMLButtonElement>('[data-image]').forEach((button) =>
+        button.addEventListener('click', () => {
+          if (!dialog || !dialogImage) return;
+          imageTrigger = button;
+          dialogImage.src = button.dataset.image ?? '';
+          dialogImage.alt = button.dataset.alt ?? '';
+          const caption = dialog.querySelector('.dialog-caption');
+          if (caption) caption.textContent = dialogImage.alt;
+          dialog.showModal();
+          document.body.classList.add('dialog-open');
+        }),
+      );
+      dialog?.querySelector('.dialog-close')?.addEventListener('click', () => dialog.close());
+      dialog?.addEventListener('click', (event) => {
+        if (event.target === dialog) {
+          const rect = dialog.getBoundingClientRect();
+          if (
+            event.clientX < rect.left ||
+            event.clientX > rect.right ||
+            event.clientY < rect.top ||
+            event.clientY > rect.bottom
+          )
+            dialog.close();
+        }
+      });
+      dialog?.addEventListener('close', () => {
+        document.body.classList.remove('dialog-open');
+        imageTrigger?.focus();
+      });
+    </script>
+  </body>
+</html>

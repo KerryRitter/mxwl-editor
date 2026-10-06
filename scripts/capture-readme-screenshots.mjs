@@ -153,6 +153,7 @@ try {
 
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
+  await page.evaluate(() => document.fonts.ready)
   await app.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]
     window.setSize(1600, 1000)
@@ -204,7 +205,7 @@ try {
   await page.getByText('Changed files', { exact: true }).waitFor({ state: 'visible' })
   await page.locator('button[title^="src/checkout/riskScore.ts"]').click()
   await page.getByRole('button', { name: 'Split' }).click()
-  await page.locator('.monaco-diff-editor').waitFor({ state: 'visible' })
+  await page.locator('.mxwl-diff').waitFor({ state: 'visible' })
   await page.getByTitle(/Maximize code pane/).click()
   await page.getByTitle(/Restore layout/).waitFor({ state: 'visible' })
   await page.waitForTimeout(800)
@@ -260,7 +261,7 @@ try {
 
   await page.getByRole('button', { name: 'Projects', exact: true }).click()
   await page.locator('section').filter({ has: page.getByRole('heading', { name: 'Checkout', exact: true }) }).getByRole('button', { name: /Hosts ·/ }).click()
-  await page.getByRole('heading', { name: 'Studio workstation', exact: true }).waitFor({ state: 'visible' })
+  await page.getByRole('button', { name: 'Workspaces', exact: true }).waitFor({ state: 'visible' })
   await page.screenshot({ path: join(outputDir, 'mxwl-project-hosts.png'), animations: 'disabled', clip: { x: 0, y: 0, width: await page.evaluate(() => window.innerWidth), height: 320 } })
   await page.getByRole('button', { name: 'Projects', exact: true }).click()
   await page.locator('section').filter({ has: page.getByRole('heading', { name: 'Catalog', exact: true }) }).getByRole('button', { name: /Hosts ·/ }).click()

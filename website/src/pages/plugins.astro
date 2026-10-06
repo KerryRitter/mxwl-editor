@@ -1,0 +1,158 @@
+---
+import Base from '../layouts/Base.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import Icon from '../components/Icon.astro';
+import Closing from '../components/Closing.astro';
+import { product } from '../data/product';
+const manifest =
+  '{\n  "apiVersion": 1,\n  "id": "com.example.workspace-note",\n  "name": "Workspace Note",\n  "version": "1.0.0",\n  "permissions": ["workspace:read", "files:read"],\n  "contributes": {\n    "workspaceTools": [{\n      "id": "note",\n      "title": "Note",\n      "icon": "book",\n      "entry": "index.html"\n    }]\n  }\n}';
+---
+
+<Base
+  title="Make it yours"
+  description="Extend the mxwl editor with standalone workspace plugins. Build tools with HTML, CSS, JavaScript, and a versioned, permission-gated SDK."
+>
+  <header class="page-hero container">
+    <div class="eyebrow">AN EDITOR WITH AN OPEN DOOR</div>
+    <h1>
+      Your workflow
+      <br />
+      gets a seat here<span class="accent">.</span>
+    </h1>
+    <p class="lead">
+      A task board. A branch artifact reader. A view into your internal tools. Build the surface
+      your work needs, then put it right next to the code.
+    </p>
+    <div class="button-row">
+      <a class="button primary" href="/docs/plugins/">
+        Build your first plugin
+      </a>
+      <a class="button secondary" href="/docs/plugin-api/">
+        Explore the SDK
+      </a>
+    </div>
+  </header>
+  <section class="container detail-grid">
+    <div>
+      <div class="eyebrow">ORDINARY WEB TOOLS / YOUR OWN DIRECTORY</div>
+      <h2>
+        A manifest.
+        <br />A page.
+        <br />A place in the deck.
+      </h2>
+      <p>
+        Plugins are standalone folders of HTML, CSS, JavaScript, and a <code>mxwl.plugin.json</code>{' '}
+        manifest. You can keep one in its own repository, separate from the editor.
+      </p>
+      <p>
+        Paste the folder or manifest path into <strong>Settings → Plugins</strong>, review its
+        permissions, and enable it. mxwl links it in place. Reload picks up your edits; unlinking
+        leaves your source intact.
+      </p>
+      <a class="text-link" href={`${product.repository}/tree/main/examples/plugins/task-board`}>
+        Start with the Task Board example
+      </a>
+    </div>
+    <CodeBlock code={manifest} label="mxwl.plugin.json" />
+  </section>
+  <section class="container page-section">
+    <div class="section-heading">
+      <div>
+        <div class="eyebrow">THE WORKSPACE IS THE API</div>
+        <h2>Context, without the glue.</h2>
+      </div>
+      <p>
+        The versioned browser SDK gives a plugin the active workspace context and access to
+        capabilities approved by the user.
+      </p>
+    </div>
+    <div class="feature-index">
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="folder" size={26} />
+          <span class="number">[01]</span>
+        </div>
+        <h3>Follow the workspace.</h3>
+        <p>
+          React to branch, Git state, connection, and workspace changes. Your tool knows where the
+          work is happening.
+        </p>
+      </div>
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="code" size={26} />
+          <span class="number">[02]</span>
+        </div>
+        <h3>Use the host’s capabilities.</h3>
+        <p>
+          Read files, inspect Git, interact with browser tabs, prompt an agent, or use scoped
+          storage and HTTP—with the relevant permissions.
+        </p>
+      </div>
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="puzzle" size={26} />
+          <span class="number">[03]</span>
+        </div>
+        <h3>Live inside the editor.</h3>
+        <p>
+          Contribute a workspace tool to the same deck used by the built-in Code Explorer and
+          Changes plugins.
+        </p>
+      </div>
+    </div>
+  </section>
+  <section class="statement">
+    <div class="container">
+      <div>
+        <div class="eyebrow">A USEFUL EXAMPLE</div>
+        <h2>
+          Turn branch artifacts
+          <br />
+          into a living brief.
+        </h2>
+      </div>
+      <div>
+        <p>
+          Read the spec, plan, QA evidence, and review notes associated with the active branch.
+          Offer heading navigation and search, then refresh as artifacts change.
+        </p>
+        <p>Your team’s conventions live in the plugin, and the editor stays general.</p>
+        <a class="text-link" href="/docs/plugin-recipes/">
+          Explore plugin recipes
+        </a>
+      </div>
+    </div>
+  </section>
+  <section class="container page-section">
+    <div class="detail-grid">
+      <div>
+        <div class="eyebrow">EXPLICIT CAPABILITIES</div>
+        <h2>
+          Small surface.
+          <br />
+          Clear permissions.
+        </h2>
+        <p>
+          Linked plugins run in sandboxed iframes with their own origins and a restrictive Content
+          Security Policy. Host operations go through the SDK and are checked on every request.
+        </p>
+      </div>
+      <div>
+        <p>
+          Plugins start disabled. Permission changes require a fresh review before they can run
+          again. Request only the capabilities your tool uses.
+        </p>
+        <div class="button-row">
+          <a class="text-link" href="/docs/plugin-security/">
+            The security model
+          </a>
+          <a class="text-link" href="/docs/plugin-testing/">
+            Testing & distribution
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <Closing />
+</Base>

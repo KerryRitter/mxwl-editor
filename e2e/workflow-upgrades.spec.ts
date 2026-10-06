@@ -89,6 +89,7 @@ test('searches everything, applies layouts, maximizes panes, and creates a tmux 
   writeFileSync(join(workRoot, 'src', 'RareWidgetController.ts'), 'export const rare = true\n', 'utf8')
   const wsId = await openWorkspace(page, workRoot)
 
+  await page.getByRole('button', { name: 'Search', exact: true }).focus()
   await page.keyboard.press('Control+k')
   await expect(page.getByText('Search everything', { exact: true })).toBeVisible()
   await page.getByPlaceholder('Files, tabs, commands, agents, terminals…').fill('rwc')
@@ -157,7 +158,7 @@ test('launches a ticket worktree with a browser sandbox and seeded agent mission
     await page.getByTitle(/Launch ticket worktree/).click()
     await page.getByRole('textbox', { name: 'Ticket' }).fill('DEV-42')
     await page.getByRole('button', { name: 'Launch everything' }).click()
-    await expect(page.getByText('DEV-42', { exact: true })).toBeVisible()
+    await expect(page.getByTitle('Open issue details and account setup')).toHaveText('DEV-42')
 
     await expect
       .poll(async () => {

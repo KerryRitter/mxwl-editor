@@ -13,7 +13,7 @@ One workspace tab = one remote folder, with three panes locked together:
 | Pane | Replaces |
 |---|---|
 | Chromium (multi-tab, DevTools, zoom, CDP) | Chrome/Safari windows you alt-tab to |
-| Monaco over SFTP + file tree | Editor tabs pointed at a remote path |
+| CodeMirror 6 over SFTP + file tree | Editor tabs pointed at a remote path |
 | Terminal (xterm ↔ remote PTY) | SSH + tmux |
 
 Special sauce: **MCP + CDP reverse tunnel** so an agent *on the box* can drive the *desktop* browser and workspace.
@@ -248,7 +248,7 @@ You should not feel a regression. Generic users just don’t see Example App chr
 - Extension marketplace
 - Local (non-SSH) workspaces as primary mode
 - Full git client / merge UI
-- Competing with Monaco on language intelligence (no LSP farm in v1)
+- Full project-wide language intelligence (no LSP farm in v1)
 - Multi-user hosted mxwl
 
 If a feature doesn’t help “one remote folder, three synced panes, agent-reachable browser,” defer it.

@@ -1,0 +1,88 @@
+---
+import Base from './Base.astro';
+import { guides, product } from '../data/product';
+interface Props {
+  frontmatter?: { title: string; description: string; source?: string };
+  title?: string;
+  description?: string;
+}
+const { frontmatter, title: explicitTitle, description: explicitDescription } = Astro.props;
+const title = frontmatter?.title ?? explicitTitle ?? 'Manual';
+const description = frontmatter?.description ?? explicitDescription ?? 'The mxwl manual.';
+const groups = [...new Set(guides.map((guide) => guide.group))];
+const currentIndex = guides.findIndex((guide) => Astro.url.pathname === `/docs/${guide.slug}/`);
+const previous = guides[currentIndex - 1];
+const next = guides[currentIndex + 1];
+---
+
+<Base title={title} description={description}>
+  <div class="container manual-grid">
+    <aside class="manual-sidebar" aria-label="Manual navigation">
+      <a class="back-link" href="/docs/">
+        [ The manual ]
+      </a>
+      {groups.map((group) => (
+        <div>
+          <h2>{group.toUpperCase()}</h2>
+          {guides
+            .filter((guide) => guide.group === group)
+            .map((guide) => (
+              <a
+                href={`/docs/${guide.slug}/`}
+                aria-current={Astro.url.pathname === `/docs/${guide.slug}/` ? 'page' : undefined}
+              >
+                {guide.title}
+              </a>
+            ))}
+        </div>
+      ))}
+    </aside>
+    <article class="doc-main">
+      <details class="manual-mobile">
+        <summary>In the manual</summary>
+        <nav aria-label="Manual chapters">
+          <a href="/docs/">All guides</a>
+          {guides.map((guide) => (
+            <a
+              href={`/docs/${guide.slug}/`}
+              aria-current={Astro.url.pathname === `/docs/${guide.slug}/` ? 'page' : undefined}
+            >
+              {guide.title}
+            </a>
+          ))}
+        </nav>
+      </details>
+      <header class="doc-title">
+        <div class="eyebrow">THE MXWL MANUAL / {guides[currentIndex]?.number ?? '01'}</div>
+        <h1>{title}</h1>
+        <p>{description}</p>
+        {frontmatter?.source && (
+          <a class="doc-source" href={`${product.repository}/blob/main/${frontmatter.source}`}>
+            Read this guide on GitHub
+          </a>
+        )}
+      </header>
+      <div class="doc-content">
+        <slot />
+      </div>
+      <nav class="doc-pagination" aria-label="Adjacent guides">
+        {previous ? (
+          <a href={`/docs/${previous.slug}/`}>
+            Previous
+            <br />
+            {previous.title}
+          </a>
+        ) : (
+          <span></span>
+        )}
+        {next && (
+          <a href={`/docs/${next.slug}/`}>
+            Next
+            <br />
+            {next.title}
+          </a>
+        )}
+      </nav>
+    </article>
+  </div>
+</Base>

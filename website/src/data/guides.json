@@ -1,0 +1,129 @@
+[
+  {
+    "slug": "getting-started",
+    "title": "Getting started",
+    "description": "Install mxwl, configure a project, and open your first workspace.",
+    "group": "Start here",
+    "number": "01"
+  },
+  {
+    "slug": "projects",
+    "title": "Projects, hosts & workspaces",
+    "description": "One project, several machines. Settings that follow the work.",
+    "group": "The workspace",
+    "number": "02",
+    "source": "docs/presets.md"
+  },
+  {
+    "slug": "tailscale",
+    "title": "Tailscale & phone access",
+    "description": "Discover your machines, configure SSH, and reach your agents over a private tailnet.",
+    "group": "The workspace",
+    "source": "docs/tailscale.md",
+    "number": "03"
+  },
+  {
+    "slug": "github",
+    "title": "GitHub issues & pull requests",
+    "description": "Connect an account, bring issue context into a worktree, and review the branch’s pull request.",
+    "group": "The workspace",
+    "source": "docs/github.md",
+    "number": "04"
+  },
+  {
+    "slug": "browser",
+    "title": "Browser & cookie sandboxes",
+    "description": "Test different identities in isolated browser sessions.",
+    "group": "The workspace",
+    "number": "05",
+    "source": "docs/tab-groups.md"
+  },
+  {
+    "slug": "agents",
+    "title": "Agent runtime",
+    "description": "Providers, permissions, conversations, modes, and file context.",
+    "group": "Working with agents",
+    "number": "06",
+    "source": "docs/agent.md"
+  },
+  {
+    "slug": "agent-control",
+    "title": "Fleet, CLI & mobile control",
+    "description": "Keep track of running agents and the ones that need you.",
+    "group": "Working with agents",
+    "number": "07",
+    "source": "docs/agent-control.md"
+  },
+  {
+    "slug": "ai-tasks",
+    "title": "Plan & run AI tasks",
+    "description": "Prepare work and run it across multiple workspaces.",
+    "group": "Working with agents",
+    "number": "08",
+    "source": "docs/ai.md"
+  },
+  {
+    "slug": "plugins",
+    "title": "Build your first plugin",
+    "description": "Add a workspace tool with a manifest and a little HTML.",
+    "group": "Make it yours",
+    "number": "09",
+    "source": "docs/plugins.md"
+  },
+  {
+    "slug": "plugin-api",
+    "title": "Plugin API reference",
+    "description": "The versioned manifest, SDK methods, permissions, and limits.",
+    "group": "Make it yours",
+    "number": "10",
+    "source": "docs/plugin-api.md"
+  },
+  {
+    "slug": "plugin-recipes",
+    "title": "Plugin recipes",
+    "description": "Artifact readers, task APIs, Git views, and agent handoffs.",
+    "group": "Make it yours",
+    "number": "11",
+    "source": "docs/plugin-recipes.md"
+  },
+  {
+    "slug": "plugin-testing",
+    "title": "Testing & distributing plugins",
+    "description": "Develop, debug, package, and share a standalone tool.",
+    "group": "Make it yours",
+    "number": "12",
+    "source": "docs/plugin-testing.md"
+  },
+  {
+    "slug": "plugin-security",
+    "title": "Plugin security",
+    "description": "The sandbox, CSP, permissions, secrets, and network model.",
+    "group": "Make it yours",
+    "number": "13",
+    "source": "docs/plugin-security.md"
+  },
+  {
+    "slug": "alpha",
+    "title": "Alpha status & limitations",
+    "description": "Supported platforms and the edges we are still smoothing out.",
+    "group": "Project",
+    "number": "14",
+    "source": "ALPHA.md"
+  },
+  {
+    "slug": "security",
+    "title": "Security",
+    "description": "Secrets, tunnels, local APIs, and responsible reporting.",
+    "group": "Project",
+    "number": "15",
+    "source": "SECURITY.md"
+  },
+  {
+    "slug": "changelog",
+    "title": "Changelog",
+    "description": "What changed in each release.",
+    "group": "Project",
+    "number": "16",
+    "source": "CHANGELOG.md"
+  }
+]

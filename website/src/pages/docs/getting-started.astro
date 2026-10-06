@@ -1,0 +1,113 @@
+---
+import Doc from '../../layouts/Doc.astro';
+import CodeBlock from '../../components/CodeBlock.astro';
+import { product } from '../../data/product';
+---
+
+<Doc
+  title="Getting started"
+  description="Install mxwl, configure a project, and open your first workspace."
+>
+  <p>
+    mxwl brings a browser, code editor, Git review, terminals, and coding agents into a workspace
+    anchored to a folder. You can work locally or connect to a machine over SSH.
+  </p>
+  <h2>1. Install the editor</h2>
+  <p>On Linux x86_64, run the installer:</p>
+  <CodeBlock code={product.installer} label="Linux install" />
+  <p>
+    The installer verifies the AppImage checksum, installs <code>mxwl</code> in{' '}
+    <code>~/.local/bin</code>, and adds a desktop launcher. Re-run it to update. You need{' '}
+    <code>curl</code> and <code>sha256sum</code>.
+  </p>
+  <p>
+    For a Linux .deb or a macOS zip, use the <a href="/download/">download page</a>. mxwl is an
+    early alpha; read the <a href="/docs/alpha/">current limitations</a> before relying on it for
+    daily work.
+  </p>
+  <h2>2. Create a project</h2>
+  <p>
+    Open <strong>Projects</strong> and create a project. A project holds shared settings for browser
+    profiles, service commands, file exclusions, integrations, AI tasks, and plugin visibility. You
+    can create it before you have a checkout.
+  </p>
+  <h2>3. Configure a host</h2>
+  <p>
+    Every project has a permanent <strong>This machine</strong> host. Choose{' '}
+    <strong>Configure checkout</strong> to set its checkout and workspaces paths. To attach a remote
+    machine, choose <strong>Add host</strong> and select an SSH or Tailscale connection.
+  </p>
+  <p>
+    Each host can have different paths and settings. The same project can live on several machines.
+    See <a href="/docs/projects/">Projects, hosts & workspaces</a> for the full setup.
+  </p>
+  <h2>4. Open your workspace</h2>
+  <p>
+    Select the host and choose <strong>Open workspaces</strong>. Each folder becomes a tab with its
+    own browser, code, changes, agents, terminals, and layout.
+  </p>
+  <p>
+    Use <strong>Projects → project → host</strong> to move around. Workspaces on other hosts keep
+    running while you switch.
+  </p>
+  <h2>5. Bring an agent</h2>
+  <p>
+    Open the <strong>Agent</strong> tab and select your provider. mxwl uses the Agent Client
+    Protocol. Install or authenticate the provider’s tooling on the machine where the workspace
+    lives. Your agent’s provider billing and authentication are separate from mxwl.
+  </p>
+  <p>
+    Start with a small task, inspect the tool calls, then open <strong>Changes</strong> to review
+    the result. Learn more in the <a href="/docs/agents/">agent runtime guide</a>.
+  </p>
+  <h2 id="a-few-useful-shortcuts">A few useful shortcuts</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Shortcut</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Ctrl/⌘ K</td>
+        <td>Search files, workspaces, agents, and commands</td>
+      </tr>
+      <tr>
+        <td>Ctrl/⌘ P</td>
+        <td>Quick-open a file</td>
+      </tr>
+      <tr>
+        <td>Ctrl/⌘ T</td>
+        <td>Open a workspace</td>
+      </tr>
+      <tr>
+        <td>Ctrl/⌘ Shift T</td>
+        <td>Launch a ticket worktree, sandbox, and agent</td>
+      </tr>
+      <tr>
+        <td>Ctrl/⌘ Shift 1 / 2 / 3</td>
+        <td>Maximize browser, code, or bottom pane</td>
+      </tr>
+      <tr>
+        <td>Esc</td>
+        <td>Restore a pane or close a dialog</td>
+      </tr>
+    </tbody>
+  </table>
+  <h2>Where to go next</h2>
+  <ul>
+    <li>
+      <a href="/tour/">Take the tour</a> to see how the pieces fit together.
+    </li>
+    <li>
+      <a href="/docs/browser/">Create cookie sandboxes</a> for different test identities.
+    </li>
+    <li>
+      <a href="/docs/agent-control/">Set up fleet notifications, the CLI, or mobile control.</a>
+    </li>
+    <li>
+      <a href="/docs/plugins/">Add your own workspace tool.</a>
+    </li>
+  </ul>
+</Doc>

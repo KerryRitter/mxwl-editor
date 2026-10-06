@@ -1,0 +1,18 @@
+{
+  "background": "#101411",
+  "surface": "#181d19",
+  "elevated": "#202720",
+  "line": "#354236",
+  "foreground": "#edf0e8",
+  "muted": "#a8b2a6",
+  "faint": "#7f8e81",
+  "accent": "#baf57d",
+  "accentHover": "#cafc99",
+  "accentInk": "#152611",
+  "lavender": "#c2b4ff",
+  "peach": "#f2b68d",
+  "sky": "#8ccfe5",
+  "error": "#f38b91",
+  "fontSans": "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+  "fontMono": "'IBM Plex Mono', ui-monospace, monospace"
+}

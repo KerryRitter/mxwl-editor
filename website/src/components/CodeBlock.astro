@@ -1,0 +1,28 @@
+---
+import Icon from './Icon.astro';
+interface Props {
+  code: string;
+  label?: string;
+}
+const { code, label = 'Terminal' } = Astro.props;
+---
+
+<div class="code-block">
+  <div class="code-heading">
+    <span>
+      <Icon name="terminal" size={16} />
+      {label}
+    </span>
+    <button
+      class="copy-button"
+      type="button"
+      data-copy={code}
+      aria-label={`Copy ${label.toLowerCase()} command`}
+    >
+      <Icon name="copy" size={15} />
+      <span>Copy</span>
+    </button>
+  </div>
+  <pre tabindex="0" aria-label={`${label} code`}><code>{code}</code></pre>
+  <span class="copy-status sr-only" role="status" aria-live="polite"></span>
+</div>

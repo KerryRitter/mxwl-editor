@@ -1,0 +1,185 @@
+---
+import Base from '../layouts/Base.astro';
+import Screenshot from '../components/Screenshot.astro';
+import Icon from '../components/Icon.astro';
+import Closing from '../components/Closing.astro';
+---
+
+<Base
+  title="Local & remote"
+  description="Use mxwl with local projects, SSH hosts, and Tailscale machines. Keep projects, checkouts, browser identities, and remote agents in one editor."
+>
+  <header class="page-hero container">
+    <div class="eyebrow">A WORKSPACE DOESN’T HAVE TO BE LOCAL</div>
+    <h1>
+      The machine changes.
+      <br />
+      The workflow doesn’t<span class="accent">.</span>
+    </h1>
+    <p class="lead">
+      A laptop project, a worktree on your server, a machine on your tailnet. Give each one the same
+      place to work.
+    </p>
+    <a class="button primary" href="/docs/projects/">
+      Set up your first host
+    </a>
+  </header>
+  <section class="container detail-grid">
+    <div>
+      <div class="eyebrow">PROJECTS → HOSTS → WORKSPACES</div>
+      <h2>
+        One project.
+        <br />
+        Many places to build.
+      </h2>
+      <p>
+        Projects hold the shared behavior of an app. Hosts point to its local or remote checkouts.
+        Workspaces are the folders and branches you open as tabs.
+      </p>
+      <p>Switch project and host with the breadcrumbs. Workspaces elsewhere keep running.</p>
+    </div>
+    <div class="workspace-tree">
+      <div class="tree-heading">
+        <Icon name="folder" />
+        Checkout / project
+      </div>
+      <div class="tree-rows">
+        <div class="tree-row">
+          <Icon name="remote" size={17} />
+          <strong>local</strong>
+          <span>This machine</span>
+        </div>
+        <div class="tree-row">
+          <Icon name="folder" size={17} />
+          <strong>PAY-1842</strong>
+          <span>Risk review workspace</span>
+        </div>
+        <div class="tree-row">
+          <Icon name="remote" size={17} />
+          <strong>ssh</strong>
+          <span>Build workstation</span>
+        </div>
+        <div class="tree-row">
+          <Icon name="folder" size={17} />
+          <strong>PAY-1900</strong>
+          <span>API workspace</span>
+        </div>
+        <div class="tree-row">
+          <Icon name="remote" size={17} />
+          <strong>tailnet</strong>
+          <span>Your Tailscale machine</span>
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="container page-section">
+    <Screenshot
+      src="/images/mxwl-project-hosts.png"
+      alt="mxwl's project host configuration showing the Checkout project, local machine connection, and checkout and worktree settings."
+      caption="Shared project settings. Checkout-specific paths and overrides."
+      label="mxwl / projects & hosts"
+      eager
+    />
+  </div>
+  <section class="container page-section section-divider">
+    <div class="detail-grid">
+      <div>
+        <div class="eyebrow">WORK WHERE THE FILES LIVE</div>
+        <h2>
+          SSH is part of
+          <br />
+          the workspace.
+        </h2>
+        <p>
+          Browse and edit remote files over SFTP. Run terminals, services, and coding agents on the
+          remote host. Use your existing SSH agent, key, or password.
+        </p>
+        <p>
+          The embedded browser runs on your desktop. MCP/CDP bridges can let remote agents operate
+          it through loopback-bound tunnels.
+        </p>
+      </div>
+      <ul class="detail-list">
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Local and remote together.</strong> Move between hosts without a separate remote
+            editor installation.
+          </span>
+        </li>
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Reusable connections.</strong> One machine can serve several projects, each with
+            its own checkout settings.
+          </span>
+        </li>
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Host-specific overrides.</strong> Set different checkout paths, worktree roots,
+            or app subdirectories.
+          </span>
+        </li>
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Recover your setup.</strong> Saved workspace state brings back tabs and layout
+            after a restart.
+          </span>
+        </li>
+      </ul>
+    </div>
+  </section>
+  <section class="statement">
+    <div class="container">
+      <div>
+        <div class="eyebrow">YOUR TAILNET / YOUR MACHINES</div>
+        <h2>
+          Find your machines.
+          <br />
+          Get to work.
+        </h2>
+      </div>
+      <div>
+        <p>
+          Tailscale discovery lists the machines visible from your local Tailscale connection.
+          Search by name, mesh address, or tag. No API token needed.
+        </p>
+        <p>
+          Choose the remote username and workspace root. Tailscale SSH uses your mesh identity;
+          access still follows your tailnet policy.
+        </p>
+        <a class="text-link" href="/tailscale/">
+          Explore Tailscale in mxwl
+        </a>
+      </div>
+    </div>
+  </section>
+  <section class="container page-section">
+    <div class="detail-grid">
+      <div>
+        <div class="eyebrow">SHARED INTENT / SEPARATE STATE</div>
+        <h2>
+          A project is portable.
+          <br />
+          Its sessions are isolated.
+        </h2>
+        <p>
+          Share browser profiles, services, integrations, and AI setup across a project. Keep
+          cookies and runtime state scoped to the project, checkout, folder, and browser profile.
+        </p>
+      </div>
+      <div>
+        <p>
+          Two apps can share a machine without sharing their browser identities or settings. A
+          monorepo can use checkout-specific app subdirectories.
+        </p>
+        <a class="text-link" href="/docs/projects/">
+          Understand settings inheritance
+        </a>
+      </div>
+    </div>
+  </section>
+  <Closing />
+</Base>

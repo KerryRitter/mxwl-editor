@@ -1,0 +1,72 @@
+---
+import Base from '../layouts/Base.astro';
+import Closing from '../components/Closing.astro';
+import { product } from '../data/product';
+---
+
+<Base
+  title="Why mxwl"
+  description="Why mxwl exists: a folder-first editor that brings the operational context around a task together, from browser identities to coding agents and Git review."
+>
+  <header class="page-hero container">
+    <div class="eyebrow">A TOOL FOR THE WAY WE BUILD NOW</div>
+    <h1>
+      The work changed.
+      <br />
+      The workspace should too<span class="accent">.</span>
+    </h1>
+    <p class="lead">
+      mxwl is an editor built around the whole task: the code, the running app, the agent, and the
+      decisions you still need to make.
+    </p>
+  </header>
+  <article class="container about-body">
+    <p>
+      Modern development rarely happens in a single editor window. A ticket might need a worktree,
+      an authenticated browser session, a dev server, several terminals, and a coding agent. Then
+      you open another ticket. Or move the work to a remote machine. Or restart your computer.
+    </p>
+    <p>
+      The parts are good. <strong>Keeping them together is the work nobody asked for.</strong>
+    </p>
+    <h2>Start with a folder.</h2>
+    <p>
+      A repository, worktree, or ticket folder is a useful unit of work. mxwl puts a complete
+      environment around it: browser tabs and identities, a code editor, live changes, terminals,
+      service logs, and agents.
+    </p>
+    <p>
+      Switch folders, and the context moves with you. Switch hosts, and the workspace still makes
+      sense. Your project’s settings remain shared; its runtime sessions stay isolated.
+    </p>
+    <h2>Keep the human close.</h2>
+    <p>
+      Coding agents make it possible to move more work at once. They also create more work to
+      review. mxwl keeps the agent conversation near the diff, the diff near the running app, and
+      the whole fleet near an attention queue.
+    </p>
+    <p>
+      That proximity matters. You can see what happened, decide what comes next, and act on it
+      without rebuilding the context in another tool.
+    </p>
+    <h2>Your tools. Your machines.</h2>
+    <p>
+      mxwl connects to coding agents through ACP. It works with local folders, SSH hosts, and
+      Tailscale machines. Its plugin deck accepts standalone tools made with familiar web
+      technology.
+    </p>
+    <p>
+      It is MIT licensed, built in the open, and still an early alpha. You can read the source,
+      report the rough edges, and help shape what comes next.
+    </p>
+    <div class="button-row" style="margin-block:35px 70px">
+      <a class="button primary" href={product.repository}>
+        Explore the source
+      </a>
+      <a class="button secondary" href={`${product.repository}/issues`}>
+        Help make it better
+      </a>
+    </div>
+  </article>
+  <Closing />
+</Base>

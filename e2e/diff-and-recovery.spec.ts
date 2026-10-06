@@ -36,7 +36,7 @@ test('reviews live changes and persists renamed workspace and terminal tabs', as
   await expect(page.getByRole('button', { name: 'Unified' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Split' })).toBeVisible()
   await page.locator('button[title^="src/answer.ts"]').click()
-  await expect(page.locator('.monaco-diff-editor')).toBeVisible()
+  await expect(page.locator('.mxwl-diff')).toBeVisible()
   await page.getByRole('button', { name: 'Unified' }).click()
 
   await page.getByTitle('Rename tab').click()

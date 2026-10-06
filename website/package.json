@@ -1,0 +1,38 @@
+{
+  "name": "www.mxwl.work",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1 --port 4321",
+    "build": "astro build",
+    "preview": "astro preview --host 127.0.0.1 --port 4321",
+    "check": "astro check",
+    "verify": "npm run check && npm run build && node scripts/verify-build.mjs",
+    "qa": "node scripts/browser-qa.mjs",
+    "assets:sync": "node scripts/sync-editor-assets.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "deploy": "npm run verify && wrangler deploy",
+    "deploy:check": "npm run verify && wrangler deploy --dry-run"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource/pixelify-sans": "5.3.0",
+    "@fontsource/space-grotesk": "5.3.0",
+    "astro": "7.3.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@axe-core/playwright": "^4.11.0",
+    "@playwright/test": "^1.62.0",
+    "@types/node": "^22.20.5",
+    "prettier": "^3.9.9",
+    "prettier-plugin-astro": "^1.1.0",
+    "typescript": "^5.9.3",
+    "wrangler": "4.147.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

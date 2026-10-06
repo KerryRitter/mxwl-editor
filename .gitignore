@@ -7,3 +7,7 @@ test-results
 playwright-report
 *.log
 .DS_Store
+
+# Local site deployment preparation records
+docs/marketing/github-site.json
+docs/marketing/github-site.patch

@@ -40,7 +40,7 @@ mxwl makes the **folder the unit of work**. Open a repository, worktree, or tick
 ```text
 myapp-PROJ-42/
 ├── browser       isolated cookies, tabs, DevTools, CDP
-├── code          local or SFTP files in Monaco
+├── code          local or SFTP files in CodeMirror 6
 ├── changes       PR-style unified/split diffs and Git actions
 ├── terminals     PTYs, named tabs, optional tmux persistence
 ├── agent         Claude, Codex, Cursor, Gemini, and more via ACP
@@ -59,7 +59,7 @@ These tools overlap, but they optimize for different centers of gravity. mxwl is
 | **Agent model** | Embedded ACP sessions across several agent providers | Existing agent CLIs running in real terminal panes | One agent process per shell, composed manually | Cursor Agent locally plus background/cloud agents |
 | **Fleet awareness** | Workspace status, durable attention queue, fleet view, CLI, and mobile dashboard | Agent-aware sidebar, status detection, CLI, and socket API | Whatever tmux, hooks, and scripts you assemble | Agent sidebar/window, cloud projects, and remote agent control |
 | **Browser loop** | Human- and agent-driven Chromium with tabs, cookie sandboxes, DevTools, and MCP/CDP | Bring your preferred browser workflow | Bring your preferred browser workflow | Built-in agent browser with workspace-persistent state |
-| **Review loop** | Changed-file inbox, unified/split Monaco diff, stage file/hunk, commit, push, PR, ask agent | Use terminal Git/review tools in a pane | Agent- or CLI-specific | Deep editor, source-control, and agent review workflow |
+| **Review loop** | Changed-file inbox, unified/split CodeMirror 6 diff, stage file/hunk, commit, push, PR, ask agent | Use terminal Git/review tools in a pane | Agent- or CLI-specific | Deep editor, source-control, and agent review workflow |
 | **Local + remote** | Local and saved SSH workspaces in one desktop cockpit | Local and remote machines in one TUI client | Runs wherever the shell runs | Local desktop agents plus managed cloud agents |
 | **Persistence** | Tray runtime; restores the cockpit; optional tmux for process survival; ACP transcript recovery | Background server keeps panes alive; supported agent sessions can resume after restart | tmux preserves shells when configured; agent history depends on the agent | Local chat history plus persistent background/cloud runs |
 | **Best fit** | You want the entire ticket environment—browser identities, diffs, services, terminals, and agents—bound to one folder | You live in terminals and want a fast, persistent herd across machines | You want the smallest, most composable setup and do not mind wiring it together | You want the deepest AI editor experience, autocomplete, and managed cloud agents |
@@ -187,13 +187,15 @@ for server setup and access policies.
 |---|---|
 | **Workspace bar** | Several local or SSH folders open at once, with live Git and agent state on each tab. Rename tabs when ticket names are not enough. |
 | **Browser** | Embedded Chromium, multiple tabs, isolated cookie groups, test-user login helpers, native DevTools, zoom, and external-browser handoff. |
-| **Code / Changes** | Monaco editing plus a fast changed-file list and PR-style unified or split diffs. |
+| **Code / Changes** | CodeMirror 6 editing plus a fast changed-file list and PR-style unified or split diffs. |
 | **Plugin deck** | Enable or disable Code and Changes, then add sandboxed workspace tools for your own task, source-control, or internal workflows. |
 | **Bottom deck** | ACP agents, multiple named terminals, and service logs without leaving the workspace. |
 | **Command bar** | `Ctrl/⌘ K` search across files, workspaces, tabs, agents, and commands. |
 | **Attention bell** | A durable inbox for finished work, approval or authentication requests, and failures across the entire fleet. |
 
 Maximize any quadrant or switch among **Balanced**, **Code**, **Review**, **Debug**, and **Agent** layouts. Whole-app zoom ranges from 75–200%, so the cockpit works on a dense desktop display or a laptop screen.
+
+CodeMirror 6 loads language support as files open. Each file keeps its draft, undo history, cursor, and scroll position while you switch tabs. Use `Ctrl/⌘ S` to save, `Ctrl/⌘ F` to search within a file, and Tab or Shift-Tab to indent. Saving preserves the file's existing line endings. Completion comes from the loaded language; project-wide diagnostics and navigation require a separate language-server integration.
 
 ### Turn branch artifacts into a living brief
 
@@ -217,7 +219,7 @@ mxwl loads it in place and can unlink it without touching its source. See the
 The top-right quadrant switches between the file explorer and a dedicated **Changes** surface:
 
 - See every changed file without waiting on a heavyweight refresh.
-- Read the patch in unified or side-by-side mode with Monaco syntax highlighting.
+- Read the patch in unified or side-by-side mode with CodeMirror 6 syntax highlighting.
 - Stage an entire file or one hunk.
 - Commit, push, and open the GitHub, GitLab, or Bitbucket pull request.
 - Select changed lines and send them to the active agent for an explanation or a fix.
@@ -227,6 +229,12 @@ changed file → inspect diff → select lines → ask agent → stage hunk → 
 ```
 
 It is the review loop of a hosted PR tool, next to the code and agent that can act on the feedback.
+
+### From GitHub issue to working branch
+
+Connect GitHub Issues and pull requests in your project integrations. mxwl can reuse your `gh` login, use a personal token, or read public repositories without signing in. The workspace shows the issue’s title, labels, assignee, and description alongside the current branch’s open or draft PR.
+
+Choose a GitHub issue in the ticket launcher to create its worktree, open a browser sandbox, and start an agent with the issue context. Then review, stage, commit, push, and open the PR from Changes. Read the [GitHub guide](./docs/github.md) for setup and private or Enterprise repositories.
 
 ## Make the cockpit yours
 
@@ -358,11 +366,11 @@ flowchart TB
     ACP -. MCP / CDP .-> WEB
 ```
 
-Core stack: Electron, React, TypeScript, Zustand, Monaco, xterm.js, ssh2, ACP, and MCP.
+Core stack: Electron, React, TypeScript, Zustand, CodeMirror 6, xterm.js, ssh2, ACP, and MCP.
 
 ## Security model
 
-- SSH passwords, key passphrases, and Jira/Bitbucket tokens use Electron `safeStorage` when available.
+- SSH passwords, key passphrases, and GitHub/Jira/Bitbucket tokens use Electron `safeStorage` when available.
 - Chromium debugging, MCP, and the control API bind to loopback by default.
 - LAN dashboard access is opt-in and every API route requires the generated bearer token.
 - Reverse tunnels expose ports on the remote host's loopback—not directly to the public internet.
@@ -382,6 +390,14 @@ npm run ci           # typecheck + tests + production build
 npm run docs:screenshots  # regenerate README captures with demo data
 ```
 
+The marketing site and manual for [mxwl.work](https://www.mxwl.work) live in [website/](./website/README.md). It has a separate Astro package and requires Node.js 22.12+:
+
+```bash
+npm --prefix website ci
+npm --prefix website run dev
+npm --prefix website run verify
+```
+
 ## Docs
 
 | Guide | Covers |
@@ -391,6 +407,8 @@ npm run docs:screenshots  # regenerate README captures with demo data
 | [Agent control](./docs/agent-control.md) | Notifications, fleet view, CLI, dashboard, and API |
 | [AI task runs](./docs/ai.md) | Planning and running work across several workspaces |
 | [Projects → Hosts → Workspaces](./docs/presets.md) | Project-first setup, host-scoped workspace tabs, browser profiles, services, and overrides |
+| [Tailscale & phone access](./docs/tailscale.md) | Discover machines, configure SSH authentication, and reach the mobile dashboard over your tailnet |
+| [GitHub integration](./docs/github.md) | Issues, pull requests, CLI/token authentication, Enterprise hosts, and issue worktree launching |
 | [Cookie sandboxes](./docs/tab-groups.md) | Browser identity isolation and tab groups |
 | [Plugin authoring](./docs/plugins.md) | Zero-to-running tutorial, lifecycle, state, UX, and architecture |
 | [Plugin API](./docs/plugin-api.md) | Exact manifests, SDK methods, result shapes, errors, and limits |

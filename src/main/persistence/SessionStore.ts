@@ -18,6 +18,8 @@ export interface SessionEntry {
   browserProfileId?: string | null
   remotePath: string
   title?: string
+  /** Explicit issue selected when launching this worktree. */
+  issueKey?: string
   terminals?: TerminalSessionEntry[]
   activeTerminalId?: string
 }

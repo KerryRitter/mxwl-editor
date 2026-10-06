@@ -376,7 +376,7 @@ export function NewWorkspaceModal({
             type="button"
             disabled={selected.size === 0 || opening || !hostId}
             onClick={() => void openSelected()}
-            className="ml-auto flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="ml-auto flex items-center gap-1.5 rounded-md bg-brand-accent px-3 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             {opening ? <Loader2 size={13} className="animate-spin" /> : null}
             Open {selected.size > 0 ? selected.size : ''}

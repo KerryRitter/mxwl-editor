@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { Bot, Layers3, Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import type { TerminalInfo } from '../../../shared/types'
+import brand from '../../../shared/brand.json'
 
 type TerminalPaneProps = {
   wsId: string
@@ -103,7 +104,7 @@ export function TerminalPane({
     stack.appendChild(container)
 
     const term = new XTerm({
-      fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
+      fontFamily: brand.fontMono,
       fontSize: 13,
       cursorBlink: true,
       theme: darkTheme,
@@ -480,25 +481,25 @@ function detachInstance(inst: TermInstance): void {
 }
 
 const darkTheme = {
-  background: '#0a0a0a',
-  foreground: '#e5e5e5',
-  cursor: '#e5e5e5',
-  cursorAccent: '#0a0a0a',
-  selectionBackground: '#264f78',
-  black: '#000000',
-  red: '#e06c75',
-  green: '#98c379',
-  yellow: '#e5c07b',
-  blue: '#61afef',
-  magenta: '#c678dd',
-  cyan: '#56b6c2',
-  white: '#e5e5e5',
-  brightBlack: '#5c5c5c',
-  brightRed: '#ff6b6b',
-  brightGreen: '#98c379',
-  brightYellow: '#e5c07b',
-  brightBlue: '#61afef',
-  brightMagenta: '#c678dd',
-  brightCyan: '#56b6c2',
+  background: brand.background,
+  foreground: brand.foreground,
+  cursor: brand.accent,
+  cursorAccent: brand.background,
+  selectionBackground: '#baf57d26',
+  black: brand.background,
+  red: brand.error,
+  green: brand.accent,
+  yellow: brand.peach,
+  blue: brand.sky,
+  magenta: brand.lavender,
+  cyan: '#80d4c4',
+  white: brand.foreground,
+  brightBlack: brand.faint,
+  brightRed: '#ffabb0',
+  brightGreen: brand.accentHover,
+  brightYellow: '#ffd3a9',
+  brightBlue: '#b7e7f4',
+  brightMagenta: '#ded4ff',
+  brightCyan: '#aff0e3',
   brightWhite: '#ffffff'
 } as const

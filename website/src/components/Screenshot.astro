@@ -1,0 +1,56 @@
+---
+import Icon from './Icon.astro';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+interface Props {
+  src: string;
+  alt: string;
+  caption: string;
+  label?: string;
+  eager?: boolean;
+}
+const { src, alt, caption, label = 'mxwl / workspace', eager = false } = Astro.props;
+const png = readFileSync(resolve('public', src.slice(1)));
+const dimensions = { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+---
+
+<figure class="screenshot">
+  <div class="window-bar">
+    <span class="window-dots" aria-hidden="true">
+      <i></i>
+      <i></i>
+      <i></i>
+    </span>
+    <span>{label}</span>
+    <button
+      class="screenshot-expand"
+      type="button"
+      data-image={src}
+      data-alt={alt}
+      aria-label={`Expand screenshot: ${caption}`}
+    >
+      <Icon name="expand" size={16} />
+    </button>
+  </div>
+  <button
+    class="screenshot-image"
+    type="button"
+    data-image={src}
+    data-alt={alt}
+    aria-label={`Expand screenshot: ${caption}`}
+  >
+    <img
+      src={src}
+      alt={alt}
+      width={dimensions.width}
+      height={dimensions.height}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+      fetchpriority={eager ? 'high' : 'auto'}
+    />
+  </button>
+  <figcaption>
+    <span>{caption}</span>
+    <span class="capture-label">Captured in mxwl</span>
+  </figcaption>
+</figure>

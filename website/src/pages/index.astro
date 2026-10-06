@@ -1,0 +1,305 @@
+---
+import Base from '../layouts/Base.astro';
+import Icon from '../components/Icon.astro';
+import Screenshot from '../components/Screenshot.astro';
+import Closing from '../components/Closing.astro';
+import { product } from '../data/product';
+const tools = [
+  { name: 'browser', icon: 'browser', detail: 'Tabs, identities, DevTools' },
+  { name: 'code', icon: 'code', detail: 'Local & remote files' },
+  { name: 'changes', icon: 'git', detail: 'Diffs, staging, pull requests' },
+  { name: 'agents', icon: 'agent', detail: 'Your choice of coding agent' },
+  { name: 'terminal', icon: 'terminal', detail: 'Shells, services, tmux' },
+];
+---
+
+<Base
+  home
+  title="mxwl"
+  description="An open-source editor and agent command center. Browser, code, terminals, and agents in one workspace, on your machine or over SSH."
+>
+  <section class="hero">
+    <div class="container hero-content">
+      <div class="hero-marker left" aria-hidden="true">
+        MXWL / WORKSPACE SYSTEM
+        <br />
+        01 — OPEN A FOLDER
+      </div>
+      <div class="hero-marker right" aria-hidden="true">
+        LOCAL + SSH
+        <br />
+        BUILT TO MAKE THINGS
+      </div>
+      <a class="release-pill" href="/docs/changelog/">
+        <span>HELLO, MXWL.</span>
+        <span>v{product.version} / early alpha</span>
+      </a>
+      <div class="pixel-wordmark" aria-hidden="true">
+        mxwl
+      </div>
+      <h1>
+        A home for your
+        <br />
+        whole workflow.
+      </h1>
+      <p class="hero-description">
+        Browser. Code. Agents. Terminals. Together at last.
+        <br />
+        An open-source editor built around the way you actually work.
+      </p>
+      <div class="button-row">
+        <a class="button primary" href="/download/">
+          <Icon name="download" size={18} />
+          Get mxwl
+        </a>
+        <a class="button secondary" href="/tour/">
+          <Icon name="grid" size={17} />
+          Take the tour
+        </a>
+      </div>
+      <p class="hero-meta">Linux & macOS · Local & SSH · Free & open source</p>
+      <div class="hero-screenshot">
+        <Screenshot
+          src="/images/mxwl-workspace.png"
+          alt="The mxwl editor showing an isolated browser, a TypeScript file, and a coding agent together in the same demo workspace."
+          caption="One folder. Your entire working environment."
+          label="mxwl / balanced workspace"
+          eager
+        />
+      </div>
+      <p class="screenshot-note">
+        Real app. Demo projects. Every screenshot on this site is captured in mxwl.
+      </p>
+    </div>
+  </section>
+  <div class="container feature-strip">
+    <span>
+      <Icon name="folder" size={17} />
+      Folder-first
+    </span>
+    <span>
+      <Icon name="agent" size={17} />
+      Agent-ready
+    </span>
+    <span>
+      <Icon name="remote" size={17} />
+      Remote-native
+    </span>
+    <span>
+      <Icon name="puzzle" size={17} />
+      Make it yours
+    </span>
+    <span>
+      <Icon name="code" size={17} />
+      MIT licensed
+    </span>
+  </div>
+  <section class="section container">
+    <div class="section-heading">
+      <div>
+        <div class="eyebrow">01 / A LITTLE LESS FRICTION</div>
+        <h2>
+          All the context.
+          <br />
+          None of the juggling.
+        </h2>
+      </div>
+      <p>
+        A ticket is more than a file. It’s a branch, a running app, a browser login, a terminal, and
+        an agent with a job to do. mxwl gives all of it one place to live.
+      </p>
+    </div>
+    <div class="workspace-model">
+      <div class="workspace-tree">
+        <div class="tree-heading">
+          <Icon name="folder" />
+          checkout-PAY-1842/
+        </div>
+        <div class="tree-rows">
+          {tools.map((tool) => (
+            <div class="tree-row">
+              <Icon name={tool.icon} size={17} />
+              <strong>{tool.name}</strong>
+              <span>{tool.detail}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div class="workspace-copy">
+        <h3>The folder is the context.</h3>
+        <p>
+          Open a repository, worktree, or ticket folder. Your tools point at the same work, and your
+          browser state stays with that workspace.
+        </p>
+        <p>
+          Switch tickets without reconstructing your setup. Keep several workspaces open while their
+          agents and services keep running.
+        </p>
+        <a href="/tour/" class="text-link">
+          Meet the workspace
+        </a>
+      </div>
+    </div>
+  </section>
+  <div class="container section-divider">
+    <section class="feature-story">
+      <div class="story-copy">
+        <div class="eyebrow">02 / THE HUMAN IN THE LOOP</div>
+        <h2>
+          Let them build.
+          <br />
+          Stay in command.
+        </h2>
+        <p>
+          Your favorite coding agents, right next to the work. Watch progress, review tool calls,
+          and know which agent needs a decision.
+        </p>
+        <p>
+          One attention queue across your local and remote workspaces. Less checking in. More moving
+          forward.
+        </p>
+        <a href="/agents/" class="text-link">
+          Explore agent control
+        </a>
+      </div>
+      <Screenshot
+        src="/images/mxwl-agent-fleet.png"
+        alt="mxwl's live agent fleet showing a billing agent waiting for approval, a checkout agent working, and a catalog agent idle."
+        caption="Working, waiting, or ready. See the whole fleet."
+        label="mxwl / live agents"
+      />
+    </section>
+    <div class="provider-band">
+      <span>
+        YOUR AGENTS.
+        <br />A SHARED WORKSPACE.
+      </span>
+      <div class="provider-list">
+        <span>Claude Code</span>
+        <span>Codex</span>
+        <span>Cursor</span>
+        <span>Gemini</span>
+        <span>OpenCode</span>
+        <span>+ more via ACP</span>
+      </div>
+    </div>
+    <section class="feature-story reverse">
+      <div class="story-copy">
+        <div class="eyebrow">03 / FROM DIFF TO DONE</div>
+        <h2>
+          The work isn’t done
+          <br />
+          until you’ve seen it.
+        </h2>
+        <p>
+          A proper review surface, built in. Read split or unified diffs, stage a hunk, and send
+          selected lines back to the agent for a fix.
+        </p>
+        <p>
+          Bring in the GitHub issue, then commit, push, and open the pull request. Native issue and
+          PR cards keep the context beside your code and agent.
+        </p>
+        <a href="/tour/#review" class="text-link">
+          A closer look at Changes
+        </a>
+        <a href="/github/" class="text-link">
+          From GitHub issue to workspace
+        </a>
+      </div>
+      <Screenshot
+        src="/images/mxwl-review.png"
+        alt="A real mxwl Changes view with a side-by-side TypeScript diff, changed-file navigation, hunk staging, commit, push, and pull-request controls."
+        caption="The review loop, with the agent that can act on it."
+        label="mxwl / changes / split diff"
+      />
+    </section>
+  </div>
+  <section class="statement">
+    <div class="container">
+      <div>
+        <div class="eyebrow">04 / WHEREVER THE WORK LIVES</div>
+        <h2>
+          Your laptop.
+          <br />
+          Your remote machine.
+          <br />
+          Your workspace.
+        </h2>
+      </div>
+      <div>
+        <p>
+          Local folders and SSH workspaces in the same editor. Code, terminals, services, and agents
+          run where the project lives. Your browser stays close at hand.
+        </p>
+        <p>
+          On Tailscale? Discover your machines, connect with your tailnet identity, and check on
+          agents from your phone.
+        </p>
+        <a class="text-link" href="/remote/">
+          Go beyond localhost
+        </a>
+        <br />
+        <a class="text-link" href="/tailscale/">
+          Bring your tailnet
+        </a>
+      </div>
+    </div>
+  </section>
+  <section class="section container">
+    <div class="section-heading">
+      <div>
+        <div class="eyebrow">05 / BUILT TO BE YOURS</div>
+        <h2>
+          A good default.
+          <br />
+          An open door.
+        </h2>
+      </div>
+      <div>
+        <p>
+          Adjust the layout. Bring your agents. Link a plugin. mxwl is a tool you can shape around
+          your work, with a codebase you can read.
+        </p>
+        <a href="/plugins/" class="text-link">
+          Make the cockpit yours
+        </a>
+      </div>
+    </div>
+    <div class="feature-index">
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="keyboard" size={26} />
+          <span class="number">[01]</span>
+        </div>
+        <h3>Keep your hands moving.</h3>
+        <p>
+          A command bar for files, tabs, agents, and actions. Quick-open, workspace search, and
+          keyboard shortcuts where you expect them.
+        </p>
+      </div>
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="grid" size={26} />
+          <span class="number">[02]</span>
+        </div>
+        <h3>Make room for the task.</h3>
+        <p>
+          Balanced, Code, Review, Debug, and Agent layouts. Maximize a pane when you need to get
+          closer.
+        </p>
+      </div>
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="puzzle" size={26} />
+          <span class="number">[03]</span>
+        </div>
+        <h3>Bring your own tools.</h3>
+        <p>
+          Add sandboxed workspace plugins with ordinary HTML, CSS, and JavaScript. Link a folder and
+          start building.
+        </p>
+      </div>
+    </div>
+  </section>
+  <Closing />
+</Base>

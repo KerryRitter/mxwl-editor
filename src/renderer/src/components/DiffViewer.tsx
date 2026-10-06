@@ -14,8 +14,8 @@ import {
   Upload
 } from 'lucide-react'
 import type { GitChange, GitChangeKind, GitChangesSnapshot, GitFileDiff } from '../../../shared/types'
-import { monaco, createDiffEditor, disposeEditor } from '../monaco-setup'
-import { basename, languageForPath } from '../util'
+import { CodeDiff, type DiffSelection } from './CodeDiff'
+import { basename } from '../util'
 
 type DiffLayout = 'unified' | 'split'
 
@@ -26,13 +26,6 @@ type Props = {
   onOpenCode?: (path: string) => void
   onAskAgent: (prompt: string) => void
   onOpenUrl: (url: string) => void
-}
-
-type DiffSelection = {
-  side: 'before' | 'after'
-  startLine: number
-  endLine: number
-  text: string
 }
 
 const KIND_LABEL: Record<GitChangeKind, string> = {
@@ -415,9 +408,8 @@ export const DiffViewer: FC<Props> = ({
           )}
           <div className="relative min-h-0 flex-1">
             {fileDiff && !fileDiff.binary && (
-              <MonacoDiff
+              <CodeDiff
                 key={`${wsId}:${fileDiff.path}`}
-                wsId={wsId}
                 file={fileDiff}
                 layout={layout}
                 onSelection={setSelection}
@@ -479,114 +471,6 @@ const ChangeRow: FC<{
       )}
     </button>
   )
-}
-
-const MonacoDiff: FC<{
-  wsId: string
-  file: GitFileDiff
-  layout: DiffLayout
-  onSelection: (selection: DiffSelection | null) => void
-}> = ({
-  wsId,
-  file,
-  layout,
-  onSelection
-}) => {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null)
-  const onSelectionRef = useRef(onSelection)
-  onSelectionRef.current = onSelection
-
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) return
-    const editor = createDiffEditor(container, {
-      automaticLayout: true,
-      theme: 'mxwl-dark',
-      readOnly: true,
-      originalEditable: false,
-      renderSideBySide: layout === 'split',
-      enableSplitViewResizing: true,
-      renderOverviewRuler: true,
-      minimap: { enabled: false },
-      fontSize: 12,
-      fontFamily: "'JetBrains Mono', 'Fira Code', ui-monospace, monospace",
-      fontLigatures: true,
-      scrollBeyondLastLine: false,
-      renderIndicators: true,
-      diffWordWrap: 'on',
-      ignoreTrimWhitespace: false,
-      renderMarginRevertIcon: false
-    })
-    editorRef.current = editor
-    const disposables = [
-      editor.getOriginalEditor().onDidChangeCursorSelection((event) =>
-        emitSelection('before', editor.getOriginalEditor(), event.selection, onSelectionRef.current)
-      ),
-      editor.getModifiedEditor().onDidChangeCursorSelection((event) =>
-        emitSelection('after', editor.getModifiedEditor(), event.selection, onSelectionRef.current)
-      )
-    ]
-    return () => {
-      disposables.forEach((disposable) => disposable.dispose())
-      // React cleans up the editor effect before the model effect on unmount.
-      // Detach while its services are live, and invalidate the ref before dispose.
-      editorRef.current = null
-      disposeEditor(editor)
-    }
-  }, [])
-
-  useEffect(() => {
-    editorRef.current?.updateOptions({ renderSideBySide: layout === 'split' })
-  }, [layout])
-
-  useEffect(() => {
-    const editor = editorRef.current
-    if (!editor) return
-    const language = languageForPath(file.path)
-    const original = monaco.editor.createModel(
-      file.oldText ?? '',
-      language,
-      monaco.Uri.from({
-        scheme: 'mxwl-diff-before',
-        authority: wsId,
-        path: `/${file.oldPath ?? file.path}`
-      })
-    )
-    const modified = monaco.editor.createModel(
-      file.newText ?? '',
-      language,
-      monaco.Uri.from({ scheme: 'mxwl-diff-after', authority: wsId, path: `/${file.path}` })
-    )
-    editor.setModel({ original, modified })
-    return () => {
-      if (editorRef.current === editor) editor.setModel(null)
-      original.dispose()
-      modified.dispose()
-    }
-  }, [file])
-
-  return <div ref={containerRef} className="absolute inset-0" />
-}
-
-function emitSelection(
-  side: DiffSelection['side'],
-  editor: monaco.editor.IStandaloneCodeEditor,
-  selection: monaco.Selection,
-  emit: (selection: DiffSelection | null) => void
-): void {
-  if (selection.isEmpty()) {
-    emit(null)
-    return
-  }
-  const model = editor.getModel()
-  if (!model) return
-  emit({
-    side,
-    startLine: selection.startLineNumber,
-    endLine: selection.endLineNumber,
-    text: model.getValueInRange(selection)
-  })
 }
 
 const LayoutButton: FC<{

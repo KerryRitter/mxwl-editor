@@ -1,0 +1,213 @@
+---
+import Base from '../layouts/Base.astro';
+import Screenshot from '../components/Screenshot.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import Icon from '../components/Icon.astro';
+import Closing from '../components/Closing.astro';
+const providers = [
+  'Claude Code',
+  'Codex',
+  'Cursor',
+  'Gemini',
+  'Kimi',
+  'Copilot',
+  'Qwen',
+  'OpenCode',
+  'Goose',
+  'Custom ACP agents',
+];
+---
+
+<Base
+  title="Agent command center"
+  description="Run your favorite coding agents in mxwl. Live fleet status, an attention queue, Git review, CLI automation, and a mobile control dashboard."
+>
+  <header class="page-hero container">
+    <div class="eyebrow">MANY AGENTS / ONE PLACE TO LOOK</div>
+    <h1>
+      More building.
+      <br />
+      Less babysitting<span class="accent">.</span>
+    </h1>
+    <p class="lead">
+      Keep your favorite coding agents. Give them a workspace, a clear task, and a place where you
+      can see what happens next.
+    </p>
+    <a href="/docs/agents/" class="button primary">
+      Meet the agent runtime
+    </a>
+  </header>
+  <div class="container">
+    <Screenshot
+      src="/images/mxwl-agent-fleet.png"
+      alt="The live fleet in mxwl with an agent waiting for a billing approval, another working on checkout tests, and a finished catalog task."
+      caption="The fleet, across every open local and SSH host."
+      label="mxwl / agent command center"
+      eager
+    />
+    <div class="provider-band">
+      <span>
+        CONNECTED THROUGH
+        <br />
+        AGENT CLIENT PROTOCOL
+      </span>
+      <div class="provider-list">
+        {providers.map((provider) => (
+          <span>{provider}</span>
+        ))}
+      </div>
+    </div>
+  </div>
+  <section class="container page-section">
+    <div class="detail-grid">
+      <div>
+        <div class="eyebrow">IN THE WORKSPACE</div>
+        <h2>
+          The conversation
+          <br />
+          stays with the code.
+        </h2>
+        <p>
+          See streamed responses, reasoning, tool calls, plans, diffs, permission requests, and
+          usage inline. Mention files and use your agent’s available modes and slash commands.
+        </p>
+        <p>
+          Your agent runs on the same host as the workspace. Saved conversations stay with that
+          workspace, so the discussion doesn’t get detached from the work.
+        </p>
+      </div>
+      <ul class="detail-list">
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Providers are your choice.</strong> mxwl connects through ACP instead of tying
+            the editor to one model.
+          </span>
+        </li>
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Permissions stay visible.</strong> Review an agent’s requested action from the
+            conversation.
+          </span>
+        </li>
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Review is one pane away.</strong> Send selected diff lines back to the active
+            agent.
+          </span>
+        </li>
+        <li>
+          <Icon name="check" size={18} />
+          <span>
+            <strong>Bring your own account.</strong> Provider authentication and usage costs remain
+            with your chosen agent.
+          </span>
+        </li>
+      </ul>
+    </div>
+  </section>
+  <section class="container page-section section-divider">
+    <div class="section-heading">
+      <div>
+        <div class="eyebrow">FLEET AWARENESS</div>
+        <h2>Know where you’re needed.</h2>
+      </div>
+      <p>
+        Workspace tabs show working, idle, blocked, and failed state. The bell brings the whole
+        fleet together, with work that needs your attention first.
+      </p>
+    </div>
+    <div class="feature-index">
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="agent" size={25} />
+          <span class="number">[01]</span>
+        </div>
+        <h3>A durable attention queue.</h3>
+        <p>
+          Finished work, approval requests, authentication, and failures stay in the inbox until you
+          read or clear them.
+        </p>
+      </div>
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="grid" size={25} />
+          <span class="number">[02]</span>
+        </div>
+        <h3>One live fleet.</h3>
+        <p>
+          See concise agent activity across every open local and SSH host. Jump to the workspace
+          that needs a decision.
+        </p>
+      </div>
+      <div class="index-item">
+        <div class="index-top">
+          <Icon name="keyboard" size={25} />
+          <span class="number">[03]</span>
+        </div>
+        <h3>Alerts on your terms.</h3>
+        <p>
+          Choose in-app or desktop delivery, delay, sound, active-workspace suppression, and
+          per-agent muting.
+        </p>
+      </div>
+    </div>
+  </section>
+  <section class="container page-section section-divider">
+    <div class="detail-grid">
+      <div>
+        <div class="eyebrow">THE SAME RUNTIME / YOUR SHELL</div>
+        <h2>
+          Put the fleet
+          <br />
+          in your scripts.
+        </h2>
+        <p>
+          The installed <code>mxwl</code> command can inspect, focus, prompt, and wait for agents.
+          Target a workspace ID, title, issue key, or unique agent label.
+        </p>
+        <p>
+          The desktop runtime must be running. JSON output makes it easy to connect your existing
+          tools.
+        </p>
+        <a class="text-link" href="/docs/agent-control/">
+          CLI & control API reference
+        </a>
+      </div>
+      <CodeBlock
+        label="Agent control"
+        code={
+          'mxwl agent list\nmxwl agent get PROJ-42 --json\nmxwl agent focus PROJ-42\nmxwl agent prompt PROJ-42 "Run the tests"\nmxwl agent wait PROJ-42 --until idle,attention,error'
+        }
+      />
+    </div>
+  </section>
+  <section class="statement">
+    <div class="container">
+      <div>
+        <div class="eyebrow">STAY CONNECTED</div>
+        <h2>
+          Step away.
+          <br />
+          Stay in the loop.
+        </h2>
+      </div>
+      <div>
+        <p>
+          The responsive control dashboard can inspect agent summaries, focus a workspace, send
+          prompts, and answer permission requests.
+        </p>
+        <p>
+          It binds locally by default. Enable LAN access with the generated bearer token for a
+          trusted network or tailnet.
+        </p>
+        <a class="text-link" href="/docs/agent-control/#dashboard-and-api">
+          Set up mobile control
+        </a>
+      </div>
+    </div>
+  </section>
+  <Closing />
+</Base>

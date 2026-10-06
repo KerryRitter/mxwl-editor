@@ -410,7 +410,7 @@ export const AiTaskModal: FC<AiTaskModalProps> = ({
         <button
           onClick={() => void start()}
           disabled={!plan || !runnable || activeRun?.status === 'running'}
-          className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
+          className="flex items-center gap-1.5 rounded-md bg-brand-accent px-4 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-hover disabled:opacity-40"
         >
           <Play size={12} />
           {taskCount > 0

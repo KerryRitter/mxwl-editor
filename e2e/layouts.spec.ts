@@ -62,16 +62,16 @@ test('all layouts preserve a live editor and safely leave a loaded split/unified
   await page.reload()
   const preset = page.getByRole('combobox', { name: 'Workspace layout preset' })
   await page.getByRole('button', { name: 'layout.ts', exact: true }).click()
-  const source = page.locator('.monaco-editor:visible .view-lines').first()
+  const source = page.locator('[aria-label="Code editor"]:visible').first()
   await expect(source).toContainText('changed')
-  const input = page.locator('.monaco-editor:visible textarea').first()
+  const input = page.locator('[aria-label="Code editor"]:visible').first()
   await input.focus()
   await page.keyboard.press('Control+Home')
   await page.keyboard.type('// unsaved layout draft\n')
   for (const diffMode of ['Split', 'Unified']) {
     await preset.selectOption('review')
     await page.locator('button[title^="layout.ts"]').click()
-    await expect(page.locator('.monaco-diff-editor:visible')).toBeVisible()
+    await expect(page.locator('.mxwl-diff:visible')).toBeVisible()
     await page.getByRole('button', { name: diffMode, exact: true }).click()
     for (const layout of ['code', 'balanced', 'debug', 'agent', 'review']) {
       await preset.selectOption(layout)
@@ -99,14 +99,14 @@ test('all layouts preserve a live editor and safely leave a loaded split/unified
       if (layout === 'agent')
         await expect(page.getByLabel('Agent conversation')).toBeVisible()
       if (layout === 'review')
-        await expect(page.locator('.monaco-diff-editor:visible')).toBeVisible()
+        await expect(page.locator('.mxwl-diff:visible')).toBeVisible()
       expect(failures).toEqual([])
     }
-    // Replacing diff models and maximizing/collapsing panes must also be safe.
+    // Replacing diff documents and maximizing/collapsing panes must also be safe.
     await page.locator('button[title^="other.ts"]').click()
-    await expect(page.locator('.monaco-diff-editor:visible')).toBeVisible()
+    await expect(page.locator('.mxwl-diff:visible')).toBeVisible()
     await page.locator('button[title^="layout.ts"]').click()
-    await expect(page.locator('.monaco-diff-editor:visible')).toBeVisible()
+    await expect(page.locator('.mxwl-diff:visible')).toBeVisible()
     for (const pane of ['browser', 'code', 'bottom']) {
       await page.keyboard.press(
         `Control+Shift+${pane === 'browser' ? '1' : pane === 'code' ? '2' : '3'}`
@@ -126,7 +126,7 @@ test('all layouts preserve a live editor and safely leave a loaded split/unified
   expect(failures).toEqual([])
 })
 
-test('every layout restores on reload and plugin/workspace teardown releases loaded Monaco editors safely', async ({
+test('every layout restores on reload and plugin/workspace teardown releases loaded CodeMirror editors safely', async ({
   page,
   workRoot
 }) => {
@@ -149,7 +149,7 @@ test('every layout restores on reload and plugin/workspace teardown releases loa
   await page.reload()
   await page.getByRole('button', { name: 'restore.ts', exact: true }).click()
   await expect(
-    page.locator('.monaco-editor:visible .view-lines').first()
+    page.locator('[aria-label="Code editor"]:visible').first()
   ).toContainText('restored')
   const preset = page.getByRole('combobox', { name: 'Workspace layout preset' })
   for (const layout of ['balanced', 'code', 'review', 'debug', 'agent']) {
@@ -160,15 +160,15 @@ test('every layout restores on reload and plugin/workspace teardown releases loa
       page.getByText('Something crashed in the UI', { exact: true })
     ).toHaveCount(0)
     if (layout === 'review')
-      await expect(page.locator('.monaco-diff-editor:visible')).toBeVisible()
+      await expect(page.locator('.mxwl-diff:visible')).toBeVisible()
     if (layout === 'code')
       await expect(
-        page.locator('.monaco-editor:visible .view-lines').first()
+        page.locator('[aria-label="Code editor"]:visible').first()
       ).toContainText('restored')
     expect(failures).toEqual([])
   }
   await preset.selectOption('review')
-  await expect(page.locator('.monaco-diff-editor:visible')).toBeVisible()
+  await expect(page.locator('.mxwl-diff:visible')).toBeVisible()
   await page.evaluate(() =>
     window.api.plugins.setEnabled('mxwl.changes', false)
   )
@@ -177,10 +177,10 @@ test('every layout restores on reload and plugin/workspace teardown releases loa
   ).toHaveCount(0)
   await page.evaluate(() => window.api.plugins.setEnabled('mxwl.changes', true))
   await preset.selectOption('review')
-  await expect(page.locator('.monaco-diff-editor:visible')).toBeVisible()
+  await expect(page.locator('.mxwl-diff:visible')).toBeVisible()
   await preset.selectOption('code')
   await expect(
-    page.locator('.monaco-editor:visible .view-lines').first()
+    page.locator('[aria-label="Code editor"]:visible').first()
   ).toContainText('restored')
   await page.evaluate(() => window.api.plugins.setEnabled('mxwl.code', false))
   expect(failures).toEqual([])
@@ -191,10 +191,10 @@ test('every layout restores on reload and plugin/workspace teardown releases loa
   expect(failures).toEqual([])
   await preset.selectOption('code')
   await expect(
-    page.locator('.monaco-editor:visible .view-lines').first()
+    page.locator('[aria-label="Code editor"]:visible').first()
   ).toContainText('restored')
   await preset.selectOption('review')
-  await expect(page.locator('.monaco-diff-editor:visible')).toBeVisible()
+  await expect(page.locator('.mxwl-diff:visible')).toBeVisible()
   await page
     .getByRole('button', { name: `Close workspace ${ws.title}`, exact: true })
     .click()

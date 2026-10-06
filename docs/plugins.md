@@ -527,8 +527,8 @@ linked plugins, but their renderers remain compiled React code for performance a
 
 | Plugin         | Contribution | Default order | Renderer                                         |
 | -------------- | ------------ | ------------: | ------------------------------------------------ |
-| `mxwl.code`    | `code`       |           100 | Native FileTree, SearchPanel, Monaco editor      |
-| `mxwl.changes` | `changes`    |           200 | Native changed-file inbox and Monaco diff viewer |
+| `mxwl.code`    | `code`       |           100 | Native FileTree, SearchPanel, CodeMirror 6 editor      |
+| `mxwl.changes` | `changes`    |           200 | Native changed-file inbox and CodeMirror 6 diff viewer |
 
 The renderer asks the registry for enabled contributions, sorts by `order` and title, remembers the
 selected contribution per workspace, and chooses a native renderer or an external iframe. This

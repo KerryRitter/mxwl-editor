@@ -34,8 +34,11 @@ import type {
   SettingsSnapshot,
   TabGroup,
   TestResult,
-  WorkspaceState
+  WorkspaceState,
+  WorkspaceIssue,
+  WorkspaceIntegrations
 } from '../../shared/types'
+import type { GitHubAccountInput, GitHubConnectionResult } from '../../shared/github'
 import type { PluginCatalogEntry, PluginHostMethod } from '../../shared/plugins'
 import type { TailscaleDiscovery } from '../../shared/tailscale'
 
@@ -160,6 +163,7 @@ declare global {
       settings: {
         get: () => Promise<SettingsSnapshot>
         update: (input: {
+          github?: GitHubAccountInput | null
           jira?: { host: string; email: string; apiToken?: string } | null
           bitbucket?:
             | {
@@ -234,6 +238,12 @@ declare global {
         clear: () => Promise<void>
       }
       jira: { get: (key: string, wsId?: string) => Promise<JiraIssue | null> }
+      integrations: { context: (wsId: string) => Promise<WorkspaceIntegrations> }
+      issue: { get: (key: string, wsId: string) => Promise<WorkspaceIssue | null> }
+      github: {
+        issues: (wsId: string) => Promise<WorkspaceIssue[]>
+        test: (input: GitHubAccountInput) => Promise<GitHubConnectionResult>
+      }
       pr: { get: (wsId: string) => Promise<PullRequest | null> }
       mcp: {
         status: () => Promise<McpStatus>

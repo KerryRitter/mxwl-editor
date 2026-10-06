@@ -150,7 +150,7 @@ export const BUILTIN_PLUGINS: readonly PluginManifest[] = [
     id: 'mxwl.code',
     name: 'Code Explorer',
     version: '1.0.0',
-    description: 'Browse, search, edit, and save files with Monaco.',
+    description: 'Browse, search, edit, and save files with CodeMirror 6.',
     author: 'mxwl',
     permissions: ['workspace:read', 'files:read', 'files:write'],
     contributes: {

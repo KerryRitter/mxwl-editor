@@ -33,6 +33,7 @@ const DEFAULTS: AppSettings = {
     grants: {}
   },
   jira: null,
+  github: null,
   bitbucket: null,
   cdpPort: 9222,
   mcpAuthToken: '',

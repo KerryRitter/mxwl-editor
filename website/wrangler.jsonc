@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "www-mxwl-work",
+  "account_id": "f9296c16a93f1ab8bb64d0d3e0eee0f8",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-05",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "mxwl.work/*", "zone_name": "mxwl.work" },
+    { "pattern": "www.mxwl.work/*", "zone_name": "mxwl.work" },
+  ],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "html_handling": "force-trailing-slash",
+    "run_worker_first": true,
+  },
+}
