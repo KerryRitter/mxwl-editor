@@ -2,12 +2,16 @@
 
 import { createServer } from 'node:http';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { _electron as electron } from 'playwright';
 
-const projectRoot = resolve(import.meta.dirname, '../../mxwl-editor');
+const parent = resolve(import.meta.dirname, '../..');
+const projectRoot = resolve(
+  process.argv[2] ??
+    (existsSync(join(parent, 'electron-builder.yml')) ? parent : join(parent, 'mxwl-editor')),
+);
 const outputDir = resolve(import.meta.dirname, '../public/images');
 const workRoot = mkdtempSync(join(tmpdir(), 'mxwl-readme-work-'));
 const userData = mkdtempSync(join(tmpdir(), 'mxwl-readme-user-'));
@@ -302,7 +306,12 @@ try {
   await waitForAgent(page, billing.id, (state) => Boolean(state?.permission));
   await waitForAgent(page, catalog.id, (state) => state?.turn === 'idle');
 
-  await page.getByRole('button', { name: 'Open Catalog search on Studio workstation in Catalog', exact: true }).click();
+  await page
+    .getByRole('button', {
+      name: 'Open Catalog search on Studio workstation in Catalog',
+      exact: true,
+    })
+    .click();
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
   await page.keyboard.press('Control+Shift+3');
   await page.getByRole('button', { name: 'Agent notifications' }).click();
@@ -317,13 +326,20 @@ try {
 
   // Capture the editor itself using a disposable demo workspace.
   await page.getByRole('button', { name: 'Overview of Checkout', exact: true }).click();
-  await page.getByRole('region', { name: 'Project Checkout', exact: true }).waitFor({ state: 'visible' });
+  await page
+    .getByRole('region', { name: 'Project Checkout', exact: true })
+    .waitFor({ state: 'visible' });
   await page.screenshot({
     path: join(outputDir, 'mxwl-project-hosts.png'),
     animations: 'disabled',
     clip: { x: 0, y: 0, width: await page.evaluate(() => innerWidth), height: 420 },
   });
-  await page.getByRole('button', { name: 'Open Checkout release on Studio workstation in Checkout', exact: true }).click();
+  await page
+    .getByRole('button', {
+      name: 'Open Checkout release on Studio workstation in Checkout',
+      exact: true,
+    })
+    .click();
   await page.getByRole('combobox', { name: 'Workspace layout preset' }).selectOption('balanced');
   await page.reload();
   await page.waitForLoadState('domcontentloaded');
