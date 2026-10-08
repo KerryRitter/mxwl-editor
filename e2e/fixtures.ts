@@ -39,7 +39,8 @@ export const test = base.extend<AppFixture>({
         ...process.env,
         NODE_ENV: 'production',
         MXWL_DISABLE_KEEP_ALIVE: '1',
-        MXWL_CONTROL_PORT: '0'
+        MXWL_CONTROL_PORT: '0',
+        MXWL_MCP_PORT: '0'
       }
     })
     await use(app)

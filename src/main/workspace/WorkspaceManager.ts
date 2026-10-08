@@ -73,6 +73,8 @@ type Workspace = {
 }
 
 export class WorkspaceManager {
+  onWorkspaceClosed?: (id: string) => void
+  terminalEnvironment?: (id: string) => Promise<Record<string, string>>
   private workspaces = new Map<string, Workspace>()
   private frontWsId: string | null = null
   private persistTimer: NodeJS.Timeout | null = null
@@ -689,6 +691,7 @@ export class WorkspaceManager {
   close(id: string): void {
     const ws = this.workspaces.get(id)
     if (!ws) return
+    this.onWorkspaceClosed?.(id)
     for (const term of ws.terminals.values())
       term.dispose().catch(() => undefined)
     ws.browser.dispose()
@@ -759,6 +762,7 @@ export class WorkspaceManager {
     const ws = this.workspaces.get(id)
     if (!ws) throw new Error('workspace not found')
     await this.waitForConnected(id, 15_000)
+    const environment = await this.terminalEnvironment?.(id)
     const session = new TerminalSession({
       id: opts.id,
       wsId: id,
@@ -766,13 +770,21 @@ export class WorkspaceManager {
       cwd: opts.cwd ?? this.workingDirectory(id),
       cols: opts.cols,
       rows: opts.rows,
+      env: environment,
       label: opts.label,
       aiTaskId: opts.aiTaskId,
       tmuxName: opts.tmuxName?.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80),
       initialReplay: opts.replay,
       getSender: this.getSender,
       onClosed: (sessionId) => this.forgetTerminal(id, sessionId),
-      onOutput: () => this.scheduleSessionPersist()
+      onOutput: () => this.scheduleSessionPersist(),
+      onActivity: (busy) => {
+        const info = ws.state.terminal.sessions.find((s) => s.id === session.id)
+        if (info) {
+          info.busy = busy
+          this.broadcast(id)
+        }
+      }
     })
     const isFirst = ws.terminals.size === 0
     await session.start(opts.cols, opts.rows)
@@ -780,6 +792,7 @@ export class WorkspaceManager {
     ws.state.terminal.sessions.push({
       id: session.id,
       label: session.label,
+      busy: session.busy,
       ...(session.aiTaskId ? { aiTaskId: session.aiTaskId } : {}),
       ...(session.tmuxName ? { tmuxName: session.tmuxName } : {})
     })
@@ -1238,6 +1251,17 @@ export class WorkspaceManager {
   browserNewTab(id: string, url?: string, groupId?: string): string {
     return this.workspaces.get(id)!.browser.newTab(url, groupId)
   }
+  browserOpenLink(id: string, url: string): string {
+    const ws = this.workspaces.get(id)
+    if (!ws) throw new Error('workspace not found')
+    const parsed = new URL(url)
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('unsupported link protocol')
+    const snapshot = ws.browser.snapshot()
+    const groupId = snapshot.tabs.find((tab) => tab.id === snapshot.activeId)?.groupId
+    const tabId = ws.browser.newTab(parsed.href, groupId)
+    this.getSender()?.webContents.send('browser:open-link', { wsId: id })
+    return tabId
+  }
   browserNewGroup(id: string, label?: string): string {
     return this.workspaces.get(id)!.browser.newGroup(label)
   }
@@ -1353,6 +1377,33 @@ export class WorkspaceManager {
   browserSnapshot(id: string): BrowserSnapshot | null {
     return this.workspaces.get(id)?.browser.snapshot() ?? null
   }
+  setMcpEnabled(id: string, enabled: boolean): void {
+    const ws = this.workspaces.get(id)
+    if (ws) ws.state.mcp.cdpEnabled = enabled
+    this.broadcast(id)
+    this.getSender()?.webContents.send('mcp:changed', { wsId: id })
+  }
+  browserCdpTargets(id: string, ensureTab = false) {
+    const ws = this.workspaces.get(id)
+    if (!ws) throw new Error('workspace not found')
+    if (ensureTab) ws.browser.ensureTab('about:blank')
+    return ws.browser.cdpTargets()
+  }
+  browserEvaluate(id: string, expression: string, tabId?: string): Promise<unknown> {
+    const ws = this.workspaces.get(id)
+    if (!ws) throw new Error('workspace not found')
+    return ws.browser.evaluate(expression, tabId)
+  }
+  browserScreenshot(id: string, tabId?: string): Promise<string> {
+    const ws = this.workspaces.get(id)
+    if (!ws) throw new Error('workspace not found')
+    return ws.browser.screenshot(tabId)
+  }
+  browserCookies(id: string, action: 'get' | 'set' | 'clear', values?: Array<Record<string, unknown>>, tabId?: string): Promise<unknown> {
+    const ws = this.workspaces.get(id)
+    if (!ws) throw new Error('workspace not found')
+    return ws.browser.cookies(action, values, tabId)
+  }
   browserEnsureTab(id: string, url?: string): string {
     return this.require(id).browser.ensureTab(url)
   }
@@ -1383,7 +1434,7 @@ export class WorkspaceManager {
 
   browserNavigateActive(id: string, url: string): void {
     const ws = this.workspaces.get(id)
-    if (!ws) return
+    if (!ws) throw new Error('workspace not found')
     const snap = ws.browser.snapshot()
     const tabId = snap.activeId ?? ws.browser.newTab(url)
     if (snap.activeId) ws.browser.navigate(tabId, url)

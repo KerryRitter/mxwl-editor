@@ -30,6 +30,7 @@ import { CodePane } from './CodePane'
 import { IntegrationsModal } from './IntegrationsModal'
 import { McpToggle } from './McpToggle'
 import { useNavigationStore } from '../store/navigation'
+import { HostWorkspaceSwitcher } from './HostWorkspaceSwitcher'
 
 type LayoutPreset = 'balanced' | 'code' | 'review' | 'debug' | 'agent'
 export type MaximizedPane = 'browser' | 'code' | 'bottom' | null
@@ -70,6 +71,11 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   const mainPanels = useRef<ImperativePanelGroupHandle>(null)
   const rightPanels = useRef<ImperativePanelGroupHandle>(null)
   const focusPanel = useNavigationStore((state) => state.focus)
+
+  useEffect(() => window.api.on('browser:open-link', (...args: unknown[]) => {
+    const payload = args[0] as { wsId: string }
+    if (payload?.wsId === ws.id) setMaximized(null)
+  }), [ws.id])
 
   const choosePreset = useCallback(
     (preset: LayoutPreset): void => {
@@ -221,7 +227,14 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
   const devUrl = ws.derived.browserUrl || null
   const showTicketBtn = showIntegrations && (ws.derived.issueKey || branch)
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" onClickCapture={(event) => {
+      const target = event.target instanceof Element ? event.target.closest('a[href]') : null
+      const url = target?.getAttribute('href')
+      if (!url || !/^https?:\/\//i.test(url)) return
+      event.preventDefault()
+      event.stopPropagation()
+      void window.api.browser.openLink(ws.id, url)
+    }}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-neutral-800 px-4 py-1.5 text-xs text-neutral-400">
         <span className="flex items-center gap-1.5">
           {connected ? (
@@ -231,9 +244,9 @@ export const WorkspaceView: FC<{ ws: WorkspaceState; active?: boolean }> = ({
           )}
           {connected ? 'connected' : ws.status}
         </span>
-        <span className="text-emerald-400">
+        <span className="flex items-center text-emerald-400">
           {ws.projectLabel || 'Unassigned'}{' '}
-          <span className="text-neutral-500">· {ws.hostLabel}</span>
+          <HostWorkspaceSwitcher projectId={ws.projectId} hostId={ws.hostId} label={ws.hostLabel} inHeader />
         </span>
         <span className="max-w-[40%] truncate font-mono text-neutral-500">
           {ws.remotePath}

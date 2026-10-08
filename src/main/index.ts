@@ -244,7 +244,8 @@ async function bootstrap(): Promise<void> {
     (previous, next) => {
       attentionController?.observe(previous, next)
       scheduleTrayRefresh()
-    }
+    },
+    (wsId, httpSupported) => mcpController!.agentServers(wsId, httpSupported)
   )
   registerAgentIpc(agentController, attentionController)
 

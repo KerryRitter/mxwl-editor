@@ -34,8 +34,10 @@ import { product } from '../../data/product';
   <h2>3. Configure a host</h2>
   <p>
     Every project has a permanent <strong>This machine</strong> host. Choose{' '}
-    <strong>Configure checkout</strong> to set its checkout and workspaces paths. To attach a remote
-    machine, choose <strong>Add host</strong> and select an SSH or Tailscale connection.
+    <strong>Configure checkout</strong> for guided folder setup. To attach another machine, choose
+    <strong>Add host</strong>, then use a saved connection or <strong>Connect a new machine</strong>
+    . The wizard guides you through Local, SSH, or Tailscale access, connection testing, folders,
+    optional preferences, and a final review.
   </p>
   <p>
     Each host can have different paths and settings. The same project can live on several machines.
@@ -43,12 +45,15 @@ import { product } from '../../data/product';
   </p>
   <h2>4. Open your workspace</h2>
   <p>
-    Select the host and choose <strong>Open workspaces</strong>. Each folder becomes a tab with its
-    own browser, code, changes, agents, terminals, and layout.
+    Choose <strong>Open checkout</strong> from the project overview, or{' '}
+    <strong>Other workspaces</strong>
+    to browse folders. Click a folder to open it, or use <strong>Select multiple</strong>. Each
+    workspace has its own browser, code, changes, agents, terminals, and layout.
   </p>
   <p>
-    Use <strong>Projects → project → host</strong> to move around. Workspaces on other hosts keep
-    running while you switch.
+    The workspace tree on the left keeps your projects, hosts, and open workspaces together. Click a
+    workspace to switch directly, or a host to return to its last-used workspace. Workspaces
+    elsewhere keep running while you switch.
   </p>
   <h2>5. Bring an agent</h2>
   <p>

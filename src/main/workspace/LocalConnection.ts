@@ -127,7 +127,7 @@ export class LocalConnection extends EventEmitter {
       cols: opts.cols,
       rows: opts.rows,
       cwd: existsSync(cwd) ? cwd : homedir(),
-      env: process.env as Record<string, string>
+      env: { ...process.env, ...opts.env } as Record<string, string>
     })
     return wrapPty(term)
   }

@@ -13,18 +13,24 @@ test('reviews live changes and persists renamed workspace and terminal tabs', as
   mkdirSync(src, { recursive: true })
   writeFileSync(join(src, 'answer.ts'), 'export const answer = 41\n', 'utf8')
   execFileSync('git', ['init', '-q'], { cwd: workRoot })
-  execFileSync('git', ['config', 'user.email', 'mxwl@example.test'], { cwd: workRoot })
+  execFileSync('git', ['config', 'user.email', 'mxwl@example.test'], {
+    cwd: workRoot
+  })
   execFileSync('git', ['config', 'user.name', 'mxwl test'], { cwd: workRoot })
   execFileSync('git', ['add', '.'], { cwd: workRoot })
   execFileSync('git', ['commit', '-qm', 'base'], { cwd: workRoot })
-  writeFileSync(join(src, 'answer.ts'), 'export const answer = 42\nexport const unit = "life"\n', 'utf8')
+  writeFileSync(
+    join(src, 'answer.ts'),
+    'export const answer = 42\nexport const unit = "life"\n',
+    'utf8'
+  )
   writeFileSync(join(src, 'new.ts'), 'export const fresh = true\n', 'utf8')
 
   const hostId = await useLocalHost(page, workRoot)
-  await page.evaluate(
-    ([host, path]) => window.api.workspace.open(host, path),
-    [hostId, workRoot] as const
-  )
+  await page.evaluate(([host, path]) => window.api.workspace.open(host, path), [
+    hostId,
+    workRoot
+  ] as const)
   await page.reload()
 
   const changes = page.getByRole('button', { name: 'Changes' })
@@ -39,8 +45,8 @@ test('reviews live changes and persists renamed workspace and terminal tabs', as
   await expect(page.locator('.mxwl-diff')).toBeVisible()
   await page.getByRole('button', { name: 'Unified' }).click()
 
-  await page.getByTitle('Rename tab').click()
-  const workspaceName = page.getByRole('textbox', { name: 'Workspace tab name' })
+  await page.getByRole('button', { name: /^Rename workspace / }).click()
+  const workspaceName = page.getByRole('textbox', { name: 'Workspace name' })
   await workspaceName.fill('Release train')
   await workspaceName.press('Enter')
   await expect(page.getByText('Release train')).toBeVisible()
@@ -55,10 +61,12 @@ test('reviews live changes and persists renamed workspace and terminal tabs', as
   await expect(page.getByText('watch tests')).toBeVisible()
 
   await page.getByRole('button', { name: 'Zoom app in' }).click()
-  await expect(page.getByRole('button', { name: 'Reset app zoom' })).toHaveText('UI 110%')
+  await expect(page.getByRole('button', { name: 'Reset app zoom' })).toHaveText(
+    'UI 110%'
+  )
 
-  const sessionFile = await app.evaluate(({ app: electronApp }) =>
-    `${electronApp.getPath('userData')}/session.json`
+  const sessionFile = await app.evaluate(
+    ({ app: electronApp }) => `${electronApp.getPath('userData')}/session.json`
   )
   await expect
     .poll(() => JSON.parse(readFileSync(sessionFile, 'utf8')))
@@ -94,7 +102,9 @@ test('reviews live changes and persists renamed workspace and terminal tabs', as
     await expect(restored.getByText('Release train')).toBeVisible()
     await expect(restored.getByText('watch tests')).toBeVisible()
     await expect(restored.getByText(/restored after restart/)).toBeVisible()
-    await expect(restored.getByRole('button', { name: 'Reset app zoom' })).toHaveText('UI 110%')
+    await expect(
+      restored.getByRole('button', { name: 'Reset app zoom' })
+    ).toHaveText('UI 110%')
   } finally {
     await relaunched.close()
   }

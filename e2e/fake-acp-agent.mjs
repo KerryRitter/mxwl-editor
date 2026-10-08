@@ -5,6 +5,7 @@
  * itself. Behaviour is keyed off the prompt text — see `e2e/agent-panel.spec.ts`.
  */
 import { createInterface } from 'node:readline'
+import { spawn } from 'node:child_process'
 
 const send = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`)
 const reply = (id, result) => send({ jsonrpc: '2.0', id, result })
@@ -15,6 +16,7 @@ let nextId = 1000
 const pendingClientRequests = new Map()
 /** Resolves the in-flight `session/prompt` when a cancel notification arrives. */
 let cancelTurn = null
+let sessionMcpServers = []
 
 const COMMANDS = [
   { name: 'compress', description: 'shrink the conversation' },
@@ -39,6 +41,26 @@ function askClient(method, params) {
 async function handlePrompt(params) {
   const sessionId = params.sessionId
   const text = params.prompt.map((p) => (p.type === 'text' ? p.text : '')).join('')
+
+  if (text === 'mcp browser check') {
+    const server = sessionMcpServers.find((s) => s.name === 'mxwl')
+    if (!server?.command) throw new Error('Expected the workspace stdio MCP server')
+    const result = await new Promise((resolve, reject) => {
+      const child = spawn(server.command, server.args, {
+        env: { ...process.env, ...Object.fromEntries(server.env.map((item) => [item.name, item.value])) }
+      })
+      const output = createInterface({ input: child.stdout })
+      output.once('line', (line) => { resolve(JSON.parse(line)); child.kill() })
+      child.once('error', reject)
+      child.stdin.end(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: {
+        name: 'browser_evaluate', arguments: { expression: '1 + 2' }
+      } }) + '\n')
+    })
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: {
+      type: 'text', text: `MCP browser value: ${result.result?.content?.[0]?.text}\nCDP ${process.env.PLAYWRIGHT_MCP_CDP_ENDPOINT}`
+    } })
+    return { stopReason: 'end_turn' }
+  }
 
   if (text.startsWith('/compress')) {
     update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'compressed' } })
@@ -159,6 +181,7 @@ async function handle(msg) {
       })
       return
     case 'session/new':
+      sessionMcpServers = msg.params.mcpServers
       reply(msg.id, { sessionId: 'sess-1', modes: MODES })
       update('sess-1', { sessionUpdate: 'available_commands_update', availableCommands: COMMANDS })
       return

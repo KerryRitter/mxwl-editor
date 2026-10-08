@@ -29,6 +29,7 @@ export type AcpSessionOptions = {
   workspaces: WorkspaceManager
   settings: () => AgentSettings
   onChange: (state: AgentSessionState) => void
+  mcpServers?: (httpSupported: boolean) => Promise<acp.McpServer[]>
 }
 
 /**
@@ -44,6 +45,8 @@ export class AcpSession {
   private workspaces: WorkspaceManager
   private getSettings: () => AgentSettings
   private onChange: (state: AgentSessionState) => void
+  private getMcpServers?: AcpSessionOptions['mcpServers']
+  private mcpHttpSupported = false
 
   /** Identifies this conversation's file on disk; a fresh session gets a fresh one */
   private transcriptId = randomUUID()
@@ -66,6 +69,7 @@ export class AcpSession {
     this.workspaces = opts.workspaces
     this.getSettings = opts.settings
     this.onChange = opts.onChange
+    this.getMcpServers = opts.mcpServers
     this.state = {
       wsId: opts.wsId,
       agentId: opts.agentId,
@@ -167,6 +171,7 @@ export class AcpSession {
           description: m.description ?? null
         }))
       })
+      this.mcpHttpSupported = Boolean(init.agentCapabilities?.mcpCapabilities?.http)
 
       await this.newSession()
     } catch (err) {
@@ -183,11 +188,13 @@ export class AcpSession {
   private async spawn(settings: AgentSettings): Promise<ChannelLike> {
     const conn = this.workspaces.getConnection(this.wsId)
     if (!conn) throw new Error('workspace is not open')
+    const environment = await this.workspaces.terminalEnvironment?.(this.wsId) ?? {}
+    const env = Object.entries(environment).map(([name, value]) => shellQuote(`${name}=${value}`)).join(' ')
 
     // Both sides need a login shell: ssh2's exec skips one entirely, and a local
     // Electron app inherits the launcher's PATH, not the user's. The preamble
     // covers what a login shell still misses — see USER_PATH_PREAMBLE.
-    const line = `${USER_PATH_PREAMBLE}; cd ${shellQuote(this.state.cwd)} && exec ${agentShellCommand(this.agentId, settings)}`
+    const line = `${USER_PATH_PREAMBLE}; cd ${shellQuote(this.state.cwd)} && exec ${env ? `env ${env} ` : ''}${agentShellCommand(this.agentId, settings)}`
     const stream = await conn.execStream(
       conn instanceof LocalConnection ? line : `bash -lc ${shellQuote(line)}`
     )
@@ -198,7 +205,7 @@ export class AcpSession {
     const agent = this.require()
     const res = await agent.request(acp.methods.agent.session.new, {
       cwd: this.state.cwd,
-      mcpServers: []
+      mcpServers: await this.getMcpServers?.(this.mcpHttpSupported) ?? []
     })
     this.patch({
       status: 'ready',
@@ -537,7 +544,7 @@ function messageText(msg: AgentMessage): string {
 
 function contentText(content: acp.ContentBlock): string {
   if (content.type === 'text') return content.text
-  if (content.type === 'resource_link') return `[${content.name || content.uri}]`
+  if (content.type === 'resource_link') return `[${content.name || content.uri}](${content.uri})`
   return `[${content.type}]`
 }
 

@@ -21,7 +21,7 @@ import {
 } from '../../shared/acpAgents'
 import type { SettingsStore } from '../persistence/SettingsStore'
 import type { WorkspaceManager } from '../workspace/WorkspaceManager'
-import { AcpSession } from './AcpSession'
+import { AcpSession, type AcpSessionOptions } from './AcpSession'
 import { TranscriptStore } from './TranscriptStore'
 
 /** Chunks stream in token by token; saving on each one would rewrite the file per word. */
@@ -64,7 +64,8 @@ export class AgentController {
     private onState?: (
       previous: AgentSessionState | undefined,
       next: AgentSessionState
-    ) => void
+    ) => void,
+    private mcpServers?: (wsId: string, httpSupported: boolean) => ReturnType<NonNullable<AcpSessionOptions['mcpServers']>>
   ) {}
 
   /** Saved conversations for a folder, newest first. */
@@ -150,7 +151,8 @@ export class AgentController {
       cwd: this.workspaces.workingDirectory(wsId),
       workspaces: this.workspaces,
       settings: () => this.agentSettings(),
-      onChange: (state) => this.emit(state)
+      onChange: (state) => this.emit(state),
+      mcpServers: this.mcpServers ? (httpSupported) => this.mcpServers!(wsId, httpSupported) : undefined
     })
     this.sessions.set(wsId, session)
     this.emit(session.snapshot())

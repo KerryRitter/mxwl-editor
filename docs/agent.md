@@ -153,7 +153,7 @@ starting, or after it failed. That happens once per workspace, so an
 agent that exits stays exited until you hit Restart rather than respawning
 behind you.
 
-One agent per workspace, owned by main. Switching bottom tabs or workspace tabs
+One agent per workspace, owned by main. Switching bottom tabs or workspaces
 does not touch it — the panel stays mounted only to keep scroll position and a
 half-typed message. Swapping agents kills the old process, since leaving it
 running would burn a subscription seat. `before-quit` disposes every session,

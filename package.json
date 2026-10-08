@@ -1,6 +1,6 @@
 {
   "name": "mxwl-editor",
-  "version": "0.2.0-alpha.5",
+  "version": "0.2.0-alpha.6",
   "description": "Multi-workspace tool — local or SSH — browser + editor + terminal locked to a folder, with MCP/CDP bridge",
   "homepage": "https://github.com/kerryritter/mxwl-editor",
   "main": "out/main/index.js",
@@ -51,6 +51,7 @@
     "react-dom": "^18.3.1",
     "react-resizable-panels": "^2.1.7",
     "ssh2": "^1.16.0",
+    "ws": "^8.22.0",
     "zod": "^3.25.76",
     "zustand": "^4.5.5"
   },
@@ -60,6 +61,7 @@
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@types/ssh2": "^1.15.0",
+    "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^4.3.0",
     "autoprefixer": "^10.4.20",
     "electron": "^33.0.0",

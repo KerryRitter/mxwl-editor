@@ -114,6 +114,7 @@ declare global {
         delete: (wsId: string, path: string, isDir: boolean) => Promise<void>
       }
       browser: {
+        openLink: (wsId: string, url: string) => Promise<string>
         ensureTab: (wsId: string, url?: string) => Promise<string>
         newTab: (wsId: string, url?: string, groupId?: string) => Promise<string>
         newGroup: (wsId: string, label?: string) => Promise<string>
@@ -246,7 +247,7 @@ declare global {
       }
       pr: { get: (wsId: string) => Promise<PullRequest | null> }
       mcp: {
-        status: () => Promise<McpStatus>
+        status: (wsId?: string) => Promise<McpStatus>
         enable: (wsId: string) => Promise<McpStatus>
         disable: (wsId: string) => Promise<McpStatus>
       }

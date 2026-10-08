@@ -132,5 +132,5 @@ already launched keep running.
 
 Sessions are owned by main, not the renderer. The pane attaches to an existing
 session and replays up to 256KB of scrollback, so switching bottom tabs or
-workspace tabs never kills a running agent. Only the explicit close button ends a
+workspaces never kills a running agent. Only the explicit close button ends a
 session.

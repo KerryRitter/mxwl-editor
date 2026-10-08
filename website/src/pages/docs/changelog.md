@@ -7,16 +7,28 @@ source: "CHANGELOG.md"
 
 ## Unreleased
 
+## 0.2.0-alpha.6 — 2026-10-08
+
 ### Added
+- Persistent project/host/workspace tree with direct switching, search, and workspace rename/close controls
+- Guided machine and project-host setup with connection testing, folder suggestions, optional preferences, and review
+- Workspace-scoped embedded Chromium MCP tools and Playwright CDP connections, including SSH reverse tunnels
+- Terminal activity spinners in the workspace tree and terminal tabs
 - Native GitHub issue and pull-request cards, recently updated issue selection, and issue-to-worktree launching with agent context
 - GitHub public access, existing CLI authentication, personal access tokens, connection checks, and Enterprise host support
 - GitHub repository inference from project URLs or checkout remotes, including fork-aware PR lookup
 
 ### Changed
+- The workspace tree replaces the horizontal project/host/workspace navigator
+- Checkouts open directly from the overview; the workspace picker uses a single click and retains location and browser-account context
+- Chat input starts with three visible lines, grows with the draft, and uses larger text
 - CodeMirror 6 replaces the previous editor in Code and Changes, with lazy language loading, per-file undo/selection/scroll state, and read-only split or unified diffs
 - The editor, terminal, and mobile dashboard share the website's charcoal and lime branding, bundled typography, and pixel wordmark
 
 ### Fixed
+- Alt no longer reveals the application menu or steals typing focus
+- Chat input no longer collapses when its panel is measured while hidden
+- Terminal and chat web links open in the workspace's embedded browser
 - Ctrl+S and Cmd+S save the active file throughout the code pane, including Find/Replace and the file tree; write failures remain visible with the draft preserved
 
 ## 0.2.0-alpha.5

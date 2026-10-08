@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Check, Folder, Loader2, Plus, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Check, Folder, Loader2, RefreshCw, X } from 'lucide-react'
 import { useProjectsStore } from '../store/projects'
 import { useHostsStore } from '../store/hosts'
 import { useWorkspacesStore } from '../store/workspaces'
@@ -35,6 +35,17 @@ export function NewWorkspaceModal({
   )
   const choices = projectLocations.filter((l) => l.hostId === selectedHostId)
   const location = choices.find((l) => l.id === locationId)
+  const preferredProfileId =
+    activeWorkspace?.locationId === locationId
+      ? activeWorkspace.browserProfileId
+      : null
+  const profileLabel = project?.browserProfiles.find(
+    (profile) =>
+      profile.id ===
+      (browserProfileId ||
+        location?.browserProfileId ||
+        project.defaultBrowserProfileId)
+  )?.label
   const hostId = location?.checkoutPath ? location.hostId : undefined
   const discovered = useWorkspacesStore((s) => s.discovered)
   const discovering = useWorkspacesStore((s) => s.discovering)
@@ -48,6 +59,9 @@ export function NewWorkspaceModal({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [opening, setOpening] = useState(false)
   const [openError, setOpenError] = useState('')
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const [multiple, setMultiple] = useState(false)
+  const openingRef = useRef(false)
 
   useEffect(() => {
     void loadHosts()
@@ -92,9 +106,12 @@ export function NewWorkspaceModal({
           matches[0]?.id ??
           '')
     )
-    setBrowserProfileId('')
-    setSelected(new Set())
   }, [projectId, selectedHostId, locations, preferredLocation])
+  useEffect(() => {
+    setBrowserProfileId(preferredProfileId || '')
+    setSelected(new Set())
+    setOpenError('')
+  }, [locationId, preferredProfileId])
 
   useEffect(() => {
     if (hideBrowserWs) void window.api.browser.setVisible(hideBrowserWs, false)
@@ -154,7 +171,9 @@ export function NewWorkspaceModal({
   }
 
   async function openOne(path: string): Promise<void> {
-    if (!hostId || opening) return
+    if (!hostId || openingRef.current) return
+    openingRef.current = true
+    setOpenError('')
     setOpening(true)
     try {
       await open(hostId, path, locationId, browserProfileId || undefined)
@@ -162,12 +181,15 @@ export function NewWorkspaceModal({
     } catch (error) {
       setOpenError(String(error))
     } finally {
+      openingRef.current = false
       setOpening(false)
     }
   }
 
   async function openSelected(): Promise<void> {
-    if (!hostId || selected.size === 0 || opening) return
+    if (!hostId || selected.size === 0 || openingRef.current) return
+    openingRef.current = true
+    setOpenError('')
     setOpening(true)
     try {
       await openMany(
@@ -180,6 +202,7 @@ export function NewWorkspaceModal({
     } catch (error) {
       setOpenError(String(error))
     } finally {
+      openingRef.current = false
       setOpening(false)
     }
   }
@@ -199,8 +222,16 @@ export function NewWorkspaceModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="flex h-[560px] w-[560px] flex-col rounded-xl border border-neutral-800 bg-neutral-900 shadow-2xl">
+    <div
+      data-mxwl-modal
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Open Workspace"
+        className="flex max-h-[85vh] min-h-[420px] w-[600px] flex-col rounded-xl border border-neutral-800 bg-neutral-900 shadow-2xl"
+      >
         <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
           <h2 className="text-sm font-semibold">Open Workspace</h2>
           <button
@@ -213,103 +244,194 @@ export function NewWorkspaceModal({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-b border-neutral-800 px-4 py-2">
-          <label className="grid gap-1 text-xs text-neutral-400">
-            Project
-            <select
-              aria-label="Workspace project"
-              value={projectId}
-              onChange={(e) => setProjectId(e.target.value)}
-              className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
+        <div className="border-b border-neutral-800 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs text-neutral-300">
+                {project?.label || 'Choose a project'} ·{' '}
+                {hosts.find((h) => h.id === selectedHostId)?.label ||
+                  'Choose a host'}
+                {profileLabel && (
+                  <span className="ml-2 rounded bg-neutral-800 px-1.5 py-0.5 text-[10px] text-sky-400">
+                    {profileLabel}
+                  </span>
+                )}
+              </p>
+              <p
+                className="mt-1 truncate font-mono text-[10px] text-neutral-600"
+                title={location?.checkoutPath}
+              >
+                {location?.checkoutPath ||
+                  'A checkout needs to be configured first.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-expanded={optionsOpen}
+              onClick={() => setOptionsOpen(!optionsOpen)}
+              className="text-[11px] text-neutral-500 hover:text-emerald-300"
             >
-              {!projects.length && (
-                <option value="">Create a project first</option>
-              )}
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs text-neutral-400">
-            Host
-            <select
-              aria-label="Workspace host"
-              value={selectedHostId}
-              onChange={(e) => setSelectedHostId(e.target.value)}
-              className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
-            >
-              {!hostChoices.length && (
-                <option value="">Add a host to this project</option>
-              )}
-              {hostChoices.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs text-neutral-400">
-            Host checkout
-            <select
-              aria-label="Workspace location"
-              value={locationId}
-              onChange={(e) => {
-                setLocationId(e.target.value)
-                setBrowserProfileId('')
-              }}
-              className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
-            >
-              {!choices.length && (
-                <option value="">Configure a project host</option>
-              )}
-              {choices.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs text-neutral-400">
-            Browser profile
-            <select
-              aria-label="Workspace browser profile"
-              value={browserProfileId}
-              onChange={(e) => setBrowserProfileId(e.target.value)}
-              className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
-            >
-              <option value="">Host / project default</option>
-              {project?.browserProfiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              {optionsOpen ? 'Done' : 'Change location or profile'}
+            </button>
+          </div>
+        </div>
+        {(optionsOpen || !projectId) && (
+          <div className="grid grid-cols-2 gap-2 border-b border-neutral-800 px-4 py-3">
+            <label className="grid gap-1 text-xs text-neutral-400">
+              Project
+              <select
+                aria-label="Workspace project"
+                value={projectId}
+                onChange={(e) => setProjectId(e.target.value)}
+                className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
+              >
+                {!projects.length && (
+                  <option value="">Create a project first</option>
+                )}
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs text-neutral-400">
+              Host
+              <select
+                aria-label="Workspace host"
+                value={selectedHostId}
+                onChange={(e) => setSelectedHostId(e.target.value)}
+                className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
+              >
+                {!hostChoices.length && (
+                  <option value="">Add a host to this project</option>
+                )}
+                {hostChoices.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs text-neutral-400">
+              Host checkout
+              <select
+                aria-label="Workspace location"
+                value={locationId}
+                onChange={(e) => {
+                  setLocationId(e.target.value)
+                  setBrowserProfileId('')
+                }}
+                className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
+              >
+                {!choices.length && (
+                  <option value="">Configure a project host</option>
+                )}
+                {choices.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-xs text-neutral-400">
+              Browser profile
+              <select
+                aria-label="Workspace browser profile"
+                value={browserProfileId}
+                onChange={(e) => setBrowserProfileId(e.target.value)}
+                className="rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs"
+              >
+                <option value="">Host / project default</option>
+                {project?.browserProfiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+        <div className="flex items-center gap-2 px-4 py-3">
           <input
             placeholder="Filter folders…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            className="ml-auto w-48 rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
+            aria-label="Filter workspace folders"
+            className="min-w-0 flex-1 rounded-md border border-neutral-700 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100 placeholder:text-neutral-600 focus:border-emerald-500 focus:outline-none"
           />
+          <button
+            type="button"
+            title="Refresh workspace folders"
+            disabled={!hostId || discovering || opening}
+            onClick={() => hostId && void discover(hostId, locationId)}
+            className="p-1.5 text-neutral-500 hover:text-neutral-200 disabled:opacity-30"
+          >
+            <RefreshCw size={13} />
+          </button>
+          <button
+            type="button"
+            aria-pressed={multiple}
+            onClick={() => {
+              setMultiple(!multiple)
+              setSelected(new Set())
+            }}
+            className="rounded border border-neutral-700 px-2 py-1.5 text-[11px] text-neutral-400 hover:text-neutral-200"
+          >
+            {multiple ? 'Open one' : 'Select multiple'}
+          </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto p-2">
-          {discovering && (
+        <div
+          className="min-h-0 flex-1 overflow-auto p-2"
+          style={{ maxHeight: 320 }}
+        >
+          {!!hostId && discovering && (
             <div className="flex h-full items-center justify-center gap-2 text-sm text-neutral-500">
               <Loader2 size={16} className="animate-spin" /> Listing{' '}
               {location?.workspacesRoot ?? ''}…
             </div>
           )}
-          {!discovering && discoverError && (
-            <div className="p-4 text-sm text-red-400">{discoverError}</div>
+          {!!hostId && !discovering && discoverError && (
+            <div role="alert" className="p-4 text-xs text-red-400">
+              {discoverError}
+              <p className="mt-2 text-neutral-500">
+                Check the host connection and checkout paths, then refresh.
+              </p>
+            </div>
           )}
           {!hostId && (
             <div className="p-4 text-xs text-neutral-400">
-              {location && !location.checkoutPath
-                ? 'Configure this host’s repository checkout path in Projects before opening workspaces.'
-                : 'Create a project and configure its host in Projects before opening workspaces.'}
+              <p>
+                {location && !location.checkoutPath
+                  ? 'Choose the repository checkout on this host to get started.'
+                  : 'Choose a project and host to get started.'}
+              </p>
+              {!!projectId && (
+                <button
+                  className="mt-3 rounded bg-brand-accent px-3 py-1.5 text-xs text-brand-ink"
+                  onClick={() => {
+                    useWorkspacesStore.getState().setActive(null)
+                    navigation.select(projectId, selectedHostId)
+                    navigation.requestSetup(projectId, location?.id)
+                    onClose()
+                  }}
+                >
+                  Set up this host
+                </button>
+              )}
+              {!projectId && (
+                <button
+                  className="mt-3 text-emerald-300"
+                  onClick={() => {
+                    useWorkspacesStore.getState().setActive(null)
+                    navigation.select(null)
+                    onClose()
+                  }}
+                >
+                  Create a project
+                </button>
+              )}
             </div>
           )}
           {!!hostId &&
@@ -317,21 +439,28 @@ export function NewWorkspaceModal({
             !discoverError &&
             filtered.length === 0 && (
               <div className="flex h-full items-center justify-center text-sm text-neutral-600">
-                No folders found
+                {filter
+                  ? 'No workspaces match your search.'
+                  : 'No workspace folders found. Check the checkout path and workspace root.'}
               </div>
             )}
-          {!discovering && !discoverError && filtered.length > 0 && (
-            <button
-              type="button"
-              onClick={toggleAllFiltered}
-              className="mb-1 flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[11px] text-neutral-500 hover:bg-neutral-800/60 hover:text-neutral-300"
-            >
-              <Box checked={allFilteredSelected} />
-              {allFilteredSelected ? 'Deselect all' : 'Select all'} (
-              {filtered.length})
-            </button>
-          )}
-          {!discovering &&
+          {multiple &&
+            !!hostId &&
+            !discovering &&
+            !discoverError &&
+            filtered.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleAllFiltered}
+                className="mb-1 flex w-full items-center gap-2 rounded-md px-3 py-1.5 text-left text-[11px] text-neutral-500 hover:bg-neutral-800/60 hover:text-neutral-300"
+              >
+                <Box checked={allFilteredSelected} />
+                {allFilteredSelected ? 'Deselect all' : 'Select all'} (
+                {filtered.length})
+              </button>
+            )}
+          {!!hostId &&
+            !discovering &&
             !discoverError &&
             filtered.map((entry) => {
               const on = selected.has(entry.path)
@@ -340,17 +469,25 @@ export function NewWorkspaceModal({
                 <button
                   key={entry.path}
                   type="button"
-                  onClick={() => toggle(entry.path)}
-                  onDoubleClick={() => void openOne(entry.path)}
+                  disabled={opening}
+                  aria-label={entry.name}
+                  onClick={() =>
+                    multiple ? toggle(entry.path) : void openOne(entry.path)
+                  }
                   className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-neutral-800 ${
                     on
                       ? 'bg-neutral-800/80 text-neutral-100'
                       : 'text-neutral-200'
                   }`}
                 >
-                  <Box checked={on} />
+                  {multiple && <Box checked={on} />}
                   <Folder size={15} className="text-amber-400" />
-                  <span className="truncate">{entry.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{entry.name}</span>
+                    <span className="block truncate font-mono text-[10px] text-neutral-600">
+                      {entry.path}
+                    </span>
+                  </span>
                   {opened && (
                     <span className="ml-auto shrink-0 text-[10px] text-emerald-500">
                       open
@@ -368,19 +505,23 @@ export function NewWorkspaceModal({
         )}
         <div className="flex items-center gap-2 border-t border-neutral-800 px-4 py-2">
           <span className="text-[11px] text-neutral-600">
-            {selected.size === 0
-              ? 'Select folders · double-click to open one'
-              : `${selected.size} selected`}
+            {opening
+              ? 'Opening workspace…'
+              : multiple
+                ? `${selected.size} selected`
+                : 'Click a workspace to open it'}
           </span>
-          <button
-            type="button"
-            disabled={selected.size === 0 || opening || !hostId}
-            onClick={() => void openSelected()}
-            className="ml-auto flex items-center gap-1.5 rounded-md bg-brand-accent px-3 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {opening ? <Loader2 size={13} className="animate-spin" /> : null}
-            Open {selected.size > 0 ? selected.size : ''}
-          </button>
+          {multiple && (
+            <button
+              type="button"
+              disabled={selected.size === 0 || opening || !hostId}
+              onClick={() => void openSelected()}
+              className="ml-auto flex items-center gap-1.5 rounded-md bg-brand-accent px-3 py-1.5 text-xs font-medium text-brand-ink hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {opening ? <Loader2 size={13} className="animate-spin" /> : null}
+              Open {selected.size > 0 ? selected.size : ''}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -398,16 +539,3 @@ const Box = ({ checked }: { checked: boolean }): JSX.Element => (
     {checked ? <Check size={10} strokeWidth={3} /> : null}
   </span>
 )
-
-export function NewWorkspaceButton(): JSX.Element {
-  const setNewModalOpen = useWorkspacesStore((s) => s.setNewModalOpen)
-  return (
-    <button
-      onClick={() => setNewModalOpen(true)}
-      title="Open workspace (⌘T)"
-      className="flex items-center gap-1 rounded-md border border-neutral-700 px-2 py-1 text-xs text-neutral-300 hover:bg-neutral-800"
-    >
-      <Plus size={13} /> New
-    </button>
-  )
-}

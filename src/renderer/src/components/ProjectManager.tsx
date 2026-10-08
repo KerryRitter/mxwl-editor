@@ -1,13 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
-import {
-  ChevronRight,
-  FolderGit2,
-  Monitor,
-  Pencil,
-  Plus,
-  Server,
-  Trash2
-} from 'lucide-react'
+import { FolderGit2, Monitor, Pencil, Plus, Server, Trash2 } from 'lucide-react'
 import type {
   ProjectConfig,
   ProjectInput,
@@ -24,6 +16,7 @@ import { usePluginsStore } from '../store/plugins'
 import { ConnectionEditor, HostManager } from './HostManager'
 import { useProjectNavigation } from '../store/projectNavigation'
 import { Modal } from './Modal'
+import { SetupSteps } from './SetupSteps'
 
 const inputClass =
   'w-full rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-xs text-neutral-100 focus:border-emerald-500 focus:outline-none'
@@ -87,14 +80,13 @@ export function ProjectManager() {
     error: loadError
   } = useProjectsStore()
   const { hosts, load: loadHosts } = useHostsStore()
-  const open = useWorkspacesStore((s) => s.setNewModalOpen)
+  const browse = useWorkspacesStore((s) => s.setNewModalOpen)
+  const open = useWorkspacesStore((s) => s.open)
   const workspaces = useWorkspacesStore((s) => s.workspaces)
   const setActive = useWorkspacesStore((s) => s.setActive)
-  const { projectId, hostId, select } = useProjectNavigation()
+  const { projectId, hostId, select, setup, clearSetup } =
+    useProjectNavigation()
   const selectedProject = projects.find((p) => p.id === projectId)
-  const selectedHost = hosts.find((h) => h.id === hostId)
-  const projectLocations = locations.filter((l) => l.projectId === projectId)
-  const projectHosts = [...new Set(projectLocations.map((l) => l.hostId))]
   const [connectionsOpen, setConnectionsOpen] = useState(false)
   const [connectionEditor, setConnectionEditor] = useState<
     (typeof hosts)[number] | null
@@ -105,17 +97,28 @@ export function ProjectManager() {
     location?: ProjectLocation
   } | null>(null)
   const [error, setError] = useState('')
+  const [opening, setOpening] = useState<string | null>(null)
   useEffect(() => {
     void load()
     void loadHosts()
   }, [load, loadHosts])
+  useEffect(() => {
+    if (!setup) return
+    const project = projects.find((p) => p.id === setup.projectId)
+    if (!project) return
+    setLocationEditor({
+      project,
+      location: locations.find((l) => l.id === setup.locationId)
+    })
+    clearSetup()
+  }, [setup, projects, locations, clearSetup])
   useEffect(() => {
     if (projectId && !loadError && projects.length && !selectedProject)
       select(null)
     else if (
       selectedProject &&
       hostId &&
-      !projectLocations.some((l) => l.hostId === hostId)
+      !locations.some((l) => l.projectId === projectId && l.hostId === hostId)
     )
       select(projectId)
   }, [
@@ -135,24 +138,38 @@ export function ProjectManager() {
       setError(String(e))
     }
   }
+  async function openCheckout(location: ProjectLocation) {
+    if (opening) return
+    setOpening(location.id)
+    try {
+      await open(location.hostId, location.checkoutPath, location.id)
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setOpening(null)
+    }
+  }
+  function focus(id: string) {
+    setActive(id)
+    void window.api.browser.activate(id)
+  }
+  const visibleProjects = selectedProject ? [selectedProject] : projects
   return (
     <div className="workspace-home flex h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-neutral-800 px-5 py-3">
+      <header className="flex flex-wrap items-center gap-3 border-b border-neutral-800 px-5 py-3">
         <FolderGit2 size={18} className="text-emerald-400" />
-        <h1 className="text-sm font-semibold">
-          {selectedProject
-            ? selectedHost && hostId
-              ? 'Workspaces'
-              : 'Hosts'
-            : 'Projects'}
-        </h1>
-        <span className="text-xs text-neutral-500">
-          {selectedProject
-            ? `${selectedProject.label}${selectedHost && hostId ? ` · ${selectedHost.label}` : ' · choose a host'}`
-            : 'Projects → Hosts → Workspaces'}
-        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-sm font-semibold">
+            {selectedProject?.label || 'Projects'}
+          </h1>
+          <p className="mt-0.5 text-xs text-neutral-500">
+            {selectedProject
+              ? 'Your machines and workspaces, together.'
+              : 'Pick up where you left off or open a checkout.'}
+          </p>
+        </div>
         <button
-          className={`${buttonClass} ml-auto`}
+          className={buttonClass}
           onClick={() => setConnectionsOpen(true)}
         >
           Manage connections
@@ -174,53 +191,63 @@ export function ProjectManager() {
             {error || loadError}
           </p>
         )}
-        {!selectedProject && projects.length === 0 && (
-          <div className="workspace-home-intro mx-auto mt-8 max-w-lg text-center">
+        {!projects.length && (
+          <div className="mx-auto mt-8 max-w-lg text-center">
             <FolderGit2 size={32} className="mx-auto text-emerald-400" />
             <h2 className="mt-4 text-base font-medium">
               A home for your whole workflow.
             </h2>
             <p className="mt-2 text-sm text-neutral-500">
-              Create a project in mxwl, add local, SSH, or Tailscale hosts
-              beneath it, then open workspaces as tabs within a host. Your
-              source files stay on those machines.
+              Create a project, choose its checkout on this machine or a remote
+              host, and start working. Switch between workspaces from the tree
+              on the left.
             </p>
-            <div className="mt-5 flex justify-center gap-2">
-              <button className={primaryClass} onClick={() => setEditing(null)}>
-                Create your first project
-              </button>
-            </div>
+            <button
+              className={`${primaryClass} mt-5`}
+              onClick={() => setEditing(null)}
+            >
+              Create your first project
+            </button>
           </div>
         )}
-        <div className="grid gap-4">
-          {!selectedProject &&
-            projects.map((project) => (
+        <div className="grid gap-5">
+          {visibleProjects.map((project) => {
+            const projectLocations = locations.filter(
+              (l) => l.projectId === project.id
+            )
+            const projectHosts = [
+              ...new Set(projectLocations.map((l) => l.hostId))
+            ]
+            return (
               <section
                 key={project.id}
-                className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4"
+                aria-label={`Project ${project.label}`}
+                className="rounded-xl border border-neutral-800 bg-neutral-900/40"
               >
-                <div className="flex items-center gap-3">
-                  <FolderGit2 size={18} className="text-emerald-400" />
+                <div className="flex items-center gap-3 border-b border-neutral-800 px-4 py-3">
+                  <FolderGit2 size={16} className="text-emerald-400" />
                   <div className="min-w-0 flex-1">
-                    <h2 className="text-sm font-semibold">{project.label}</h2>
-                    <p className="truncate text-xs text-neutral-500">
-                      {project.repositoryUrl ||
-                        'Project configuration saved in mxwl'}
-                    </p>
+                    <button
+                      aria-label={`View project ${project.label}`}
+                      onClick={() => select(project.id)}
+                      className="text-left text-sm font-semibold hover:text-emerald-300"
+                    >
+                      {project.label}
+                    </button>
+                    {project.repositoryUrl && (
+                      <p className="truncate text-[11px] text-neutral-500">
+                        {project.repositoryUrl}
+                      </p>
+                    )}
                   </div>
-                  <button
-                    className={buttonClass}
-                    onClick={() => select(project.id)}
-                  >
-                    Hosts ·{' '}
-                    {
-                      new Set(
-                        locations
-                          .filter((l) => l.projectId === project.id)
-                          .map((l) => l.hostId)
-                      ).size
-                    }
-                  </button>
+                  {!selectedProject && (
+                    <button
+                      className={buttonClass}
+                      onClick={() => setLocationEditor({ project })}
+                    >
+                      <Plus size={12} className="mr-1 inline" /> Add host
+                    </button>
+                  )}
                   <button
                     title={`Edit ${project.label}`}
                     className={buttonClass}
@@ -243,209 +270,159 @@ export function ProjectManager() {
                     <Trash2 size={13} />
                   </button>
                 </div>
-                <p className="mt-3 text-xs text-neutral-500">
-                  {workspaces.filter((w) => w.projectId === project.id).length}{' '}
-                  open workspace tabs
-                </p>
-              </section>
-            ))}
-          {selectedProject &&
-            !hostId &&
-            projectHosts.map((projectHostId) => {
-              const hostLocations = projectLocations.filter(
-                (l) => l.hostId === projectHostId
-              )
-              const host = hosts.find((h) => h.id === projectHostId)
-              const tabs = workspaces.filter(
-                (w) => w.projectId === projectId && w.hostId === projectHostId
-              )
-              return (
-                <section
-                  key={projectHostId}
-                  className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    {host?.kind === 'local' ? (
-                      <Monitor size={18} className="text-sky-400" />
-                    ) : (
-                      <Server size={18} className="text-emerald-400" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-sm font-semibold">
-                        {hostLocations.some((l) => l.builtinLocal)
-                          ? 'This machine'
-                          : host?.label || 'Host unavailable'}
-                      </h2>
-                      {hostLocations.some((l) => l.builtinLocal) && (
-                        <span className="text-[10px] text-sky-400">
-                          Always available
-                        </span>
-                      )}
-                      <p className="text-xs text-neutral-500">
-                        {host?.kind === 'local'
-                          ? 'This machine'
-                          : host
-                            ? `${host.username}@${host.host}:${host.port}`
-                            : 'Connection missing'}{' '}
-                        · {tabs.length} open workspace tabs
-                      </p>
-                    </div>
-                    <button
-                      disabled={!host}
-                      className={primaryClass}
-                      onClick={() => select(projectId, projectHostId)}
-                    >
-                      Workspaces <ChevronRight size={12} className="inline" />
-                    </button>
-                    {host && (
-                      <button
-                        title={`Edit connection ${host.label}`}
-                        className={buttonClass}
-                        onClick={() => setConnectionEditor(host)}
+                <div className="grid gap-3 p-3">
+                  {projectHosts.map((projectHostId) => {
+                    const host = hosts.find((h) => h.id === projectHostId)
+                    const hostLocations = projectLocations.filter(
+                      (l) => l.hostId === projectHostId
+                    )
+                    const tabs = workspaces.filter(
+                      (w) =>
+                        w.projectId === project.id && w.hostId === projectHostId
+                    )
+                    return (
+                      <section
+                        key={projectHostId}
+                        aria-label={`Host ${host?.label || 'unavailable'} in ${project.label}`}
+                        className={`rounded-lg border p-3 ${projectId === project.id && hostId === projectHostId ? 'border-emerald-700/60 bg-emerald-950/10' : 'border-neutral-800'}`}
                       >
-                        <Pencil size={13} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="mt-3 grid gap-2">
-                    {hostLocations.map((location) => {
-                      const host = hosts.find((h) => h.id === location.hostId)
-                      return (
-                        <div
-                          key={location.id}
-                          className="flex items-center gap-3 rounded-lg border border-neutral-800 px-3 py-2"
-                        >
+                        <div className="flex items-center gap-2">
                           {host?.kind === 'local' ? (
-                            <Monitor size={14} className="text-sky-400" />
+                            <Monitor size={15} className="text-sky-400" />
                           ) : (
-                            <Server size={14} className="text-neutral-500" />
+                            <Server size={15} className="text-sky-400" />
                           )}
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs">
-                              {location.label}{' '}
-                              <span className="text-neutral-500">
-                                · {host?.label || 'Host unavailable'}
-                              </span>
-                            </p>
-                            <p className="truncate font-mono text-[10px] text-neutral-500">
-                              {location.checkoutPath ||
-                                'Choose a repository checkout path to get started'}
-                            </p>
-                          </div>
-                          <button
-                            title={`Edit host checkout ${location.label}`}
-                            className={buttonClass}
-                            onClick={() =>
-                              setLocationEditor({
-                                project: selectedProject,
-                                location
-                              })
-                            }
-                          >
-                            {location.checkoutPath ? (
-                              <Pencil size={13} />
-                            ) : (
-                              'Configure checkout'
-                            )}
-                          </button>
-                          {!location.builtinLocal && (
+                          <h2 className="text-xs font-medium">
+                            {hostLocations.some((l) => l.builtinLocal)
+                              ? 'This machine'
+                              : host?.label || 'Host unavailable'}
+                          </h2>
+                          {hostLocations.some((l) => l.builtinLocal) && (
+                            <span className="text-[10px] text-sky-400">
+                              Always available
+                            </span>
+                          )}
+                          <span className="min-w-0 truncate text-[10px] text-neutral-600">
+                            {host?.kind === 'ssh'
+                              ? `${host.username}@${host.host}`
+                              : ''}
+                          </span>
+                          {host && (
                             <button
-                              title={`Remove host checkout ${location.label}`}
-                              className={buttonClass}
-                              onClick={() => {
-                                if (
-                                  confirm(
-                                    'Remove this project host checkout? Files are never deleted.'
-                                  )
-                                )
-                                  void act(() => removeLocation(location.id))
-                              }}
+                              title={`Edit connection ${host.label}`}
+                              className="ml-auto p-1 text-neutral-600 hover:text-neutral-200"
+                              onClick={() => setConnectionEditor(host)}
                             >
-                              <Trash2 size={13} />
+                              <Pencil size={12} />
                             </button>
                           )}
                         </div>
-                      )
-                    })}
-                  </div>
-                </section>
-              )
-            })}
-          {selectedProject && !projectHosts.length && (
-            <div className="py-12 text-center text-sm text-neutral-500">
-              This project is saved. Add a host to choose where its workspaces
-              live.
-            </div>
-          )}
-          {selectedProject &&
-            hostId &&
-            projectLocations
-              .filter((l) => l.hostId === hostId)
-              .map((location) => (
-                <section
-                  key={location.id}
-                  className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-4"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-sm font-semibold">
-                        {location.label}
-                      </h2>
-                      <p className="truncate font-mono text-xs text-neutral-500">
-                        {location.checkoutPath ||
-                          'Choose a repository checkout path to get started'}
-                      </p>
-                    </div>
-                    <button
-                      className={buttonClass}
-                      title={`Edit host checkout ${location.label}`}
-                      onClick={() =>
-                        setLocationEditor({
-                          project: selectedProject,
-                          location
-                        })
-                      }
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    <button
-                      className={primaryClass}
-                      onClick={() =>
-                        location.checkoutPath
-                          ? open(true, hostId, location.id)
-                          : setLocationEditor({
-                              project: selectedProject,
-                              location
-                            })
-                      }
-                    >
-                      {location.checkoutPath
-                        ? 'Open workspaces'
-                        : 'Configure checkout'}
-                    </button>
-                  </div>
-                  <p className="mt-3 text-xs text-neutral-500">
-                    Each workspace opens as a tab above. Other projects and
-                    hosts keep running when you switch.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {workspaces
-                      .filter((w) => w.locationId === location.id)
-                      .map((w) => (
-                        <button
-                          key={w.id}
-                          className={buttonClass}
-                          onClick={() => {
-                            setActive(w.id)
-                            void window.api.browser.activate(w.id)
-                          }}
-                        >
-                          {w.title}
-                        </button>
-                      ))}
-                  </div>
-                </section>
-              ))}
+                        <div className="mt-3 grid gap-2">
+                          {hostLocations.map((location) => (
+                            <div
+                              key={location.id}
+                              className="flex flex-wrap items-center gap-2 rounded bg-neutral-950/60 px-3 py-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs text-neutral-300">
+                                  {location.label}
+                                </p>
+                                <p
+                                  className="truncate font-mono text-[10px] text-neutral-600"
+                                  title={location.checkoutPath}
+                                >
+                                  {location.checkoutPath ||
+                                    'Set up the repository checkout on this machine.'}
+                                </p>
+                              </div>
+                              {location.checkoutPath ? (
+                                <>
+                                  <button
+                                    className={primaryClass}
+                                    disabled={!host || !!opening}
+                                    onClick={() => void openCheckout(location)}
+                                  >
+                                    {opening === location.id
+                                      ? 'Opening…'
+                                      : 'Open checkout'}
+                                  </button>
+                                  <button
+                                    className={buttonClass}
+                                    disabled={!host}
+                                    onClick={() =>
+                                      browse(true, projectHostId, location.id)
+                                    }
+                                  >
+                                    Other workspaces
+                                  </button>
+                                  <button
+                                    title={`Edit host checkout ${location.label}`}
+                                    className="p-1 text-neutral-600 hover:text-neutral-200"
+                                    onClick={() =>
+                                      setLocationEditor({ project, location })
+                                    }
+                                  >
+                                    <Pencil size={12} />
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  className={primaryClass}
+                                  onClick={() =>
+                                    setLocationEditor({ project, location })
+                                  }
+                                >
+                                  Configure checkout
+                                </button>
+                              )}
+                              {!location.builtinLocal && (
+                                <button
+                                  title={`Remove host checkout ${location.label}`}
+                                  className="p-1 text-neutral-600 hover:text-red-400"
+                                  onClick={() => {
+                                    if (
+                                      confirm(
+                                        'Remove this project host checkout? Files are never deleted.'
+                                      )
+                                    )
+                                      void act(() =>
+                                        removeLocation(location.id)
+                                      )
+                                  }}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {!!tabs.length && (
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <span className="text-[10px] text-neutral-600">
+                              Continue working
+                            </span>
+                            {tabs.map((w) => (
+                              <button
+                                key={w.id}
+                                onClick={() => focus(w.id)}
+                                title={w.remotePath}
+                                className="flex items-center gap-1.5 rounded border border-neutral-800 px-2 py-1 text-[11px] text-neutral-400 hover:border-emerald-700 hover:text-neutral-100"
+                              >
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${w.status === 'connected' ? 'bg-emerald-500' : 'bg-neutral-600'}`}
+                                />
+                                {w.title}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </section>
+                    )
+                  })}
+                </div>
+              </section>
+            )
+          })}
         </div>
       </div>
       {editing !== undefined && (
@@ -470,13 +447,13 @@ export function ProjectManager() {
       )}
       {connectionsOpen && (
         <Modal
-          title="Reusable machine connections"
+          title="Machine connections"
           width={900}
           onClose={() => setConnectionsOpen(false)}
         >
           <p className="mb-3 text-xs text-neutral-500">
-            Save connection details once, then attach the machine beneath any
-            project. Workspaces are opened from the project's hosts.
+            Save a machine once and reuse it across projects. Add a host from a
+            project to choose its checkout.
           </p>
           <div className="h-[60vh]">
             <HostManager />
@@ -852,7 +829,18 @@ function ProjectEditor({
                   }
                 >
                   {['none', 'jira', 'linear', 'github-issues'].map((p) => (
-                    <option key={p} value={p}>{({ none: 'None', jira: 'Jira', linear: 'Linear', 'github-issues': 'GitHub Issues' } as Record<string, string>)[p]}</option>
+                    <option key={p} value={p}>
+                      {
+                        (
+                          {
+                            none: 'None',
+                            jira: 'Jira',
+                            linear: 'Linear',
+                            'github-issues': 'GitHub Issues'
+                          } as Record<string, string>
+                        )[p]
+                      }
+                    </option>
                   ))}
                 </select>
               </Field>
@@ -876,7 +864,18 @@ function ProjectEditor({
                   }
                 >
                   {['none', 'bitbucket', 'github', 'gitlab'].map((p) => (
-                    <option key={p} value={p}>{({ none: 'None', bitbucket: 'Bitbucket', github: 'GitHub', gitlab: 'GitLab' } as Record<string, string>)[p]}</option>
+                    <option key={p} value={p}>
+                      {
+                        (
+                          {
+                            none: 'None',
+                            bitbucket: 'Bitbucket',
+                            github: 'GitHub',
+                            gitlab: 'GitLab'
+                          } as Record<string, string>
+                        )[p]
+                      }
+                    </option>
                   ))}
                 </select>
               </Field>
@@ -903,8 +902,8 @@ function ProjectEditor({
               <p className="text-[11px] text-neutral-500">
                 GitHub, Jira, and Bitbucket have built-in API cards. GitLab uses
                 Git remote PR links; other tracker adapters can be plugins.
-                GitHub can infer the repository from the project URL or checkout’s
-                origin remote when both repository fields are blank.
+                GitHub can infer the repository from the project URL or
+                checkout’s origin remote when both repository fields are blank.
               </p>
             </>
           )}
@@ -981,7 +980,7 @@ function LocationEditor({
     () =>
       location ?? {
         projectId: project.id,
-        hostId: hosts[0]?.id ?? '',
+        hostId: '',
         label: '',
         checkoutPath: '',
         workspacesRoot: '~/Workspaces',
@@ -991,26 +990,40 @@ function LocationEditor({
         overrides: {}
       }
   )
+  const [step, setStep] = useState(location ? 1 : 0)
+  const [rootEdited, setRootEdited] = useState(!!location?.checkoutPath)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [addingConnection, setAddingConnection] = useState(false)
   const [addingProfile, setAddingProfile] = useState(false)
+  const host = hosts.find((h) => h.id === form.hostId)
   const set = <K extends keyof ProjectLocationInput>(
     key: K,
     value: ProjectLocationInput[K]
-  ) => setForm((f) => ({ ...f, [key]: value }))
+  ) => {
+    setError('')
+    setForm((f) => ({ ...f, [key]: value }))
+  }
   const override = (patch: ProjectLocationInput['overrides']) =>
     set('overrides', { ...form.overrides, ...patch })
   async function submit() {
+    if (
+      !host ||
+      (step > 0 && (!form.checkoutPath.trim() || !form.workspacesRoot.trim()))
+    )
+      return
+    if (step < 3) {
+      setStep(step + 1)
+      return
+    }
     setBusy(true)
     try {
       onSaved(
         await save({
           ...form,
-          label:
-            form.label.trim() ||
-            hosts.find((h) => h.id === form.hostId)?.label ||
-            'Development'
+          checkoutPath: form.checkoutPath.trim(),
+          workspacesRoot: form.workspacesRoot.trim(),
+          label: form.label.trim() || host?.label || 'Development'
         })
       )
     } catch (e) {
@@ -1023,9 +1036,10 @@ function LocationEditor({
     return (
       <ConnectionEditor
         onClose={() => setAddingConnection(false)}
-        onSaved={(host) => {
-          set('hostId', host.id)
+        onSaved={(saved) => {
+          set('hostId', saved.id)
           setAddingConnection(false)
+          setStep(1)
         }}
       />
     )
@@ -1042,152 +1056,300 @@ function LocationEditor({
     )
   return (
     <Modal
-      title={`${location ? 'Edit' : 'Add'} Project Host · ${project.label}`}
+      title={`${location ? 'Set up' : 'Add'} host · ${project.label}`}
       width={640}
       onClose={onClose}
     >
+      <SetupSteps
+        steps={['Machine', 'Folders', 'Preferences', 'Review']}
+        current={step}
+      />
       <form
         onSubmit={(e) => {
           e.preventDefault()
           void submit()
         }}
       >
-        <div className="grid max-h-[62vh] gap-3 overflow-auto pr-1">
-          <Field label="Machine connection">
-            <div className="flex items-center gap-2">
-              <select
-                aria-label="Machine connection"
-                className={inputClass}
-                disabled={location?.builtinLocal}
-                value={form.hostId}
-                onChange={(e) => set('hostId', e.target.value)}
-              >
-                {hosts.length === 0 && (
-                  <option value="">Create a connection</option>
-                )}
-                {hosts.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.label}
-                  </option>
-                ))}
-              </select>
-              {!location?.builtinLocal && (
-                <button
-                  type="button"
-                  aria-label="New machine connection"
-                  className={`${buttonClass} shrink-0`}
-                  onClick={() => setAddingConnection(true)}
+        <div className="grid max-h-[55vh] gap-4 overflow-auto pr-1">
+          {step === 0 && (
+            <>
+              <div>
+                <h3 className="text-sm font-medium">
+                  Choose a machine for {project.label}
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+                  Use a saved machine or connect a new one. In the next step,
+                  you’ll choose this project’s checkout on that machine.
+                </p>
+              </div>
+              <Field label="Machine connection">
+                <select
+                  aria-label="Machine connection"
+                  className={inputClass}
+                  value={form.hostId}
+                  onChange={(e) => set('hostId', e.target.value)}
                 >
-                  <Plus size={12} className="mr-1 inline" />
-                  New
-                </button>
+                  <option value="">Choose a saved machine…</option>
+                  {hosts.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.label}
+                      {h.kind === 'local' ? ' · local' : ` · ${h.host}`}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {host && (
+                <p className="rounded border border-neutral-800 bg-neutral-950 px-3 py-3 text-xs text-neutral-400">
+                  {host.kind === 'local'
+                    ? 'Work directly with files on this computer.'
+                    : `Connect as ${host.username} to ${host.host}. Files and commands stay on that machine.`}
+                </p>
               )}
-            </div>
-          </Field>
-          {location?.builtinLocal && (
-            <p className="text-xs text-sky-400">
-              This machine is always available for this project and cannot be
-              removed.
-            </p>
-          )}
-          <Text
-            label="Repository checkout path"
-            value={form.checkoutPath}
-            onChange={(v) => set('checkoutPath', v)}
-            placeholder="~/Workspaces/myapp"
-          />
-          <Text
-            label="Worktrees / workspaces root"
-            value={form.workspacesRoot}
-            onChange={(v) => set('workspacesRoot', v)}
-            placeholder="~/Workspaces"
-          />
-          <Text
-            label="Folder filter (optional glob or /regex/)"
-            value={form.folderFilter}
-            onChange={(v) => set('folderFilter', v)}
-            placeholder="myapp-*"
-          />
-          <Text
-            label="App subdirectory (optional, relative)"
-            value={form.appSubdirectory}
-            onChange={(v) => set('appSubdirectory', v)}
-            placeholder="apps/web"
-          />
-          <Field label="Browser profile">
-            <div className="flex items-center gap-2">
-              <select
-                aria-label="Browser profile"
-                className={inputClass}
-                value={form.browserProfileId ?? ''}
-                onChange={(e) =>
-                  set('browserProfileId', e.target.value || null)
-                }
-              >
-                <option value="">Project default</option>
-                {currentProject.browserProfiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
               <button
                 type="button"
-                aria-label="New browser profile"
-                className={`${buttonClass} shrink-0`}
-                onClick={() => setAddingProfile(true)}
+                aria-label="New machine connection"
+                className={`${buttonClass} justify-self-start`}
+                onClick={() => setAddingConnection(true)}
               >
-                <Plus size={12} className="mr-1 inline" />
-                New
+                <Plus size={12} className="mr-1 inline" /> Connect a new machine
               </button>
-            </div>
-          </Field>
-          <p className="text-xs text-neutral-500">
-            Profiles are named environments/accounts with their own URL and
-            isolated browser cookies. Manage them in Project settings → Browser.
-          </p>
-          <Text
-            label="Checkout label (optional)"
-            value={form.label}
-            onChange={(v) => set('label', v)}
-            placeholder="Defaults to the machine name"
-          />
-          <p className="text-xs text-neutral-500">
-            A display label only, useful for multiple checkouts on one machine
-            (e.g. Main or Staging).
-          </p>
-          <p className="mt-2 text-xs text-neutral-500">
-            Machine-specific overrides (blank inherits project settings)
-          </p>
-          <Text
-            label="Browser URL override"
-            value={form.overrides.browserUrl ?? ''}
-            onChange={(v) => override({ browserUrl: v || undefined })}
-          />
-          <Text
-            label="Terminal startup override"
-            value={form.overrides.terminalStartup ?? ''}
-            onChange={(v) => override({ terminalStartup: v || undefined })}
-          />
-          <label className="flex gap-2 text-xs text-neutral-400">
-            <input
-              type="checkbox"
-              checked={form.overrides.services !== undefined}
-              onChange={(e) =>
-                override({
-                  services: e.target.checked
-                    ? structuredClone(currentProject.services)
-                    : undefined
-                })
-              }
-            />
-            Override service commands on this machine
-          </label>
-          {form.overrides.services && (
-            <ServiceEditor
-              services={form.overrides.services}
-              onChange={(v) => override({ services: v })}
-            />
+              <p className="text-[11px] text-neutral-600">
+                New connections are saved for reuse across projects. This
+                project host is saved after the final review.
+              </p>
+            </>
+          )}
+          {step === 1 && (
+            <>
+              <div>
+                <h3 className="text-sm font-medium">
+                  Where is the repository on {host?.label || 'this machine'}?
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+                  Point to an existing checkout. mxwl will also find its Git
+                  worktrees and related folders in your workspace root.
+                </p>
+              </div>
+              {location?.builtinLocal && (
+                <Field label="Machine connection">
+                  <select
+                    aria-label="Machine connection"
+                    disabled
+                    value={form.hostId}
+                    className={inputClass}
+                  >
+                    <option value={form.hostId}>
+                      This machine · always available
+                    </option>
+                  </select>
+                </Field>
+              )}
+              <Text
+                label="Repository checkout path"
+                value={form.checkoutPath}
+                onChange={(value) => {
+                  setForm((previous) => ({
+                    ...previous,
+                    checkoutPath: value,
+                    ...(!rootEdited && value.includes('/')
+                      ? {
+                          workspacesRoot:
+                            value.replace(/\/+$/, '').replace(/\/[^/]+$/, '') ||
+                            '/'
+                        }
+                      : {})
+                  }))
+                  setError('')
+                }}
+                placeholder="~/Workspaces/myapp"
+              />
+              <p className="-mt-2 text-[11px] text-neutral-500">
+                Use a full path or ~ for the home folder on this machine. The
+                repository should already be cloned there.
+              </p>
+              <Text
+                label="Worktrees / workspaces root"
+                value={form.workspacesRoot}
+                onChange={(value) => {
+                  setRootEdited(true)
+                  set('workspacesRoot', value)
+                }}
+                placeholder="~/Workspaces"
+              />
+              <p className="-mt-2 text-[11px] text-neutral-500">
+                The folder containing related workspaces. Suggested from the
+                checkout path; change it if your worktrees live elsewhere.
+              </p>
+            </>
+          )}
+          {step === 2 && (
+            <>
+              <div>
+                <h3 className="text-sm font-medium">Make it yours</h3>
+                <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+                  The project defaults are ready to use. Customize only what
+                  this checkout needs.
+                </p>
+              </div>
+              <Field label="Browser profile">
+                <div className="flex items-center gap-2">
+                  <select
+                    aria-label="Browser profile"
+                    className={inputClass}
+                    value={form.browserProfileId ?? ''}
+                    onChange={(e) =>
+                      set('browserProfileId', e.target.value || null)
+                    }
+                  >
+                    <option value="">Project default</option>
+                    {currentProject.browserProfiles.map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    aria-label="New browser profile"
+                    className={`${buttonClass} shrink-0`}
+                    onClick={() => setAddingProfile(true)}
+                  >
+                    <Plus size={12} className="mr-1 inline" /> New
+                  </button>
+                </div>
+              </Field>
+              <p className="-mt-2 text-[11px] text-neutral-500">
+                Profiles keep separate browser cookies for environments and
+                accounts.
+              </p>
+              <Text
+                label="Checkout label (optional)"
+                value={form.label}
+                onChange={(value) => set('label', value)}
+                placeholder="Defaults to the machine name"
+              />
+              <details className="rounded-lg border border-neutral-800 p-3">
+                <summary className="cursor-pointer text-xs text-neutral-400">
+                  Advanced checkout settings
+                </summary>
+                <div className="mt-3 grid gap-3">
+                  <Text
+                    label="Folder filter (optional glob or /regex/)"
+                    value={form.folderFilter}
+                    onChange={(value) => set('folderFilter', value)}
+                    placeholder="myapp-*"
+                  />
+                  <Text
+                    label="App subdirectory (optional, relative)"
+                    value={form.appSubdirectory}
+                    onChange={(value) => set('appSubdirectory', value)}
+                    placeholder="apps/web"
+                  />
+                  <p className="text-[11px] text-neutral-500">
+                    Overrides apply to this checkout. Blank values inherit
+                    project settings.
+                  </p>
+                  <Text
+                    label="Browser URL override"
+                    value={form.overrides.browserUrl ?? ''}
+                    onChange={(value) =>
+                      override({ browserUrl: value || undefined })
+                    }
+                  />
+                  <Text
+                    label="Terminal startup override"
+                    value={form.overrides.terminalStartup ?? ''}
+                    onChange={(value) =>
+                      override({ terminalStartup: value || undefined })
+                    }
+                  />
+                  <label className="flex gap-2 text-xs text-neutral-400">
+                    <input
+                      type="checkbox"
+                      checked={form.overrides.services !== undefined}
+                      onChange={(e) =>
+                        override({
+                          services: e.target.checked
+                            ? structuredClone(currentProject.services)
+                            : undefined
+                        })
+                      }
+                    />{' '}
+                    Override service commands on this machine
+                  </label>
+                  {form.overrides.services && (
+                    <ServiceEditor
+                      services={form.overrides.services}
+                      onChange={(value) => override({ services: value })}
+                    />
+                  )}
+                </div>
+              </details>
+            </>
+          )}
+          {step === 3 && (
+            <>
+              <div>
+                <h3 className="text-sm font-medium">
+                  Ready to add this checkout
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+                  Review the machine and folders. You’ll be able to open the
+                  checkout directly or browse its workspaces.
+                </p>
+              </div>
+              <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-3 rounded-lg border border-neutral-800 bg-neutral-950 p-4 text-xs">
+                <dt className="text-neutral-500">Project</dt>
+                <dd>{project.label}</dd>
+                <dt className="text-neutral-500">Machine</dt>
+                <dd>
+                  {host?.label}
+                  {host?.kind === 'ssh' && (
+                    <span className="ml-2 text-neutral-600">
+                      {host.username}@{host.host}
+                    </span>
+                  )}
+                </dd>
+                <dt className="text-neutral-500">Checkout</dt>
+                <dd className="break-all font-mono">{form.checkoutPath}</dd>
+                <dt className="text-neutral-500">Workspace root</dt>
+                <dd className="break-all font-mono">{form.workspacesRoot}</dd>
+                <dt className="text-neutral-500">Browser</dt>
+                <dd>
+                  {currentProject.browserProfiles.find(
+                    (profile) =>
+                      profile.id ===
+                      (form.browserProfileId ||
+                        currentProject.defaultBrowserProfileId)
+                  )?.label || 'Project default'}
+                </dd>
+                {form.appSubdirectory && (
+                  <>
+                    <dt className="text-neutral-500">App folder</dt>
+                    <dd className="break-all font-mono">
+                      {form.appSubdirectory}
+                    </dd>
+                  </>
+                )}
+                {form.folderFilter && (
+                  <>
+                    <dt className="text-neutral-500">Folder filter</dt>
+                    <dd className="break-all font-mono">{form.folderFilter}</dd>
+                  </>
+                )}
+                <dt className="text-neutral-500">Commands</dt>
+                <dd>
+                  {form.overrides.services === undefined &&
+                  !form.overrides.terminalStartup
+                    ? 'Use project settings'
+                    : 'Checkout overrides'}
+                </dd>
+              </dl>
+              <p className="text-[11px] text-neutral-500">
+                Saving adds configuration to mxwl. Your existing checkout stays
+                where it is.
+              </p>
+            </>
           )}
         </div>
         {error && (
@@ -1195,16 +1357,39 @@ function LocationEditor({
             {error}
           </p>
         )}
-        <div className="mt-4 flex justify-end gap-2">
-          <button type="button" className={buttonClass} onClick={onClose}>
+        <div className="mt-5 flex items-center gap-2 border-t border-neutral-800 pt-4">
+          <button
+            type="button"
+            className={`${buttonClass} mr-auto`}
+            disabled={busy}
+            onClick={onClose}
+          >
             Cancel
           </button>
+          {step > (location?.builtinLocal ? 1 : 0) && (
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={busy}
+              onClick={() => {
+                setError('')
+                setStep(step - 1)
+              }}
+            >
+              Back
+            </button>
+          )}
           <button
             className={primaryClass}
             type="submit"
-            disabled={busy || !form.hostId || !form.checkoutPath.trim()}
+            disabled={
+              busy ||
+              !host ||
+              (step > 0 &&
+                (!form.checkoutPath.trim() || !form.workspacesRoot.trim()))
+            }
           >
-            Save project host
+            {busy ? 'Saving…' : step === 3 ? 'Save project host' : 'Continue'}
           </button>
         </div>
       </form>

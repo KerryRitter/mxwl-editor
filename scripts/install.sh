@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Downloads the release AppImage, verifies its published checksum, and installs
 # it for this user. Re-running safely replaces ~/.local/bin/mxwl.
-release_version="${MXWL_VERSION:-0.2.0-alpha.5}"
+release_version="${MXWL_VERSION:-0.2.0-alpha.6}"
 asset_name="mxwl-${release_version}.AppImage"
 release_url="https://github.com/KerryRitter/mxwl-editor/releases/download/v${release_version}"
 bin_dir="${MXWL_BIN_DIR:-$HOME/.local/bin}"

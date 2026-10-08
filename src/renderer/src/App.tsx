@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FC } from 'react'
 import {
   Bot,
   Minus,
+  PanelLeftOpen,
   Plus,
   Rocket,
   Server,
@@ -19,7 +20,7 @@ import { usePluginsStore } from './store/plugins'
 import { useProjectsStore } from './store/projects'
 import { useProjectNavigation } from './store/projectNavigation'
 import { WorkspaceHome } from './components/ProjectManager'
-import { WorkspaceTabs } from './components/WorkspaceTabs'
+import { WorkspaceExplorer } from './components/WorkspaceExplorer'
 import { WorkspaceView } from './components/WorkspaceView'
 import { SettingsModal } from './components/SettingsModal'
 import { NewWorkspaceModal } from './components/NewWorkspaceModal'
@@ -27,7 +28,11 @@ import { CommandPalette, type SpotlightMode } from './components/CommandPalette'
 import { AiTaskModal } from './components/AiTaskModal'
 import { TicketLaunchModal } from './components/TicketLaunchModal'
 import { AgentNotificationBell } from './components/AgentNotificationBell'
-import type { AiRunState } from '../../shared/types'
+import type {
+  AiRunState,
+  WorkspaceState,
+  WorkspaceStatus
+} from '../../shared/types'
 import brandIcon from '../../../resources/icons/icon_128.png'
 
 const UI_ZOOM_LEVELS = [0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2] as const
@@ -53,12 +58,20 @@ const App: FC = () => {
   const workspaces = useWorkspacesStore((s) => s.workspaces)
   const activeId = useWorkspacesStore((s) => s.activeId)
   const loadWorkspaces = useWorkspacesStore((s) => s.load)
+  const applyWorkspaceEvent = useWorkspacesStore((s) => s.applyEvent)
   const closeWs = useWorkspacesStore((s) => s.close)
   const setActive = useWorkspacesStore((s) => s.setActive)
   const newModalOpen = useWorkspacesStore((s) => s.newModalOpen)
   const setNewModalOpen = useWorkspacesStore((s) => s.setNewModalOpen)
   const clearEditorWs = useEditorStore((s) => s.clearWs)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [explorerOpen, setExplorerOpen] = useState(
+    () => localStorage.getItem('mxwl.explorerOpen') !== 'false'
+  )
+  const toggleExplorer = (open: boolean): void => {
+    localStorage.setItem('mxwl.explorerOpen', String(open))
+    setExplorerOpen(open)
+  }
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteMode, setPaletteMode] = useState<SpotlightMode>('all')
   const [ticketLaunchOpen, setTicketLaunchOpen] = useState(false)
@@ -112,10 +125,15 @@ const App: FC = () => {
 
   const activeWorkspace = workspaces.find((w) => w.id === activeId)
   useEffect(() => {
-    if (activeWorkspace)
-      useProjectNavigation
-        .getState()
-        .select(activeWorkspace.projectId, activeWorkspace.hostId)
+    if (activeWorkspace) {
+      const navigation = useProjectNavigation.getState()
+      navigation.select(activeWorkspace.projectId, activeWorkspace.hostId)
+      navigation.rememberWorkspace(
+        activeWorkspace.projectId,
+        activeWorkspace.hostId,
+        activeWorkspace.id
+      )
+    }
   }, [activeWorkspace?.projectId, activeWorkspace?.hostId, activeId])
 
   // Runs are driven from the main process; workspace/terminal changes arrive
@@ -126,6 +144,21 @@ const App: FC = () => {
     )
     return off
   }, [applyRun])
+
+  // Workspace updates must keep flowing even when the navigator is collapsed.
+  useEffect(
+    () =>
+      window.api.on('workspace:event', (...args: unknown[]) => {
+        const payload = args[0] as {
+          id: string
+          status: WorkspaceStatus
+          state?: WorkspaceState
+        }
+        if (payload?.id)
+          applyWorkspaceEvent(payload.id, payload.status, payload.state)
+      }),
+    [applyWorkspaceEvent]
+  )
 
   // Agent transcripts stream from main whether or not the panel is on screen,
   // so the subscription belongs here rather than in the panel.
@@ -216,7 +249,19 @@ const App: FC = () => {
   return (
     <div className="flex h-screen flex-col bg-neutral-950 text-neutral-100">
       <header className="flex items-center gap-4 border-b border-neutral-700 bg-neutral-950 px-4 py-2">
-        <span className="app-brand"><img src={brandIcon} alt="" /><span>mxwl</span></span>
+        {!explorerOpen && (
+          <button
+            onClick={() => toggleExplorer(true)}
+            title="Show workspace explorer"
+            className="text-neutral-500 hover:text-neutral-200"
+          >
+            <PanelLeftOpen size={15} />
+          </button>
+        )}
+        <span className="app-brand">
+          <img src={brandIcon} alt="" />
+          <span>mxwl</span>
+        </span>
         <span className="hidden font-mono text-[10px] tracking-[.09em] text-neutral-500 xl:block">
           YOUR WORKSPACE, TOGETHER.
         </span>
@@ -329,20 +374,27 @@ const App: FC = () => {
         </div>
       </header>
 
-      <WorkspaceTabs />
-
-      <div className="relative min-h-0 flex-1">
-        {!activeId && <WorkspaceHome />}
-        {workspaces.map((w) => (
-          <div
-            key={w.id}
-            className={`absolute inset-0 ${
-              w.id === activeId ? 'z-10' : 'invisible pointer-events-none z-0'
-            }`}
-          >
-            <WorkspaceView ws={w} active={w.id === activeId} />
+      <div className="flex min-h-0 flex-1">
+        {explorerOpen && (
+          <WorkspaceExplorer onCollapse={() => toggleExplorer(false)} />
+        )}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative min-h-0 flex-1">
+            {!activeId && <WorkspaceHome />}
+            {workspaces.map((w) => (
+              <div
+                key={w.id}
+                className={`absolute inset-0 ${
+                  w.id === activeId
+                    ? 'z-10'
+                    : 'invisible pointer-events-none z-0'
+                }`}
+              >
+                <WorkspaceView ws={w} active={w.id === activeId} />
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
 
       {settingsOpen && (

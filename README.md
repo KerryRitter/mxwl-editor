@@ -8,7 +8,7 @@ Browser, code review, terminals, services, and coding agents—locked to the sam
 
 [![Release](https://img.shields.io/github/v/release/KerryRitter/mxwl-editor?include_prereleases&sort=semver&style=flat-square&color=8b5cf6)](https://github.com/KerryRitter/mxwl-editor/releases) [![CI](https://img.shields.io/github/actions/workflow/status/KerryRitter/mxwl-editor/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/KerryRitter/mxwl-editor/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/KerryRitter/mxwl-editor?style=flat-square)](./LICENSE) [![Linux](https://img.shields.io/badge/Linux-AppImage%20%7C%20deb-0ea5e9?style=flat-square&logo=linux&logoColor=white)](#install) [![macOS](https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-64748b?style=flat-square&logo=apple&logoColor=white)](#install)
 
-[Install](#install) · [See what it does](#one-folder-one-command-center) · [Control your agents](#run-the-fleet-not-just-one-chat) · [Docs](#docs) · [Latest release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.5)
+[Install](#install) · [See what it does](#one-folder-one-command-center) · [Control your agents](#run-the-fleet-not-just-one-chat) · [Docs](#docs) · [Latest release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.6)
 
 </div>
 
@@ -87,12 +87,12 @@ The installer downloads and verifies the **x86_64 AppImage**, places `mxwl` in `
 
 | Platform | Artifact | Status |
 |---|---|---|
-| Linux x86_64 | [AppImage](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/mxwl-0.2.0-alpha.5.AppImage) · [deb](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/mxwl-editor_0.2.0-alpha.5_amd64.deb) · [checksums](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/SHA256SUMS) | Primary / best tested |
-| macOS Apple Silicon | [arm64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/mxwl-0.2.0-alpha.5-arm64-mac.zip) | Ad-hoc signed, not notarized |
-| macOS Intel | [x64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.5/mxwl-0.2.0-alpha.5-mac.zip) | Ad-hoc signed, not notarized |
+| Linux x86_64 | [AppImage](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.6/mxwl-0.2.0-alpha.6.AppImage) · [deb](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.6/mxwl-editor_0.2.0-alpha.6_amd64.deb) · [checksums](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.6/SHA256SUMS) | Primary / best tested |
+| macOS Apple Silicon | [arm64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.6/mxwl-0.2.0-alpha.6-arm64-mac.zip) | Ad-hoc signed, not notarized |
+| macOS Intel | [x64 zip](https://github.com/KerryRitter/mxwl-editor/releases/download/v0.2.0-alpha.6/mxwl-0.2.0-alpha.6-mac.zip) | Ad-hoc signed, not notarized |
 | Windows | Build from source | Portable build, lightly tested |
 
-All current binaries are on the [`v0.2.0-alpha.5` release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.5).
+All current binaries are on the [`v0.2.0-alpha.6` release](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.6).
 
 <details>
 <summary><strong>Build from source</strong></summary>
@@ -130,7 +130,7 @@ npm run package:win     # portable exe
 Linux source builds can install the AppImage, desktop entry, and icons together:
 
 ```bash
-MXWL_APPIMAGE_PATH="$PWD/dist/mxwl-0.2.0-alpha.5.AppImage" bash scripts/install.sh
+MXWL_APPIMAGE_PATH="$PWD/dist/mxwl-0.2.0-alpha.6.AppImage" bash scripts/install.sh
 ```
 
 The checked-in `resources/icon.png` is the shared brand mark. `npm run icons` exports the
@@ -144,13 +144,41 @@ If the terminal pane fails after an Electron upgrade, rebuild its native module 
 ### First launch
 
 1. In **Projects**, create your app and configure its browser profiles, services, and integrations. The project is saved in mxwl's local app database; no checkout is required yet.
-2. Every project includes a permanent **This machine** host. Choose **Configure checkout** to set its paths, or **Add host** to attach another checkout or SSH/Tailscale machine. The small **New** buttons beside the machine and browser-profile selectors create those without losing your form.
-3. Select the host and **Open workspaces**—each folder becomes a tab containing its browser, code, terminals, and agents.
-4. Use the **Projects → project → host** breadcrumbs to switch. Other projects' workspaces keep running; their tabs appear when you return to that host.
+2. Every project includes a permanent **This machine** host. Choose **Configure checkout** or **Add host** for guided setup: choose a machine, set its folders, adjust optional preferences, then review. **Connect a new machine** guides you through Local, SSH, or Tailscale access and connection testing.
+3. Use **Open checkout** directly from the project overview, or **Other workspaces** to browse folders. Click a folder to open it; **Select multiple** opens several together. The picker inherits your current location and browser profile; use **Change location or profile** for other choices.
+4. The left-hand workspace tree keeps projects, hosts, and open workspaces together. Click a workspace to switch directly, or a host to return to its last-used workspace. Search or collapse the tree as needed. Other workspaces keep running while you switch. The host name in a workspace header also opens a quick switcher.
+
+### Embedded browser automation
+
+Terminal web links, OSC 8 hyperlinks, and chat Markdown or bare URLs open in the workspace's embedded Chromium. A terminal running an animated CLI shows a spinner in its shell tab, the Terminal panel tab, and its workspace row in the left tree, including while another pane is visible.
+
+The workspace MCP bridge starts when an agent or terminal opens. ACP agents receive its MCP server configuration automatically. Use the setup icon beside **MCP** to copy configuration for other clients. The endpoint includes the workspace id, so its browser tools operate on that workspace: `browser_tabs`, `browser_navigate`, `browser_new_tab`, `browser_select_tab`, `browser_evaluate`, `browser_screenshot`, and `browser_connect`.
+
+New terminal shells and ACP agent processes set `PLAYWRIGHT_MCP_CDP_ENDPOINT` to this workspace's CDP endpoint, so `npx @playwright/mcp@latest` connects to embedded Chromium. Copied MCP configuration explicitly passes `--cdp-endpoint` for clients launched elsewhere. Local connections use loopback; SSH workspaces get their own reverse tunnel and show the host-side address in setup.
+
+For Playwright scripts launched in the workspace terminal:
+
+```js
+import { chromium } from 'playwright'
+
+const browser = await chromium.connectOverCDP(process.env.MXWL_CDP_ENDPOINT)
+try {
+  const context = browser.contexts()[0]
+  const page = context.pages()[0] || await context.newPage()
+  await page.goto('http://localhost:3000')
+  // Run locators, assertions, screenshots, etc. on this page.
+} finally {
+  await browser.close() // Disconnects Playwright; keeps mxwl's tabs alive.
+}
+```
+
+Use the existing context. `context.newPage()` creates a visible mxwl tab in the active cookie group; creating independent browser contexts is rejected. The workspace endpoint filters out the editor window and other workspaces. If an MCP auth token is configured, scripts must pass the same Bearer header in `connectOverCDP`'s `headers` option; copied MCP configuration and terminal-launched Playwright MCP include it automatically. These endpoints are available while mxwl is running and the workspace is open.
+
+See the official [Playwright CDP API](https://playwright.dev/docs/api/class-browsertype#browser-type-connect-over-cdp) and [Playwright MCP options](https://github.com/microsoft/playwright-mcp#configuration).
 
 ### Discover your Tailscale machines
 
-Open **Projects → your project → Add host → New** (beside Machine connection) **→ Tailscale** to list machines visible from your local Tailscale connection.
+Choose **Add host → Connect a new machine → Tailscale** to list machines visible from your local Tailscale connection.
 The connection options are **SSH**, **Tailscale**, and **This Machine**. **Manage connections** also has a
 **Discover Tailscale** shortcut.
 No API token is required. Search by name, mesh address, or tag; online machines appear first.
@@ -257,7 +285,7 @@ changes, and unlinking never deletes source. Start with the bundled
 mxwl talks to coding tools through the [Agent Client Protocol](https://agentclientprotocol.com/). Run **Claude Code, Codex, Cursor, Gemini, Kimi, Copilot, Qwen, OpenCode, Goose**, or a custom ACP agent on the same host as the workspace.
 
 - Watch streamed responses, reasoning, tool calls, plans, diffs, permissions, and usage inline.
-- See `working`, `idle`, `blocked`, and `failed` state directly on workspace tabs.
+- See agent activity directly on workspace rows in the left tree.
 - Switch the bell from the attention inbox to a live fleet view spanning local and SSH hosts.
 - Configure delivery, delay, sound, active-workspace suppression, and per-agent notification muting.
 - Keep the runtime resident in the system tray and optionally launch it at login.
@@ -317,13 +345,13 @@ Ordinary PTYs reopen as fresh shells after a process restart, and ACP cannot res
 
 ## One app, many machines. One machine, many apps.
 
-The app follows **Projects → Hosts → Workspaces**. Projects live in mxwl's local app database and own shared app behavior. Hosts are configured beneath a project with their checkout/worktree paths. Workspaces are open folders or branches, displayed as tabs within that project and host.
+The workspace tree organizes **Projects → Hosts → Workspaces** in one persistent view. Projects live in mxwl's local app database and own shared app behavior. Hosts are configured beneath a project with their checkout/worktree paths. Workspaces are open folders or branches, displayed beneath their host in the left tree. Hover a workspace for rename and close controls, or double-click its name or press F2 to rename it.
 
-Create the project first, configure its permanent **This machine** checkout or add other hosts, then open workspace tabs. The automatic local host cannot be removed; it does not guess paths or start services. Breadcrumbs switch the visible project/host without closing any workspace. Closing the last tab keeps you on the same host. Browser cookies and saved runtime state remain isolated per project, host checkout, folder, and browser profile.
+Create the project first, configure its permanent **This machine** checkout or add other hosts with the setup wizard, then open workspaces from the overview or the host's **+** button. The automatic local host cannot be removed; it does not guess paths or start services. The tree switches directly between workspaces without closing them. Closing the last workspace on a host keeps you on the same project's overview. Browser cookies and saved runtime state remain isolated per project, host checkout, folder, and browser profile.
 
 Shared settings include services, URL/ticket naming, file exclusions, AI task setup, and per-project plugin visibility. Global **Settings → Accounts** holds reusable integration credentials. **Manage connections** is a reusable connection library, not an alternate workspace hierarchy: one machine can serve several projects, and one project can use several machines. No legacy host-app settings are automatically migrated.
 
-![Projects contain hosts; workspaces open as tabs within a host](./docs/assets/mxwl-project-hosts.png)
+![Projects contain hosts and their open workspaces](./docs/assets/mxwl-project-hosts.png)
 
 See [Projects → Hosts → Workspaces](./docs/presets.md) for setup, inheritance, secrets, and monorepos.
 
@@ -406,7 +434,7 @@ npm --prefix website run verify
 | [Agent runtime](./docs/agent.md) | ACP agents, conversations, permissions, and modes |
 | [Agent control](./docs/agent-control.md) | Notifications, fleet view, CLI, dashboard, and API |
 | [AI task runs](./docs/ai.md) | Planning and running work across several workspaces |
-| [Projects → Hosts → Workspaces](./docs/presets.md) | Project-first setup, host-scoped workspace tabs, browser profiles, services, and overrides |
+| [Projects → Hosts → Workspaces](./docs/presets.md) | Project-first setup, workspace tree, browser profiles, services, and overrides |
 | [Tailscale & phone access](./docs/tailscale.md) | Discover machines, configure SSH authentication, and reach the mobile dashboard over your tailnet |
 | [GitHub integration](./docs/github.md) | Issues, pull requests, CLI/token authentication, Enterprise hosts, and issue worktree launching |
 | [Cookie sandboxes](./docs/tab-groups.md) | Browser identity isolation and tab groups |
@@ -421,7 +449,7 @@ npm --prefix website run verify
 
 ## Release status
 
-Current release: **[`v0.2.0-alpha.5`](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.5)**
+Current release: **[`v0.2.0-alpha.6`](https://github.com/KerryRitter/mxwl-editor/releases/tag/v0.2.0-alpha.6)**
 
 Linux is the primary platform. macOS artifacts are ad-hoc signed but not notarized. Windows is buildable as a portable executable and is still lightly tested. There is no auto-updater yet.
 

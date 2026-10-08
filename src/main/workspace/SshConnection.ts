@@ -16,6 +16,7 @@ export interface ShellOptions {
   rows: number
   cwd?: string
   term?: string
+  env?: Record<string, string>
 }
 
 export interface ExecResult {
@@ -29,6 +30,7 @@ export interface ExecOptions {
 }
 
 export class SshConnection extends EventEmitter {
+  readonly kind = 'ssh' as const
   readonly hostId: string
   private host: HostConfig
   private client: Client | null = null
@@ -204,6 +206,17 @@ export class SshConnection extends EventEmitter {
       term: opts.term ?? 'xterm-256color'
     }
     return new Promise<ClientChannel>((resolve, reject) => {
+      if (opts.env && Object.keys(opts.env).length) {
+        const environment = Object.entries(opts.env).map(([name, value]) => shellQuote(`${name}=${value}`)).join(' ')
+        const cwd = opts.cwd ? `cd ${shellQuote(opts.cwd)} && ` : ''
+        // Exec with a PTY sets the environment without echoing credentials into
+        // terminal output or adding an export command to shell history.
+        this.client!.exec(`${cwd}exec env ${environment} "\${SHELL:-/bin/bash}" -il`, { pty: window }, (err, stream) => {
+          if (err) return reject(err)
+          resolve(stream)
+        })
+        return
+      }
       this.client!.shell(window, (err, stream) => {
         if (err) return reject(err)
         if (opts.cwd) stream.write(`cd ${shellQuote(opts.cwd)}\n`)

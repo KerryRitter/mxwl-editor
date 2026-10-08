@@ -23,7 +23,7 @@ import type {
   AgentTranscriptMeta
 } from '../../../shared/types'
 import { useAgentStore, type AgentCatalogEntry, type AgentNote } from '../store/agent'
-import { BlockView, ToolContentView } from './AgentBlocks'
+import { BlockView, Markdown, ToolContentView } from './AgentBlocks'
 import { AgentComposer } from './AgentComposer'
 
 type AgentPanelProps = {
@@ -102,14 +102,7 @@ export const AgentPanel: FC<AgentPanelProps> = ({ wsId, persistenceKey, visible 
   }
 
   if (!session)
-    return (
-      <StartScreen
-        catalog={catalog}
-        busy={busy}
-        note={note}
-        onOpen={openRemembered}
-      />
-    )
+    return <StartScreen catalog={catalog} busy={busy} note={note} onOpen={openRemembered} />
 
   const running = session.turn !== 'idle'
   const live = session.status === 'ready'
@@ -251,9 +244,7 @@ export const AgentPanel: FC<AgentPanelProps> = ({ wsId, persistenceKey, visible 
       {(session.error || note) && (
         <div
           className={`flex items-start gap-2 border-t border-neutral-800 px-2 py-1 text-[11px] ${
-            note?.tone === 'info'
-              ? 'bg-neutral-900 text-neutral-400'
-              : 'bg-red-950/30 text-red-300'
+            note?.tone === 'info' ? 'bg-neutral-900 text-neutral-400' : 'bg-red-950/30 text-red-300'
           }`}
         >
           <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
@@ -283,6 +274,7 @@ export const AgentPanel: FC<AgentPanelProps> = ({ wsId, persistenceKey, visible 
         commands={session.commands}
         disabled={!live || archive !== null}
         running={running}
+        visible={visible}
         placeholder={
           archive
             ? 'Viewing a saved conversation — go back to live to reply'
@@ -389,7 +381,7 @@ const MessageView: FC<{ message: AgentMessage }> = ({ message }) => {
     return (
       <div className="flex justify-end">
         <div className="max-w-[85%] whitespace-pre-wrap break-words rounded bg-neutral-800 px-2 py-1 text-[12px] text-neutral-200">
-          {text}
+          <Markdown text={text} />
         </div>
       </div>
     )

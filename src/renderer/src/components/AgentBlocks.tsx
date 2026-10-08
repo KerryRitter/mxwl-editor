@@ -90,10 +90,10 @@ const Prose: FC<{ text: string }> = ({ text }) => (
   </div>
 )
 
-/** `code`, **bold** and *italic*, in one pass so nesting can't run away. */
+/** Code, emphasis, Markdown links and bare web URLs. React escapes all content. */
 function inline(text: string): ReactNode[] {
   const out: ReactNode[] = []
-  const re = /`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*/g
+  const re = /`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*|\[([^\]]+)\]\((https?:\/\/[^\s]+?)\)|https?:\/\/[^\s<>]+/g
   let last = 0
   let m: RegExpExecArray | null
   let key = 0
@@ -111,12 +111,27 @@ function inline(text: string): ReactNode[] {
           {m[2]}
         </strong>
       )
-    } else {
+    } else if (m[3] != null) {
       out.push(
         <em key={key++} className="italic">
           {m[3]}
         </em>
       )
+    } else {
+      const raw = m[5] ?? m[0]
+      let href = raw
+      if (!m[5]) {
+        href = href.replace(/[.,;:!?]+$/, '')
+        while (href.endsWith(')') && (href.match(/\)/g)?.length ?? 0) > (href.match(/\(/g)?.length ?? 0)) {
+          href = href.slice(0, -1)
+        }
+      }
+      out.push(
+        <a key={key++} href={href} className="text-sky-300 underline decoration-sky-500/40 hover:text-sky-200">
+          {m[4] ?? href}
+        </a>
+      )
+      if (href.length < raw.length) out.push(raw.slice(href.length))
     }
     last = re.lastIndex
   }

@@ -12,9 +12,7 @@ import { ArrowUp, FileCode2, Square, Terminal } from 'lucide-react'
 import type { AgentCommand } from '../../../shared/types'
 import { matchCommands } from '../../../shared/agentCommands'
 
-type Suggestion =
-  | { kind: 'command'; cmd: AgentCommand }
-  | { kind: 'file'; path: string }
+type Suggestion = { kind: 'command'; cmd: AgentCommand } | { kind: 'file'; path: string }
 
 type AgentComposerProps = {
   wsId: string
@@ -22,6 +20,7 @@ type AgentComposerProps = {
   commands: AgentCommand[]
   disabled: boolean
   running: boolean
+  visible: boolean
   placeholder: string
   onSend: (text: string) => void
   onCancel: () => void
@@ -47,12 +46,13 @@ export const AgentComposer: FC<AgentComposerProps> = ({
   commands,
   disabled,
   running,
+  visible,
   placeholder,
   onSend,
   onCancel
 }) => {
   const draftKey = persistenceKey ? `${persistenceKey}.agentDraft` : null
-  const [text, setText] = useState(() => (draftKey ? localStorage.getItem(draftKey) ?? '' : ''))
+  const [text, setText] = useState(() => (draftKey ? (localStorage.getItem(draftKey) ?? '') : ''))
   const [caret, setCaret] = useState(0)
   const [files, setFiles] = useState<string[]>([])
   const [index, setIndex] = useState(0)
@@ -65,7 +65,10 @@ export const AgentComposer: FC<AgentComposerProps> = ({
     else localStorage.removeItem(draftKey)
   }, [draftKey, text])
 
-  const trigger = useMemo(() => (dismissed ? null : triggerAt(text, caret)), [text, caret, dismissed])
+  const trigger = useMemo(
+    () => (dismissed ? null : triggerAt(text, caret)),
+    [text, caret, dismissed]
+  )
 
   useEffect(() => {
     if (trigger?.kind !== '@') {
@@ -99,18 +102,19 @@ export const AgentComposer: FC<AgentComposerProps> = ({
 
   const grow = useCallback(() => {
     const el = ref.current
-    if (!el) return
+    if (!el || el.getClientRects().length === 0) return
     el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`
+    el.style.height = `${Math.max(80, Math.min(el.scrollHeight + 2, 240))}px`
   }, [])
 
-  useLayoutEffect(grow, [text, grow])
+  useLayoutEffect(() => {
+    if (visible) grow()
+  }, [text, visible, grow])
 
   const accept = useCallback(
     (choice: Suggestion) => {
       if (!trigger) return
-      const insert =
-        choice.kind === 'command' ? `/${choice.cmd.name} ` : `@${choice.path} `
+      const insert = choice.kind === 'command' ? `/${choice.cmd.name} ` : `@${choice.path} `
       const next = text.slice(0, trigger.start) + insert + text.slice(caret)
       const pos = trigger.start + insert.length
       setText(next)
@@ -174,7 +178,7 @@ export const AgentComposer: FC<AgentComposerProps> = ({
   }
 
   return (
-    <div className="relative border-t border-neutral-800 bg-neutral-950 px-2 py-1.5">
+    <div className="relative shrink-0 border-t border-neutral-800 bg-neutral-950 px-2 py-2">
       {suggestions.length > 0 && (
         <div className="absolute bottom-full left-2 right-2 z-10 mb-1 max-h-60 overflow-auto rounded border border-neutral-800 bg-neutral-900 shadow-lg">
           {suggestions.map((s, i) => (
@@ -219,7 +223,7 @@ export const AgentComposer: FC<AgentComposerProps> = ({
       <div className="flex items-end gap-1.5">
         <textarea
           ref={ref}
-          rows={1}
+          rows={3}
           value={text}
           placeholder={placeholder}
           disabled={disabled}
@@ -227,7 +231,7 @@ export const AgentComposer: FC<AgentComposerProps> = ({
           onKeyUp={(e) => setCaret(e.currentTarget.selectionStart)}
           onClick={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={onKeyDown}
-          className="max-h-[200px] flex-1 resize-none rounded border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-[12px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-neutral-700 disabled:opacity-50"
+          className="min-h-[80px] max-h-[240px] min-w-0 flex-1 resize-none rounded border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm leading-5 text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-neutral-700 disabled:opacity-50"
         />
         {running ? (
           <button

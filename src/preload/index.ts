@@ -187,6 +187,8 @@ const api = {
       ipcRenderer.invoke('fs:delete', { wsId, path, isDir })
   },
   browser: {
+    openLink: (wsId: string, url: string): Promise<string> =>
+      ipcRenderer.invoke('browser:openLink', { wsId, url }),
     ensureTab: (wsId: string, url?: string): Promise<string> =>
       ipcRenderer.invoke('browser:ensureTab', { wsId, url }),
     newTab: (wsId: string, url?: string, groupId?: string): Promise<string> =>
@@ -404,7 +406,7 @@ const api = {
       ipcRenderer.invoke('pr:get', wsId)
   },
   mcp: {
-    status: (): Promise<McpStatus> => ipcRenderer.invoke('mcp:status'),
+    status: (wsId?: string): Promise<McpStatus> => ipcRenderer.invoke('mcp:status', wsId),
     enable: (wsId: string): Promise<McpStatus> =>
       ipcRenderer.invoke('mcp:enable', wsId),
     disable: (wsId: string): Promise<McpStatus> =>

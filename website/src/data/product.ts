@@ -2,7 +2,7 @@ import guideData from './guides.json';
 
 export const product = {
   name: 'mxwl',
-  version: '0.2.0-alpha.5',
+  version: '0.2.0-alpha.6',
   repository: 'https://github.com/KerryRitter/mxwl-editor',
   installer:
     'curl -fsSL https://raw.githubusercontent.com/KerryRitter/mxwl-editor/main/scripts/install.sh | bash',

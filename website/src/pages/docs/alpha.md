@@ -5,7 +5,7 @@ description: "Supported platforms and the edges we are still smoothing out."
 source: "ALPHA.md"
 ---
 
-mxwl is an **early alpha** desktop tool (`0.2.0-alpha.5`). Expect sharp edges. Use at your own risk on non-production machines first.
+mxwl is an **early alpha** desktop tool (`0.2.0-alpha.6`). Expect sharp edges. Use at your own risk on non-production machines first.
 
 ## Supported today
 

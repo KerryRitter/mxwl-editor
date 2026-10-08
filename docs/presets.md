@@ -1,7 +1,7 @@
 # Projects → Hosts → Workspaces
 
-Create a **project** in mxwl, configure its **hosts**, then open **workspaces as tabs**
-within a host. A project is app configuration stored in mxwl's local app database,
+Create a **project** in mxwl, configure its **hosts**, then open **workspaces**
+beneath a host in the left tree. A project is app configuration stored in mxwl's local app database,
 not a folder that must already exist. A host is where that project's checkouts live.
 Several projects can share a machine, and a project can use several machines.
 
@@ -16,23 +16,35 @@ Several projects can share a machine, and a project can use several machines.
 | Workspace | One working folder, its project/location/profile identity, browser/editor/terminal/agent runtime and recovery state |
 
 The selected project and host are navigation context, not global runtime configuration.
-Switching context hides other workspace tabs without stopping their services or agents.
-Breadcrumbs return to Projects, a project's Hosts, or the selected host's workspaces.
-Closing the last workspace tab keeps you on that host, rather than opening another app.
+Switching workspaces keeps their services, terminals, and agents running.
+The persistent workspace tree shows projects, hosts, and open workspaces together.
+Click a workspace to switch directly; click a host to return to its last-used open
+workspace, or its project overview if none are open. Search the tree to find a project,
+host, or workspace, and use its collapse button when you need more editing space.
+Hover a workspace for rename and close controls, or double-click its name or press F2
+to rename it. Terminal and agent activity appear beside each workspace. Closing the
+last workspace on a host returns to that project's overview with the host selected.
 
 ## Set up an app
 
 1. In **Projects**, choose **Add project**. Name your app and configure shared settings.
    Repository URL is optional. Every project automatically includes **This machine**:
    it is always available and cannot be removed or reassigned to a remote connection.
-2. Choose **Configure checkout** on This machine, or **Hosts → Add host** for another
-   checkout or machine. Choose a saved machine connection or the small **New** button
-   beside its selector for SSH or Tailscale. Adding a connection
-   returns you to the same project-host form without discarding checkout settings.
-3. Set its checkout path and worktrees/workspaces root, then **Save project host**.
+2. Choose **Configure checkout** on This machine, or **Add host** for another checkout
+   or machine. The wizard separates **Machine**, **Folders**, **Preferences**, and
+   **Review**. Choose a saved machine or **Connect a new machine** to set up Local,
+   SSH, or Tailscale access. New connections have their own guided test-and-save step;
+   an explicit **Save without connecting for now** option supports offline machines.
+   After saving the connection, continue directly to the checkout folders.
+3. Set the checkout path and worktrees/workspaces root. The root is suggested from
+   your checkout path until you edit it yourself. Choose a browser profile in
+   **Preferences**; folder filters, app subdirectories, and machine-specific overrides
+   are under **Advanced checkout settings**. Review, then **Save project host**.
    This attaches existing code; it never clones or starts services automatically.
-4. Select that host's **Workspaces → Open workspaces**. Choose a browser profile, then
-   one or more working folders. The checkout is included even when a worktree filter
+4. From the overview, choose **Open checkout** to open it immediately, or **Other
+   workspaces** to browse related working folders. Click a folder to open it, or use
+   **Select multiple**. The picker inherits your location and browser profile;
+   **Change location or profile** exposes the other choices. The checkout is included even when a worktree filter
    excludes its basename. Without a filter, discovery lists that repository's Git
    worktrees and project/checkout-prefixed folders, not unrelated apps.
 5. Add further hosts to this project for other machines. Add separate projects for

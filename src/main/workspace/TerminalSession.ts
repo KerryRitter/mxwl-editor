@@ -4,6 +4,7 @@ import type { ChannelLike } from './LocalConnection'
 import type { SshConnection } from './SshConnection'
 import type { LocalConnection } from './LocalConnection'
 import { shellQuote } from './util'
+import { TerminalActivity } from './TerminalActivity'
 
 type Conn = SshConnection | LocalConnection
 
@@ -17,6 +18,7 @@ export type TerminalSessionOptions = {
   cwd: string
   cols: number
   rows: number
+  env?: Record<string, string>
   label?: string
   aiTaskId?: string
   tmuxName?: string
@@ -24,6 +26,7 @@ export type TerminalSessionOptions = {
   getSender: () => BrowserWindow | null
   onClosed?: (sessionId: string) => void
   onOutput?: () => void
+  onActivity?: (busy: boolean) => void
 }
 
 export class TerminalSession {
@@ -41,6 +44,8 @@ export class TerminalSession {
   private disposed = false
   private replayBuf = ''
   private watchers = new Set<(chunk: string) => void>()
+  private activity: TerminalActivity
+  private env?: Record<string, string>
 
   constructor(opts: TerminalSessionOptions) {
     this.id = opts.id ?? randomUUID()
@@ -53,6 +58,8 @@ export class TerminalSession {
     this.getSender = opts.getSender
     this.onClosed = opts.onClosed
     this.onOutput = opts.onOutput
+    this.activity = new TerminalActivity((busy) => opts.onActivity?.(busy))
+    this.env = opts.env
     if (opts.initialReplay !== undefined) {
       const marker = this.tmuxName
         ? `[restored after restart — reattaching tmux:${this.tmuxName}]`
@@ -62,7 +69,7 @@ export class TerminalSession {
   }
 
   async start(cols: number, rows: number): Promise<void> {
-    this.stream = (await this.conn.shell({ cols, rows, cwd: this.cwd })) as ChannelLike
+    this.stream = (await this.conn.shell({ cols, rows, cwd: this.cwd, env: this.env })) as ChannelLike
     this.stream.on('data', (d: unknown) => this.send(Buffer.isBuffer(d) ? d.toString() : String(d)))
     this.stream.stderr.on('data', (d: unknown) =>
       this.send(Buffer.isBuffer(d) ? d.toString() : String(d))
@@ -81,6 +88,10 @@ export class TerminalSession {
   /** Buffered output, so a re-mounted pane doesn't come back blank. */
   replay(): string {
     return this.replayBuf
+  }
+
+  get busy(): boolean {
+    return this.activity.busy
   }
 
   /** Smaller than the in-memory replay buffer so session.json stays cheap to rewrite. */
@@ -122,6 +133,7 @@ export class TerminalSession {
 
   async dispose(): Promise<void> {
     this.disposed = true
+    this.activity.dispose()
     this.watchers.clear()
     const s = this.stream
     this.stream = null
@@ -135,6 +147,7 @@ export class TerminalSession {
   }
 
   private send(data: string): void {
+    this.activity.output(data)
     this.replayBuf += data
     if (this.replayBuf.length > REPLAY_LIMIT) {
       this.replayBuf = this.replayBuf.slice(this.replayBuf.length - REPLAY_LIMIT)
@@ -153,6 +166,7 @@ export class TerminalSession {
 
   private notifyClosed(): void {
     if (this.disposed) return
+    this.activity.dispose()
     this.disposed = true
     this.stream = null
     const win = this.getSender()

@@ -37,12 +37,17 @@ test('the setup card streams the command output and counts elapsed time', async 
   // The hosts store is filled at startup, so pick the new host up before driving the UI.
   await page.reload()
   await page.waitForLoadState('domcontentloaded')
+  await expect(
+    page.getByRole('region', { name: 'Project Test project', exact: true })
+  ).toBeVisible()
 
   await page.keyboard.press('Control+Shift+A')
   await page
     .locator('textarea')
     .first()
-    .fill(`in ${repo}, run ./init.sh, then run the qa checks for PLAT-5583 and PLAT-5577`)
+    .fill(
+      `in ${repo}, run ./init.sh, then run the qa checks for PLAT-5583 and PLAT-5577`
+    )
   await page.getByRole('button', { name: 'Plan' }).click()
 
   // The card promises to wait for the command, not for the folders.
@@ -62,7 +67,9 @@ test('the setup card streams the command output and counts elapsed time', async 
 
   // The tail keeps moving: it mirrors the terminal rather than painting once.
   const early = await output.textContent()
-  await expect.poll(() => output.textContent(), { timeout: 20_000 }).not.toBe(early)
+  await expect
+    .poll(() => output.textContent(), { timeout: 20_000 })
+    .not.toBe(early)
 
   // It settles on the last lines of a command that ran well past the tail length.
   await expect(output).toContainText('init complete', { timeout: 60_000 })

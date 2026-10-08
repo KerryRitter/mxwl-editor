@@ -119,7 +119,7 @@ test('all layouts preserve a live editor and safely leave a loaded split/unified
   }
   await preset.selectOption('code')
   await expect(source).toContainText('unsaved layout draft')
-  await page.getByTitle('Save (⌘S)').click()
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect
     .poll(() => readFileSync(file, 'utf8'))
     .toContain('unsaved layout draft')

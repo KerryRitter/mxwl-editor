@@ -2,8 +2,6 @@
 
 The website for **mxwl the editor**. A standalone Astro site with an Omarchy-inspired visual direction, charcoal and lime branding, real product captures, and a complete manual.
 
-The source lives in `website/` in the `KerryRitter/mxwl-editor` repository. This directory has its own package, build, and deployment commands.
-
 ## Run it
 
 Requires Node.js 22.12+.
@@ -34,7 +32,7 @@ QA images and results are in the ignored `.qa/` directory. Set `MXWL_SITE_URL` t
 
 The release version and URLs live in `src/data/product.ts`. Guide metadata lives in `src/data/guides.json`.
 
-The editor source is in the parent directory. Sync its documentation, brand assets, screenshots, and release version:
+With `../mxwl-editor` available, sync the source documentation, brand assets, screenshots, and release version:
 
 ```sh
 npm run assets:sync
@@ -44,10 +42,12 @@ npm run assets:sync -- /path/to/mxwl-editor
 
 This copies documentation into the site and rewrites relative links to site guides or their upstream GitHub source. The site builds independently afterward. The custom full-workspace capture is kept when assets are synced.
 
-To regenerate the branded workspace, review, fleet, host, and Tailscale screenshots, build the editor first, then run the capture script from this directory on a Linux desktop with a display:
+To regenerate the branded workspace, review, fleet, host, and Tailscale screenshots, build the sibling editor first, then run the capture script on a Linux desktop with a display:
 
 ```sh
-npm --prefix .. run build
+cd ../mxwl-editor
+npm run build
+cd ../www.mxwl.work
 node scripts/capture-editor-screenshots.mjs
 ```
 
@@ -55,7 +55,7 @@ The capture uses temporary repositories, a temporary Electron profile, a local d
 
 ## Deploy to mxwl.work
 
-The canonical origin is **https://www.mxwl.work**. `mxwl.work` redirects there, preserving paths and query strings. The `website/` directory owns the editor's website. The previous orchestration application is a separate project.
+The canonical origin is **https://www.mxwl.work**. `mxwl.work` redirects there, preserving paths and query strings. This checkout owns the editor's website; `../mxwl` is the separate, previous orchestration application.
 
 `wrangler.jsonc` deploys the static Astro build to the **www-mxwl-work** Cloudflare Worker, with routes for `mxwl.work/*` and `www.mxwl.work/*` in the existing zone. Wrangler uses your local Cloudflare login; no credentials are stored in this checkout.
 

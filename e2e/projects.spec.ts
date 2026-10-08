@@ -41,7 +41,7 @@ test('host setup is connection-only and project/location setup opens the configu
   await page.getByLabel('Service start', { exact: true }).fill('echo ready')
   await page.getByRole('button', { name: 'Save project', exact: true }).click()
   await expect(
-    page.getByRole('heading', { name: 'Hosts', exact: true })
+    page.getByRole('heading', { name: 'UI App', exact: true })
   ).toBeVisible()
   expect(
     (await page.evaluate(() => window.api.project.list())).map((p) => p.label)
@@ -56,27 +56,33 @@ test('host setup is connection-only and project/location setup opens the configu
   await expect(
     page.getByRole('button', { name: 'Remove host checkout', exact: false })
   ).toHaveCount(0)
-  await page.getByRole('button', { name: 'Add host', exact: false }).click()
+  await page.getByRole('button', { name: '+ Add host', exact: true }).click()
   const machineSelect = page.getByLabel('Machine connection', { exact: true })
-  const newMachine = page.getByRole('button', {
-    name: 'New machine connection',
-    exact: true
-  })
-  const selectBox = await machineSelect.boundingBox()
-  const buttonBox = await newMachine.boundingBox()
-  expect(buttonBox!.x).toBeGreaterThan(selectBox!.x + selectBox!.width)
-  expect(Math.abs(buttonBox!.y - selectBox!.y)).toBeLessThan(5)
+  await expect(
+    page.getByLabel('Repository checkout path', { exact: true })
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Continue', exact: true })
+  ).toBeDisabled()
+  await machineSelect.selectOption(
+    await page.evaluate(async () => (await window.api.host.list())[0].id)
+  )
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page
     .getByLabel('Repository checkout path', { exact: true })
     .fill(checkout)
-  await newMachine.click()
+  await expect(
+    page.getByLabel('Worktrees / workspaces root', { exact: true })
+  ).toHaveValue(workRoot)
+  await page.getByRole('button', { name: 'Back', exact: true }).click()
+  await page
+    .getByRole('button', { name: 'New machine connection', exact: true })
+    .click()
   await expect(
     page.getByRole('button', { name: 'Tailscale', exact: true })
   ).toBeVisible()
-  await expect(page.getByText('Test credentials', { exact: true })).toHaveCount(
-    0
-  )
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await expect(
     page.getByLabel('Repository checkout path', { exact: true })
   ).toHaveValue(checkout)
@@ -96,6 +102,7 @@ test('host setup is connection-only and project/location setup opens the configu
   await page
     .getByLabel('Worktrees / workspaces root', { exact: true })
     .fill(workRoot)
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   await page
     .getByRole('button', { name: 'New browser profile', exact: true })
     .click()
@@ -104,12 +111,14 @@ test('host setup is connection-only and project/location setup opens the configu
   await page
     .getByRole('button', { name: 'Create profile', exact: true })
     .click()
+  await page.getByRole('button', { name: 'Back', exact: true }).click()
   await expect(
     page.getByLabel('Repository checkout path', { exact: true })
   ).toHaveValue(checkout)
   await expect(
     page.getByLabel('Worktrees / workspaces root', { exact: true })
   ).toHaveValue(workRoot)
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
   const profileId = await page.evaluate(
     async () =>
       (await window.api.project.list())[0].browserProfiles.find(
@@ -119,18 +128,24 @@ test('host setup is connection-only and project/location setup opens the configu
   await expect(page.getByLabel('Browser profile', { exact: true })).toHaveValue(
     profileId
   )
+  await page.getByText('Advanced checkout settings', { exact: true }).click()
   await page
     .getByLabel('Folder filter (optional glob or /regex/)', { exact: true })
     .fill('one*')
   await page
     .getByLabel('App subdirectory (optional, relative)', { exact: true })
     .fill('apps/web')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByText(checkout, { exact: true })).toBeVisible()
   await page
     .getByRole('button', { name: 'Save project host', exact: true })
     .click()
   await page
-    .getByRole('button', { name: 'Open workspaces', exact: true })
+    .getByRole('button', { name: 'Other workspaces', exact: true })
     .last()
+    .click()
+  await page
+    .getByRole('button', { name: 'Change location or profile', exact: true })
     .click()
   await expect(page.getByLabel('Workspace project')).toHaveValue(
     await page.evaluate(
@@ -138,7 +153,7 @@ test('host setup is connection-only and project/location setup opens the configu
         (await window.api.project.list()).find((p) => p.label === 'UI App')!.id
     )
   )
-  await page.getByRole('button', { name: 'one', exact: true }).dblclick()
+  await page.getByRole('button', { name: 'one', exact: true }).click()
   await expect
     .poll(() => page.evaluate(() => window.api.workspace.list()))
     .toMatchObject([
@@ -149,10 +164,13 @@ test('host setup is connection-only and project/location setup opens the configu
       }
     ])
   await expect(
-    page.getByRole('button', { name: 'UI App', exact: true })
+    page.getByRole('button', { name: 'Overview of UI App', exact: true })
   ).toBeVisible()
   await expect(
-    page.getByRole('button', { name: 'This machine', exact: true })
+    page.getByRole('button', {
+      name: 'Switch to This machine in UI App',
+      exact: true
+    })
   ).toBeVisible()
   const wsId = await page.evaluate(
     async () => (await window.api.workspace.list())[0].id
@@ -244,8 +262,7 @@ test('This machine persists on each project and cannot be removed or reassigned 
   expect(saved.errors[3]).toContain('cannot be converted')
   await page.reload()
   await page
-    .getByRole('button', { name: 'Hosts · 1', exact: true })
-    .first()
+    .getByRole('button', { name: 'Overview of First app', exact: true })
     .click()
   await expect(
     page.getByRole('heading', { name: 'This machine', exact: true })
@@ -451,7 +468,7 @@ test('multiple apps share hosts without leaking services, URL rules, plugins, or
   ).toBe('')
 })
 
-test('Projects → Hosts scopes workspace tabs and opening defaults without closing other hosts', async ({
+test('workspace tree keeps opening defaults and switches without closing other hosts', async ({
   page,
   workRoot
 }) => {
@@ -498,27 +515,38 @@ test('Projects → Hosts scopes workspace tabs and opening defaults without clos
     { defaults: emptyProject(), root: workRoot }
   )
   await page.reload()
-  const tabs = page.locator('[tabindex="0"][title*="Double-click"]')
-  const projectCard = (name: string) =>
-    page
-      .locator('section')
-      .filter({ has: page.getByRole('heading', { name, exact: true }) })
+  const rows = page.locator('[data-workspace-id]')
+  const active = rows.locator('button[aria-current="page"]')
+  const alphaLocal = rows.getByRole('button', {
+    name: /^Open .+ on This machine in Alpha$/
+  })
+  const hostCard = (name: string, project: string) =>
+    page.getByRole('region', {
+      name: `Host ${name} in ${project}`,
+      exact: true
+    })
   const openProject = async (name: string) => {
-    await page.getByRole('button', { name: 'Projects', exact: true }).click()
-    await projectCard(name)
-      .getByRole('button', { name: /Hosts ·/ })
-      .click()
-  }
-  const openHost = async (name: string) => {
-    await projectCard(name)
-      .getByRole('button', { name: 'Workspaces', exact: true })
-      .click()
-  }
-  const openFolder = async (name: string) => {
     await page
-      .getByRole('button', { name: 'Open workspaces', exact: true })
+      .getByRole('button', { name: `Overview of ${name}`, exact: true })
       .click()
-    await page.getByRole('button', { name, exact: true }).dblclick()
+  }
+  const openHost = async (name: string, project = 'Alpha') => {
+    await page
+      .getByRole('button', {
+        name: `Switch to ${name} in ${project}`,
+        exact: true
+      })
+      .click()
+  }
+  const openFolder = async (
+    name: string,
+    host = 'This machine',
+    project = 'Alpha'
+  ) => {
+    await hostCard(host, project)
+      .getByRole('button', { name: 'Other workspaces', exact: true })
+      .click()
+    await page.getByRole('button', { name, exact: true }).click()
   }
   await openProject('Alpha')
   await expect(
@@ -527,48 +555,52 @@ test('Projects → Hosts scopes workspace tabs and opening defaults without clos
   await expect(
     page.getByRole('heading', { name: 'Build machine', exact: true })
   ).toBeVisible()
-  await openHost('This machine')
   await openFolder('alpha-one')
-  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.keyboard.press('Control+t')
+  await page
+    .getByRole('button', { name: 'Change location or profile', exact: true })
+    .click()
   await expect(page.getByLabel('Workspace project')).toHaveValue(saved.alpha.id)
   await expect(page.getByLabel('Workspace host')).toHaveValue(saved.local.id)
-  await page.getByRole('button', { name: 'alpha-two', exact: true }).dblclick()
-  await expect(tabs).toHaveCount(2)
-  await page.getByRole('button', { name: 'Alpha', exact: true }).click()
-  await openHost('Build machine')
-  await openFolder('remote-one')
-  await expect(tabs).toHaveCount(1)
-  await expect(tabs.first()).toContainText('remote-one')
+  await page.getByRole('button', { name: 'alpha-two', exact: true }).click()
+  await expect(alphaLocal).toHaveCount(2)
+  await openProject('Alpha')
+  await openFolder('remote-one', 'Build machine')
+  await expect(rows).toHaveCount(3)
+  await expect(active).toContainText('remote-one')
   await openProject('Beta')
   await expect(
     page.getByRole('heading', { name: 'Build machine', exact: true })
   ).toHaveCount(0)
-  await openHost('This machine')
-  await openFolder('beta-one')
-  await expect(tabs).toHaveCount(1)
-  await expect(tabs.first()).toContainText('beta-one')
+  await openFolder('beta-one', 'This machine', 'Beta')
+  await expect(rows).toHaveCount(4)
+  await expect(active).toContainText('beta-one')
   expect(
     await page.evaluate(async () => (await window.api.workspace.list()).length)
   ).toBe(4)
   await openProject('Alpha')
   await openHost('This machine')
-  await expect(tabs).toHaveCount(2)
-  await tabs.filter({ hasText: 'alpha-two' }).click()
+  await expect(alphaLocal).toHaveCount(2)
+  await alphaLocal.filter({ hasText: 'alpha-two' }).click()
   await page
     .getByRole('button', { name: 'Close workspace alpha-two', exact: true })
     .click()
-  await expect(tabs).toHaveCount(1)
+  await expect(alphaLocal).toHaveCount(1)
   await page
     .getByRole('button', { name: 'Close workspace alpha-one', exact: true })
     .click()
   await expect(
-    page.getByRole('heading', { name: 'Workspaces', exact: true })
+    page.getByRole('heading', { name: 'Alpha', exact: true })
   ).toBeVisible()
-  await expect(tabs).toHaveCount(0)
+  await expect(alphaLocal).toHaveCount(0)
+  await expect(rows).toHaveCount(2)
   expect(
     await page.evaluate(async () => (await window.api.workspace.list()).length)
   ).toBe(2)
   await page.keyboard.press('Control+t')
+  await page
+    .getByRole('button', { name: 'Change location or profile', exact: true })
+    .click()
   await expect(page.getByLabel('Workspace project')).toHaveValue(saved.alpha.id)
   await expect(page.getByLabel('Workspace host')).toHaveValue(saved.local.id)
 })

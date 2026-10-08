@@ -90,6 +90,10 @@ test('discovers SSH peers, saves Tailscale auth as a remote host, and preserves 
     'alice'
   )
   await page.getByLabel('Username', { exact: true }).fill('remote-user')
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await page
+    .getByRole('checkbox', { name: 'Save without connecting for now' })
+    .check()
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(
     page.getByText('remote-user@100.64.0.2:22', { exact: true })
@@ -148,6 +152,7 @@ test('explains a missing Tailscale install and supports refresh', async ({
   await expect(
     page.getByRole('dialog', { name: 'Tailscale devices' })
   ).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'Machine connections', exact: true })).toBeVisible()
 })
 
 test('offers Tailscale directly in Add Host and selecting or refreshing does not submit the form', async ({
@@ -188,6 +193,8 @@ test('offers Tailscale directly in Add Host and selecting or refreshing does not
   ).toBeVisible()
   await page.getByRole('button', { name: 'Tailscale', exact: true }).click()
   const picker = page.getByRole('region', { name: 'Tailscale devices' })
+  await picker.getByRole('button', { name: 'Refresh', exact: true }).click()
+  expect(await page.evaluate(() => window.api.host.list())).toEqual([])
   await picker.getByRole('button', { name: /meshbox.*Tailscale SSH/ }).click()
   await expect(page.getByLabel('Host', { exact: true })).toHaveValue(
     '100.64.0.8'
@@ -195,11 +202,20 @@ test('offers Tailscale directly in Add Host and selecting or refreshing does not
   await expect(page.getByLabel('Username', { exact: true })).toHaveValue(
     'alice'
   )
+  await page.getByRole('button', { name: 'Back', exact: true }).click()
   await picker.getByRole('button', { name: 'Refresh', exact: true }).click()
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await expect(page.getByLabel('Host', { exact: true })).toHaveValue(
+    '100.64.0.8'
+  )
   await expect(
-    page.getByRole('heading', { name: 'Add Host', exact: true })
+    page.getByRole('heading', { name: 'Connect a machine', exact: true })
   ).toBeVisible()
   expect(await page.evaluate(() => window.api.host.list())).toEqual([])
+  await page.getByRole('button', { name: 'Continue', exact: true }).click()
+  await page
+    .getByRole('checkbox', { name: 'Save without connecting for now' })
+    .check()
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(
     page.getByText('alice@100.64.0.8:22', { exact: true })

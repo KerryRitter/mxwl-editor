@@ -2,6 +2,7 @@ import { useEffect, useState, type FC, type ReactNode } from 'react'
 import {
   Bot,
   Bug,
+  Loader2,
   Maximize2,
   Minimize2,
   ScrollText,
@@ -97,6 +98,9 @@ export const BottomTabs: FC<BottomTabsProps> = ({
           onClick={() => setTab('terminal')}
         >
           <TerminalSquare size={12} /> Terminal
+          {sessions.some((session) => session.busy) && (
+            <Loader2 size={11} className="animate-spin text-sky-400" aria-label="Terminal working" />
+          )}
         </TabBtn>
         {hasServices && (
           <TabBtn active={active === 'logs'} onClick={() => setTab('logs')}>

@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 
 type ModalProps = {
@@ -8,10 +8,18 @@ type ModalProps = {
   width?: number
 }
 
-export function Modal({ title, onClose, children, width = 520 }: ModalProps): JSX.Element {
+export function Modal({
+  title,
+  onClose,
+  children,
+  width = 520
+}: ModalProps): JSX.Element {
+  const overlay = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
+        const modals = document.querySelectorAll('[data-mxwl-modal]')
+        if (modals[modals.length - 1] !== overlay.current) return
         e.preventDefault()
         e.stopPropagation()
         onClose()
@@ -23,10 +31,15 @@ export function Modal({ title, onClose, children, width = 520 }: ModalProps): JS
 
   return (
     <div
+      ref={overlay}
+      data-mxwl-modal
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         style={{ width }}
         className="max-h-[85vh] overflow-auto rounded-xl border border-neutral-800 bg-neutral-900 p-5 shadow-2xl"
         onClick={(e) => e.stopPropagation()}

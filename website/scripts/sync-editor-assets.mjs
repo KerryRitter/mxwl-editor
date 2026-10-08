@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
-const editor = resolve(process.argv[2] ?? resolve(root, '..'));
+const editor = resolve(process.argv[2] ?? resolve(root, '../mxwl-editor'));
 const imageDir = resolve(root, 'public/images');
 mkdirSync(imageDir, { recursive: true });
 const copies = {

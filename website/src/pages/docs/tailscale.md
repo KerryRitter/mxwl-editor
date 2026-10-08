@@ -47,11 +47,11 @@ Then connect in mxwl. Check-mode approval can expire according to your policy.
 ## Discover and add a machine
 
 1. Open **Projects**, select your project, and choose **Add host**.
-2. Click **New** beside **Machine connection**, then select **Tailscale**.
+2. Choose **Connect a new machine**, then select **Tailscale**.
 3. Choose a device. Search by its name, DNS name, mesh address, or tag.
 4. Confirm the **Username**. The suggestion comes from your local computer; it may differ from the username on the remote machine.
-5. Save the machine connection, select it for the project host, and set the remote checkout and workspaces paths.
-6. Save the project host, open **Workspaces**, and open the folder where you want to work.
+5. Continue to **Test & save** and test the connection. If the device is offline, choose **Save without connecting for now**. Saving takes you directly to the project host's folder setup.
+6. Set the remote checkout and workspaces paths, review, and save the project host. Use **Open checkout** or **Other workspaces** from the overview to start working.
 
 You can also open **Manage connections → Discover Tailscale** to create a reusable machine connection before assigning it to a project.
 

@@ -10,7 +10,7 @@ export function createMainWindow(options: { startHidden?: boolean } = {}): Brows
     minWidth: 1000,
     minHeight: 600,
     show: false,
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     title: 'mxwl',
     icon: appIconPath(),
     backgroundColor: brand.background,
@@ -64,6 +64,9 @@ export function createMainWindow(options: { startHidden?: boolean } = {}): Brows
       }
     ])
   )
+
+  // Keep menu accelerators available without letting Alt reveal the menu bar.
+  if (process.platform !== 'darwin') win.setMenuBarVisibility(false)
 
   win.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown') return

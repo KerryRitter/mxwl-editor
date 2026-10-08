@@ -3,12 +3,21 @@ import { expect, test, useLocalHost, setAiSettings } from './fixtures'
 const BRIEF =
   'in ~/Workspaces/myapp, run /agent:init-branch for both branches, theb run the qa checks for PLAT-5583 and PLAT-5577'
 
-test('the modal plans the operator brief end to end', async ({ page, workRoot }) => {
+test('the modal plans the operator brief end to end', async ({
+  page,
+  workRoot
+}) => {
   await useLocalHost(page, workRoot)
-  await setAiSettings(page, { workspaceFolderTemplate: 'myapp-${key}', refinePrompts: false })
+  await setAiSettings(page, {
+    workspaceFolderTemplate: 'myapp-${key}',
+    refinePrompts: false
+  })
   // The hosts store is filled at startup, so pick the new host up before driving the UI.
   await page.reload()
   await page.waitForLoadState('domcontentloaded')
+  await expect(
+    page.getByRole('region', { name: 'Project Test project', exact: true })
+  ).toBeVisible()
 
   await page.keyboard.press('Control+Shift+A')
   const modal = page.getByText('Run AI tasks', { exact: true })
@@ -32,12 +41,24 @@ test('the modal plans the operator brief end to end', async ({ page, workRoot })
   await expect(page.getByRole('button', { name: /Run 2 tasks/ })).toBeEnabled()
 })
 
-test('the compiled plan scopes each prompt to its own ticket', async ({ page, workRoot }) => {
+test('the compiled plan scopes each prompt to its own ticket', async ({
+  page,
+  workRoot
+}) => {
   const hostId = await useLocalHost(page, workRoot)
   await setAiSettings(page, { workspaceFolderTemplate: 'myapp-${key}' })
 
   const plan = await page.evaluate(
-    async ([brief, host]) => window.api.ai.plan({ brief, hostId: host, locationId: (await window.api.project.locations()).find(l => l.hostId === host)!.id, cli: 'claude', refine: false }),
+    async ([brief, host]) =>
+      window.api.ai.plan({
+        brief,
+        hostId: host,
+        locationId: (await window.api.project.locations()).find(
+          (l) => l.hostId === host
+        )!.id,
+        cli: 'claude',
+        refine: false
+      }),
     [BRIEF, hostId] as const
   )
 

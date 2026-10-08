@@ -3,7 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
-import { Bot, Layers3, Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
+import { Bot, Layers3, Loader2, Pencil, Plus, RotateCw, Trash2 } from 'lucide-react'
 import type { TerminalInfo } from '../../../shared/types'
 import brand from '../../../shared/brand.json'
 
@@ -113,7 +113,16 @@ export function TerminalPane({
     })
     const fit = new FitAddon()
     term.loadAddon(fit)
-    term.loadAddon(new WebLinksAddon())
+    term.loadAddon(new WebLinksAddon((event, url) => {
+      event.preventDefault()
+      void window.api.browser.openLink(wsId, url)
+    }))
+    term.options.linkHandler = {
+      activate: (event, url) => {
+        event.preventDefault()
+        void window.api.browser.openLink(wsId, url)
+      }
+    }
     term.open(container)
     try {
       fit.fit()
@@ -363,6 +372,9 @@ export function TerminalPane({
                       : 'text-neutral-500 hover:text-neutral-300'
                   }`}
                 >
+                  {info?.busy && !deadIds.has(id) && (
+                    <Loader2 size={11} className="animate-spin text-sky-400" aria-label="Terminal working" />
+                  )}
                   {info?.aiTaskId && (
                     <Bot size={10} className="text-emerald-400" />
                   )}

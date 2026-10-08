@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { _electron as electron } from 'playwright';
 
-const projectRoot = resolve(import.meta.dirname, '../..');
+const projectRoot = resolve(import.meta.dirname, '../../mxwl-editor');
 const outputDir = resolve(import.meta.dirname, '../public/images');
 const workRoot = mkdtempSync(join(tmpdir(), 'mxwl-readme-work-'));
 const userData = mkdtempSync(join(tmpdir(), 'mxwl-readme-user-'));
@@ -149,6 +149,7 @@ try {
       NODE_ENV: 'production',
       MXWL_DISABLE_KEEP_ALIVE: '1',
       MXWL_CONTROL_PORT: '0',
+      MXWL_MCP_PORT: '0',
     },
   });
 
@@ -301,14 +302,7 @@ try {
   await waitForAgent(page, billing.id, (state) => Boolean(state?.permission));
   await waitForAgent(page, catalog.id, (state) => state?.turn === 'idle');
 
-  await page.getByRole('button', { name: 'Projects', exact: true }).click();
-  await page
-    .locator('section')
-    .filter({ has: page.getByRole('heading', { name: 'Catalog', exact: true }) })
-    .getByRole('button', { name: /Hosts ·/ })
-    .click();
-  await page.getByRole('button', { name: 'Workspaces', exact: true }).click();
-  await page.getByRole('button', { name: 'Catalog search', exact: true }).click();
+  await page.getByRole('button', { name: 'Open Catalog search on Studio workstation in Catalog', exact: true }).click();
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
   await page.keyboard.press('Control+Shift+3');
   await page.getByRole('button', { name: 'Agent notifications' }).click();
@@ -322,20 +316,14 @@ try {
   await page.keyboard.press('Escape');
 
   // Capture the editor itself using a disposable demo workspace.
-  await page.getByRole('button', { name: 'Projects', exact: true }).click();
-  await page
-    .locator('section')
-    .filter({ has: page.getByRole('heading', { name: 'Checkout', exact: true }) })
-    .getByRole('button', { name: /Hosts ·/ })
-    .click();
-  await page.getByRole('button', { name: 'Workspaces', exact: true }).waitFor({ state: 'visible' });
+  await page.getByRole('button', { name: 'Overview of Checkout', exact: true }).click();
+  await page.getByRole('region', { name: 'Project Checkout', exact: true }).waitFor({ state: 'visible' });
   await page.screenshot({
     path: join(outputDir, 'mxwl-project-hosts.png'),
     animations: 'disabled',
-    clip: { x: 0, y: 0, width: await page.evaluate(() => innerWidth), height: 320 },
+    clip: { x: 0, y: 0, width: await page.evaluate(() => innerWidth), height: 420 },
   });
-  await page.getByRole('button', { name: 'Workspaces', exact: true }).click();
-  await page.getByRole('button', { name: 'Checkout release', exact: true }).click();
+  await page.getByRole('button', { name: 'Open Checkout release on Studio workstation in Checkout', exact: true }).click();
   await page.getByRole('combobox', { name: 'Workspace layout preset' }).selectOption('balanced');
   await page.reload();
   await page.waitForLoadState('domcontentloaded');

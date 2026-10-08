@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { BrowserWindow, Rectangle, WebContentsView, session } from 'electron'
+import { BrowserWindow, Rectangle, WebContentsView, session, type CookiesSetDetails } from 'electron'
 import type { BrowserTab, TabGroup } from '../../shared/types'
 import {
   DEFAULT_GROUP_ID,
@@ -11,6 +11,9 @@ import {
 interface InternalTab extends BrowserTab {
   view: WebContentsView
   devtoolsOpen: boolean
+  targetId?: string
+  browserContextId?: string
+  targetPending?: Promise<{ tabId: string; targetId: string; browserContextId?: string }>
 }
 
 export interface BrowserSnapshot {
@@ -147,6 +150,10 @@ export class BrowserController {
     this.tabs.set(id, tab)
 
     const wc = view.webContents
+    wc.setWindowOpenHandler(({ url }) => {
+      if (/^https?:\/\//i.test(url)) this.newTab(url, group.id)
+      return { action: 'deny' }
+    })
     wc.on('did-start-loading', () => {
       tab.loading = true
       this.emit()
@@ -371,6 +378,79 @@ export class BrowserController {
         groupId: t.groupId
       }))
     }
+  }
+
+  /** Resolve CDP identities from the actual views, never by matching page URLs. */
+  async cdpTargets(): Promise<Array<{ tabId: string; targetId: string; browserContextId?: string }>> {
+    return Promise.all([...this.tabs.values()].map((tab) => {
+      if (tab.targetId) return Promise.resolve({ tabId: tab.id, targetId: tab.targetId, browserContextId: tab.browserContextId })
+      if (tab.targetPending) return tab.targetPending
+      tab.targetPending = (async () => {
+        const debuggerApi = tab.view.webContents.debugger
+        const attached = debuggerApi.isAttached()
+        try {
+          if (!attached) debuggerApi.attach('1.3')
+          const { targetInfo } = await debuggerApi.sendCommand('Target.getTargetInfo')
+          tab.targetId = targetInfo.targetId
+          tab.browserContextId = targetInfo.browserContextId
+          return { tabId: tab.id, targetId: targetInfo.targetId as string, browserContextId: targetInfo.browserContextId as string | undefined }
+        } finally {
+          tab.targetPending = undefined
+          if (!attached && debuggerApi.isAttached()) debuggerApi.detach()
+        }
+      })()
+      return tab.targetPending
+    }))
+  }
+
+  async evaluate(expression: string, tabId = this.ensureTab()): Promise<unknown> {
+    const tab = this.tabs.get(tabId)
+    if (!tab) throw new Error('browser tab not found')
+    return tab.view.webContents.executeJavaScript(expression, true)
+  }
+
+  async screenshot(tabId = this.ensureTab()): Promise<string> {
+    const tab = this.tabs.get(tabId)
+    if (!tab) throw new Error('browser tab not found')
+    return (await tab.view.webContents.capturePage()).toPNG().toString('base64')
+  }
+
+  /** Electron partitions are not Chromium-created incognito browser contexts. */
+  async cookies(action: 'get' | 'set' | 'clear', values: Array<Record<string, unknown>> = [], tabId = this.ensureTab()): Promise<unknown> {
+    const tab = this.tabs.get(tabId)
+    if (!tab) throw new Error('browser tab not found')
+    const sess = tab.view.webContents.session
+    if (action === 'get') {
+      const cookies = await sess.cookies.get({})
+      return { cookies: cookies.map((cookie) => ({
+        name: cookie.name, value: cookie.value, domain: cookie.domain, path: cookie.path,
+        expires: cookie.expirationDate ?? -1, session: cookie.session,
+        httpOnly: cookie.httpOnly, secure: cookie.secure,
+        size: cookie.name.length + cookie.value.length,
+        sameSite: cookie.sameSite === 'strict' ? 'Strict' : cookie.sameSite === 'no_restriction' ? 'None' : 'Lax',
+        priority: 'Medium', sameParty: false,
+        sourceScheme: cookie.secure ? 'Secure' : 'NonSecure'
+      })) }
+    }
+    if (action === 'clear') {
+      await sess.clearStorageData({ storages: ['cookies'] })
+      return {}
+    }
+    for (const cookie of values) {
+      const domain = String(cookie.domain || '')
+      const path = String(cookie.path || '/')
+      const details: CookiesSetDetails = {
+        url: String(cookie.url || `${cookie.secure ? 'https' : 'http'}://${domain.replace(/^\./, '')}${path}`),
+        name: String(cookie.name), value: String(cookie.value), path,
+        ...(domain ? { domain } : {}),
+        ...(cookie.secure !== undefined ? { secure: Boolean(cookie.secure) } : {}),
+        ...(cookie.httpOnly !== undefined ? { httpOnly: Boolean(cookie.httpOnly) } : {}),
+        ...(typeof cookie.expires === 'number' && cookie.expires >= 0 ? { expirationDate: cookie.expires } : {}),
+        ...(cookie.sameSite ? { sameSite: String(cookie.sameSite).toLowerCase() === 'none' ? 'no_restriction' : String(cookie.sameSite).toLowerCase() as 'lax' | 'strict' } : {})
+      }
+      await sess.cookies.set(details)
+    }
+    return {}
   }
 
   private attachDevtoolsToActive(): void {

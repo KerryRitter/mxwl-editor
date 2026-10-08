@@ -154,6 +154,6 @@ export const TailscalePicker: FC<{
       </section>
   )
   return embedded ? content : (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">{content}</div>
+    <div data-mxwl-modal className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">{content}</div>
   )
 }

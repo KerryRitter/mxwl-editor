@@ -6,6 +6,8 @@ export { WorkspaceManager, SshConnection } from './WorkspaceManager'
 export { deriveFromFolder } from './derive'
 
 export function registerWorkspaceIpc(manager: WorkspaceManager): void {
+  ipcMain.handle('browser:openLink', (_e: IpcMainInvokeEvent, payload: { wsId: string; url: string }) =>
+    manager.browserOpenLink(payload.wsId, payload.url))
   ipcMain.handle('workspace:list', (): WorkspaceState[] => manager.list())
   ipcMain.handle(
     'workspace:discover',

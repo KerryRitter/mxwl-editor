@@ -241,6 +241,8 @@ export type OpenFile = {
 export type TerminalInfo = {
   id: string
   label: string
+  /** Live CLI progress, tracked even while its pane is hidden. */
+  busy?: boolean
   /** Set when the session was spawned by an AI run rather than by the user. */
   aiTaskId?: string
   /** A named tmux session whose processes survive app and SSH restarts. */
@@ -395,6 +397,8 @@ export type McpStatus = {
   enabled: boolean
   cdpUrl: string
   mcpUrl: string
+  config?: string
+  workspaceId?: string
   error?: string
 }
 
