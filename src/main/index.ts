@@ -12,6 +12,7 @@ import { registerIpc } from './ipc'
 import { createMainWindow } from './window'
 import { HostStore, HostManager, registerHostIpc } from './hosts'
 import { ProjectManager, registerProjectIpc } from './projects'
+import { registerProjectTransferIpc } from './projects/transferIpc'
 import { WorkspaceManager, registerWorkspaceIpc } from './workspace'
 import { SettingsStore } from './persistence/SettingsStore'
 import { SessionStore } from './persistence/SessionStore'
@@ -221,6 +222,7 @@ async function bootstrap(): Promise<void> {
   )
   registerWorkspaceIpc(workspaceManager)
   registerProjectIpc(projects, workspaceManager)
+  registerProjectTransferIpc(projects, hostManager)
   registerHostIpc(hostManager, id => !projects.listLocations().some(l => l.hostId === id) && !workspaceManager!.list().some(w => w.hostId === id))
   registerIntegrationsIpc(settingsStore, workspaceManager)
 

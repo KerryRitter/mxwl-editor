@@ -38,6 +38,7 @@ import type {
 } from '../shared/github'
 import type { PluginCatalogEntry, PluginHostMethod } from '../shared/plugins'
 import type { TailscaleDiscovery } from '../shared/tailscale'
+import type { ProjectSettingsBundle, ProjectSettingsImport } from '../shared/projectTransfer'
 
 const api = {
   ping: (): Promise<{ pong: boolean; ts: number }> =>
@@ -69,6 +70,12 @@ const api = {
       ipcRenderer.invoke('host:ensureLocal')
   },
   project: {
+    exportSettings: (projectIds: string[]): Promise<string | null> =>
+      ipcRenderer.invoke('project:exportSettings', projectIds),
+    readSettingsImport: (): Promise<{ filename: string; bundle: ProjectSettingsBundle } | null> =>
+      ipcRenderer.invoke('project:readSettingsImport'),
+    importSettings: (bundle: ProjectSettingsBundle, projectIds: string[]): Promise<ProjectSettingsImport> =>
+      ipcRenderer.invoke('project:importSettings', bundle, projectIds),
     list: (): Promise<ProjectConfig[]> => ipcRenderer.invoke('project:list'),
     locations: (): Promise<ProjectLocation[]> =>
       ipcRenderer.invoke('project:locations'),

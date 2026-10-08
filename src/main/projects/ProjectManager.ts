@@ -235,6 +235,33 @@ export class ProjectManager {
       settings: resolveProjectSettings(project, location)
     }
   }
+  /** Append a fully validated sharing bundle in one project-store write. */
+  addImported(projects: ProjectConfig[], locations: ProjectLocation[]): void {
+    this.load()
+    const beforeProjects = structuredClone(this.projects)
+    const beforeLocations = structuredClone(this.locations)
+    if (
+      projects.some((p) => this.projects.some((old) => old.id === p.id)) ||
+      locations.some((l) => this.locations.some((old) => old.id === l.id))
+    )
+      throw new Error('Imported settings must have new IDs')
+    if (
+      locations.some(
+        (l) => !projects.some((p) => p.id === l.projectId) || !this.hostExists(l.hostId)
+      )
+    )
+      throw new Error('Imported checkout refers to an unavailable project or host')
+    try {
+      this.projects.push(...projects)
+      this.locations.push(...locations)
+      this.ensureLocalLocations()
+      this.persist()
+    } catch (error) {
+      this.projects = beforeProjects
+      this.locations = beforeLocations
+      throw error
+    }
+  }
   delete(id: string): void {
     this.load()
     this.projects = this.projects.filter((p) => p.id !== id)

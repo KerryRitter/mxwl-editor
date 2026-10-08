@@ -41,6 +41,7 @@ import type {
 import type { GitHubAccountInput, GitHubConnectionResult } from '../../shared/github'
 import type { PluginCatalogEntry, PluginHostMethod } from '../../shared/plugins'
 import type { TailscaleDiscovery } from '../../shared/tailscale'
+import type { ProjectSettingsBundle, ProjectSettingsImport } from '../../shared/projectTransfer'
 
 declare global {
   interface Window {
@@ -60,6 +61,9 @@ declare global {
         ensureLocal: () => Promise<HostConfig>
       }
       project: {
+        exportSettings: (projectIds: string[]) => Promise<string | null>
+        readSettingsImport: () => Promise<{ filename: string; bundle: ProjectSettingsBundle } | null>
+        importSettings: (bundle: ProjectSettingsBundle, projectIds: string[]) => Promise<ProjectSettingsImport>
         list: () => Promise<ProjectConfig[]>
         locations: () => Promise<ProjectLocation[]>
         save: (input: ProjectInput) => Promise<ProjectConfig>

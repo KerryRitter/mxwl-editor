@@ -7,6 +7,9 @@ source: "CHANGELOG.md"
 
 ## Unreleased
 
+### Added
+- Project and host settings export/import with project selection, import previews, connection reuse, and credential omission
+
 ## 0.2.0-alpha.6 — 2026-10-08
 
 ### Added

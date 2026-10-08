@@ -89,6 +89,33 @@ array deliberately disables services for that host checkout. Editing shared sett
 only workspaces of that project; startup commands never run again merely because settings
 changed. Close workspaces before changing a checkout's host/project/app directory.
 
+## Share projects and hosts
+
+Open **Projects → Share settings** to export one or more projects to a
+`.mxwl.json` file. Opening Share settings from a project overview selects that
+project. The file includes its attached machine connections, checkout paths,
+browser-profile definitions, services, integrations, AI templates, and plugin
+visibility. Connections shared by several selected projects appear once.
+
+To use a shared setup, choose **Import → Choose settings file**, review the
+projects and checkout paths, select the projects you want, then **Import**.
+Import creates new project copies; matching names receive an `(imported)` suffix.
+Matching machine connections are reused without changing existing credentials.
+**This machine** maps to the receiving computer, and project, checkout, and browser
+profile IDs are regenerated so the copies keep their own sessions.
+
+SSH passwords, key passphrases, private key contents, and test-login passwords are
+excluded. Global account tokens, plugin installations and permission grants,
+browser cookies, conversations, and open workspace state are not exported.
+SSH key paths and authentication methods remain in the file; configure credentials
+and adjust checkout/worktree paths for the receiving machine after importing.
+URLs and shell commands are included as configured, so review any credentials
+you may have written directly into those values before sharing.
+
+Imports validate the complete versioned file and its project/host/profile links
+before saving. Invalid files do not replace existing configuration. Files are
+limited to 10 MB; importing does not connect to hosts or run project commands.
+
 ## Browser profiles and secrets
 
 Use profiles such as **Local QA**, **Staging**, and **Admin**. Choose a profile when

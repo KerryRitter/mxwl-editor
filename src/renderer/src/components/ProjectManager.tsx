@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type ReactNode } from 'react'
-import { FolderGit2, Monitor, Pencil, Plus, Server, Trash2 } from 'lucide-react'
+import { FolderGit2, Monitor, Pencil, Plus, Server, Share2, Trash2 } from 'lucide-react'
 import type {
   ProjectConfig,
   ProjectInput,
@@ -17,6 +17,7 @@ import { ConnectionEditor, HostManager } from './HostManager'
 import { useProjectNavigation } from '../store/projectNavigation'
 import { Modal } from './Modal'
 import { SetupSteps } from './SetupSteps'
+import { ProjectTransferDialog } from './ProjectTransferDialog'
 
 const inputClass =
   'w-full rounded-md border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-xs text-neutral-100 focus:border-emerald-500 focus:outline-none'
@@ -88,6 +89,7 @@ export function ProjectManager() {
     useProjectNavigation()
   const selectedProject = projects.find((p) => p.id === projectId)
   const [connectionsOpen, setConnectionsOpen] = useState(false)
+  const [sharingOpen, setSharingOpen] = useState(false)
   const [connectionEditor, setConnectionEditor] = useState<
     (typeof hosts)[number] | null
   >(null)
@@ -173,6 +175,9 @@ export function ProjectManager() {
           onClick={() => setConnectionsOpen(true)}
         >
           Manage connections
+        </button>
+        <button className={buttonClass} onClick={() => setSharingOpen(true)}>
+          <Share2 size={12} className="mr-1.5 inline" /> Share settings
         </button>
         <button
           className={primaryClass}
@@ -434,6 +439,9 @@ export function ProjectManager() {
             select(saved.id)
           }}
         />
+      )}
+      {sharingOpen && (
+        <ProjectTransferDialog projectId={projectId} onClose={() => setSharingOpen(false)} />
       )}
       {locationEditor && (
         <LocationEditor
